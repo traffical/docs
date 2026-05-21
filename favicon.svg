@@ -1,5 +1,40 @@
-<svg width="32" height="32" viewBox="104 194 404 404" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M305,194 L457,299 L457,424 L307,320 L155,424 L155,297 L305,194z" fill="#1E6EFB"/>
-  <path d="M327,383 L457,473 L457,598 L325,507z" fill="#1E6EFB"/>
-  <path d="M286,381 L155,471 L155,598 L286,508z" fill="#1E6EFB"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Ebene_11" data-name="Ebene 11" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 377.4 416.58">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: url(#Unbenannter_Verlauf_456);
+      }
+
+      .cls-2 {
+        fill: url(#Unbenannter_Verlauf_467);
+      }
+
+      .cls-3 {
+        fill: url(#Unbenannter_Verlauf_445);
+      }
+    </style>
+    <radialGradient id="Unbenannter_Verlauf_445" data-name="Unbenannter Verlauf 445" cx="187.22" cy="11.33" fx="187.22" fy="11.33" r="266.96" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4788ff"/>
+      <stop offset=".46" stop-color="#1f6fff"/>
+      <stop offset=".66" stop-color="#1767f7"/>
+      <stop offset=".97" stop-color="#0251e2"/>
+      <stop offset="1" stop-color="#004fe0"/>
+    </radialGradient>
+    <linearGradient id="Unbenannter_Verlauf_456" data-name="Unbenannter Verlauf 456" x1="291.77" y1="182.91" x2="291.77" y2="414.66" gradientUnits="userSpaceOnUse">
+      <stop offset=".54" stop-color="#1f6fff"/>
+      <stop offset=".7" stop-color="#1969f9"/>
+      <stop offset=".91" stop-color="#0958e9"/>
+      <stop offset="1" stop-color="#004fe0"/>
+    </linearGradient>
+    <linearGradient id="Unbenannter_Verlauf_467" data-name="Unbenannter Verlauf 467" x1="87" y1="416.53" x2="87" y2="182.87" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#004fe0"/>
+      <stop offset=".1" stop-color="#0958e9"/>
+      <stop offset=".33" stop-color="#1969f9"/>
+      <stop offset=".5" stop-color="#1f6fff"/>
+    </linearGradient>
+  </defs>
+  <path class="cls-3" d="M375.34,128.73l-97.03-67.02h0S190.19.83,190.19.83c-1.6-1.11-3.72-1.11-5.33,0L2.18,126.27c-1.28.88-2.04,2.32-2.04,3.87v113.11c0,3.77,4.23,6.01,7.35,3.87l113.64-77.75h0s66.35-45.43,66.35-45.43c1.52-1.04,3.53-1.04,5.05.01l177.41,123c3.15,2.19,7.46-.07,7.46-3.91v-110.41c0-1.56-.77-3.02-2.05-3.91Z"/>
+  <path class="cls-1" d="M206.13,187.63v110.1c0,1.55.76,2.99,2.03,3.87l161.84,112.21c3.13,2.17,7.4-.07,7.4-3.87v-110.51c0-1.55-.76-3-2.03-3.88l-161.84-111.79c-3.13-2.16-7.39.08-7.39,3.88Z"/>
+  <path class="cls-2" d="M165.27,183.7L3.4,294.85c-1.28.88-2.04,2.33-2.04,3.87v113.1c0,3.78,4.23,6.01,7.35,3.88l161.86-110.75c1.28-.88,2.05-2.33,2.05-3.88v-113.49c0-3.78-4.24-6.02-7.36-3.87Z"/>
 </svg>
