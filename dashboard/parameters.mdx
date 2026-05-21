@@ -1,0 +1,75 @@
+---
+title: "Parameters in the dashboard"
+description: "The parameters list, parameter detail page, layer assignment, sync status, and dashboard-only vs synced parameters."
+---
+
+The **Parameters** page lists every parameter in the project. Use it to inspect what exists, where it's used, and how it's currently being overridden.
+
+<Frame caption="Parameters list">
+  <img src="/images/placeholders/parameters-list.png" alt="Parameters list placeholder" />
+</Frame>
+
+## The list
+
+Each row shows:
+
+- **Key** — the dot-namespaced name (`checkout.button.color`)
+- **Type** — `string`, `number`, `boolean`, `json`
+- **Layer** — the layer this parameter belongs to
+- **Default** — the canonical default value
+- **Status** — `synced` (managed by CLI) or `dashboard-only`
+- **Active policies** — how many running policies are currently overriding this parameter
+
+Filter by layer, type, status, or name. The status filter is useful when you're cleaning up — `dashboard-only` parameters can be `import`ed into your repo via the CLI.
+
+## Synced vs dashboard-only
+
+Synced parameters are defined in `.traffical/config.yaml` and pushed via the CLI. Their definitions are read-only in the dashboard — the default, type, description, and constraints are managed in code. The dashboard lets you create policies on top of them but won't let you edit their definitions.
+
+Dashboard-only parameters are created in the UI. They're editable in both directions. To bring one into code, run `traffical import <key>` — the CLI pulls the definition into your `traffical.yaml` and marks it as synced going forward.
+
+## Parameter detail
+
+Clicking a parameter opens the detail page.
+
+<Frame caption="Parameter detail">
+  <img src="/images/placeholders/parameter-detail.png" alt="Parameter detail placeholder" />
+</Frame>
+
+You'll see:
+
+- The full definition (key, type, default, constraints, description)
+- The layer it belongs to
+- A history of value changes
+- All policies that override this parameter, with their current state and allocations
+- Recent exposure volume per allocation (if there are any active policies)
+
+If the parameter is dashboard-only, you can edit the default, change the description, add or update constraints, and move it to a different layer. If it's synced, you can do those things via `traffical.yaml` and `traffical push`.
+
+## Moving a parameter to a different layer
+
+Open the parameter detail page → **Move to layer** → pick the destination. Moving a parameter reshuffles its bucket assignments — users that were in `treatment` for an active experiment may move to `control` (or vice versa). Don't move parameters mid-experiment.
+
+## Archiving and deleting
+
+A synced parameter that gets removed from `traffical.yaml` stays in the platform unless you `traffical push --prune`, which archives it. Archived parameters don't appear in the default list — filter by `Archived` to see them.
+
+Dashboard-only parameters can be archived from the detail page. Archived parameters can be restored within 30 days; after that they're permanently deleted.
+
+## The base layer
+
+Every project has a base layer that holds parameters not assigned to any other layer. New CLI-pushed parameters land here by default. The base layer can't be deleted.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Layers & policies" icon="layer-group" href="/dashboard/layers-and-policies">
+    Where you actually configure experiments.
+  </Card>
+  <Card title="Parameters concept" icon="sliders" href="/concepts/parameters">
+    Types, defaults, namespaces, constraints.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/tools/cli">
+    Manage parameters as code.
+  </Card>
+</CardGroup>

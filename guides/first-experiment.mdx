@@ -1,0 +1,227 @@
+---
+title: "Your first experiment, end-to-end"
+description: "From an empty repo to a running A/B test in twenty minutes — CLI init, parameter definition, dashboard policy, SDK code, reading results."
+---
+
+This walks you all the way through running your first experiment. By the end you'll have a parameter defined in code, a static A/B policy running in the dashboard, an SDK reading the parameter, track events flowing in, and a results dashboard you can read.
+
+We'll test a checkout button colour change against a Node.js backend. The same flow works for React, Svelte, mobile, etc. — only the SDK package changes.
+
+## What you'll need
+
+- A Traffical account with a project created in the [dashboard](https://app.traffical.io)
+- A Node.js 18+ project to drop code into (or you can start fresh)
+- About twenty minutes
+
+## 1. Install the CLI
+
+```bash
+npm install -g @traffical/cli
+# or use it directly without installing
+bunx @traffical/cli init
+```
+
+## 2. Initialize the project
+
+From the root of your repo:
+
+```bash
+traffical init
+```
+
+This:
+
+- Detects your framework (Express, Next.js, Svelte, etc.)
+- Creates a `.traffical/config.yaml`
+- Creates a public SDK key in the dashboard
+- Writes an example file showing how to call the SDK in your framework
+
+When prompted, paste a server API key (`sk_...`) from the dashboard's **Settings → API keys**. The CLI uses this to talk to Traffical; it stays on your machine.
+
+You'll end up with something like:
+
+```yaml
+# .traffical/config.yaml
+version: "1.0"
+
+project:
+  id: proj_marketplace
+  orgId: org_acme
+
+parameters:
+  example_enabled:
+    type: boolean
+    default: false
+```
+
+## 3. Define the parameter you want to test
+
+Open `.traffical/config.yaml` and add the parameter we'll experiment on:
+
+```yaml
+namespaces:
+  checkout:
+    parameters:
+      button.color:
+        type: string
+        default: "#1E6EFB"
+        description: Primary checkout button color
+```
+
+Then push to Traffical:
+
+```bash
+traffical push
+```
+
+The parameter now exists in the dashboard, marked as **synced** (managed by the CLI). Its default is `#1E6EFB`.
+
+## 4. Add an event definition for the goal metric
+
+We need a way to measure success. Add a `purchase` event:
+
+```yaml
+events:
+  purchase:
+    valueType: currency
+    unit: USD
+    description: User completed a purchase
+```
+
+Push again:
+
+```bash
+traffical push
+```
+
+You'll see in the dashboard that both the parameter and the event are now tracked.
+
+## 5. Wire the SDK into your code
+
+Install the Node SDK:
+
+```bash
+npm install @traffical/node
+```
+
+Initialize the client and resolve the parameter wherever you render the button:
+
+```typescript
+import { createTrafficalClient } from "@traffical/node";
+
+const traffical = await createTrafficalClient({
+  orgId: "org_acme",
+  projectId: "proj_marketplace",
+  env: "production",
+  apiKey: process.env.TRAFFICAL_API_KEY!,
+});
+
+function renderCheckout(userId: string) {
+  const params = traffical.getParams({
+    context: { userId },
+    defaults: { "checkout.button.color": "#1E6EFB" },
+  });
+
+  return `<button style="background: ${params["checkout.button.color"]}">Buy now</button>`;
+}
+```
+
+Run your app. At this point the SDK is resolving the parameter — every user gets the default `#1E6EFB` because no policy is overriding it yet. That's fine; we're confirming the wire-up works.
+
+## 6. Track the goal event
+
+Wherever your code knows a purchase happened, fire a track event:
+
+```typescript
+traffical.track("purchase", {
+  unitKey: userId,
+  properties: { order_total: orderTotal, currency: "USD" },
+});
+```
+
+The SDK batches events in the background. Run a few purchases (real or test). Within a minute or so you should see them showing up in the dashboard's **Events** tab.
+
+## 7. Create the experiment policy
+
+Now the fun part. In the dashboard:
+
+1. Open **Layers** and pick the base layer (created automatically). Or create a new layer if you want this experiment in its own pool.
+2. Click **New policy**.
+3. Configure it:
+   - **Kind**: Static
+   - **State**: Draft (we'll flip it to Running in a moment)
+   - **Allocations**:
+     - `control` — bucket range `0–4999` — leave `checkout.button.color` unset (it'll use the parameter default)
+     - `treatment` — bucket range `5000–9999` — `checkout.button.color: "#22C55E"` (a green)
+4. Save.
+5. Set the state to **Running**.
+
+That's a 50/50 split. Half your users will see the original blue button; half will see green.
+
+<Note>
+The bucket count for your project is typically 10000. If yours is different (you can check in **Settings → Hashing**), adjust the allocation ranges proportionally.
+</Note>
+
+## 8. Watch it work
+
+Within 60 seconds the SDK will refresh its bundle and pick up the new policy. From this point on, `getParams` returns one of the two colours depending on the user's bucket.
+
+To verify locally without waiting:
+
+- Pass different `userId` values to `getParams` and you'll see the two colours alternate.
+- Open the [DevTools bookmarklet](/tools/devtools) on a page running the SDK to see the current assignment for the current user.
+
+## 9. Configure the goal metric
+
+For the dashboard to show results, you need to tell it which event to measure and how:
+
+1. In the dashboard, open your policy.
+2. Click **Add goal metric**.
+3. Pick the `purchase` event.
+4. Aggregation: **conversion rate** (we want to know which colour produces more purchases per exposed user).
+
+The dashboard will start computing per-allocation conversion rates as exposures and events flow in.
+
+## 10. Read the results
+
+After enough traffic accumulates, the policy detail page will show:
+
+- Exposures per allocation
+- Conversion rate per allocation (purchases / exposed users)
+- Confidence interval on each
+- A significance indicator when the result becomes statistically meaningful
+
+"Enough traffic" depends on your baseline conversion rate and the size of the effect you're trying to detect — see [Experiment design](/guides/experiment-design#size-your-experiment) for sizing.
+
+## 11. Decide and ship
+
+When you have a winner:
+
+1. **Update the parameter default.** In the dashboard or in `traffical.yaml`, set `checkout.button.color` to the winning value. Push.
+2. **Complete the policy.** In the dashboard, mark the policy `completed`. It stops being evaluated.
+3. **Done.** Every user now gets the winning value via the new default. Your application code doesn't change.
+
+## What's next
+
+You've now seen the whole loop. From here:
+
+- **Add more variants.** A static policy can have any number of allocations.
+- **Promote to a rollout.** Instead of flipping straight to the new default, attach a [rollout](/experimentation/rollouts) that ramps the winner gradually with health checks.
+- **Try adaptive.** Replace the static policy with an [adaptive one](/experimentation/optimization) — the engine will shift traffic toward the winner automatically.
+- **Layer experiments.** Run a second experiment on a different parameter at the same time. Put it in a different [layer](/concepts/layers) and they won't contaminate each other.
+- **Type your events.** Generate TypeScript types for your event definitions so the compiler catches bad track calls. See [Type-safe events](/guides/type-safe-events).
+
+## Common stumbles
+
+- **"Bundle not loading"** — check your `apiKey` is for the right project and environment, and that you await `createTrafficalClient`.
+- **"All users in one allocation"** — confirm the `userId` field actually varies. A common bug is passing a hardcoded string in early testing.
+- **"Events not appearing"** — track events batch by default. Either wait ~30s or call `await traffical.flushEvents()` in tests.
+- **"Bucket count looks wrong"** — verify your project's bucket count in **Settings**. Defaults to 10000.
+
+## Reference
+
+- [Quickstart](/quickstart) — the bare minimum to integrate
+- [CLI](/tools/cli) — all commands and flags
+- [Policies](/concepts/policies) — kinds, states, allocations
+- [Experiment design](/guides/experiment-design) — hypothesis, metrics, sizing
+- [Canonical experiments](/guides/canonical-experiments) — patterns for other shapes

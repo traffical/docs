@@ -1,0 +1,177 @@
+---
+title: "Svelte SDK"
+description: "Svelte 5 runes and SvelteKit integration for parameter resolution, event tracking, and SSR hydration."
+---
+
+`@traffical/svelte` integrates Traffical with Svelte's runes and SvelteKit's data-loading system. It wraps `@traffical/js-client`, so everything the browser client supports works here too.
+
+Requires Svelte 5 (uses runes).
+
+## Installation
+
+<CodeGroup>
+  ```bash npm
+  npm install @traffical/svelte
+  ```
+
+  ```bash pnpm
+  pnpm add @traffical/svelte
+  ```
+
+  ```bash yarn
+  yarn add @traffical/svelte
+  ```
+</CodeGroup>
+
+## Setup
+
+Wrap your app with `TrafficalProvider` in a root layout:
+
+```svelte
+<!-- src/routes/+layout.svelte -->
+<script lang="ts">
+  import { TrafficalProvider } from "@traffical/svelte";
+
+  let { children } = $props();
+</script>
+
+<TrafficalProvider config={{
+  orgId: "org_acme",
+  projectId: "proj_marketplace",
+  env: "production",
+  apiKey: import.meta.env.PUBLIC_TRAFFICAL_API_KEY,
+}}>
+  {@render children()}
+</TrafficalProvider>
+```
+
+Use a **public API key** (`pk_...`) in browser code.
+
+## Resolving parameters
+
+Use `useTraffical` in any component:
+
+```svelte
+<script lang="ts">
+  import { useTraffical } from "@traffical/svelte";
+
+  const { params, track } = useTraffical({
+    defaults: {
+      "checkout.button.color": "#1E6EFB",
+      "checkout.button.label": "Buy now",
+    },
+  });
+</script>
+
+<button
+  style:background-color={params["checkout.button.color"]}
+  onclick={() => track("cta_click")}
+>
+  {params["checkout.button.label"]}
+</button>
+```
+
+`params` is reactive via runes — Svelte automatically re-renders when the bundle refreshes or context changes.
+
+## Setting context
+
+Pass context through the provider:
+
+```svelte
+<script lang="ts">
+  import { TrafficalProvider } from "@traffical/svelte";
+  import { page } from "$app/state";
+
+  let { children } = $props();
+
+  let context = $derived({
+    userId: page.data.user?.id ?? "anonymous",
+    locale: navigator.language,
+  });
+</script>
+
+<TrafficalProvider
+  config={{
+    orgId: "org_acme",
+    projectId: "proj_marketplace",
+    env: "production",
+    apiKey: import.meta.env.PUBLIC_TRAFFICAL_API_KEY,
+  }}
+  {context}
+>
+  {@render children()}
+</TrafficalProvider>
+```
+
+## SvelteKit SSR
+
+Fetch the bundle in a server `load` function and pass it through to the client to avoid a second fetch:
+
+```typescript
+// src/routes/+layout.server.ts
+import { loadTrafficalBundle } from "@traffical/svelte/sveltekit";
+import { TRAFFICAL_API_KEY } from "$env/static/private";
+
+export async function load({ fetch }) {
+  const { bundle } = await loadTrafficalBundle({
+    orgId: "org_acme",
+    projectId: "proj_marketplace",
+    env: "production",
+    apiKey: TRAFFICAL_API_KEY,
+    fetch,    // SvelteKit's fetch for proper caching
+  });
+
+  return { traffical: { bundle } };
+}
+```
+
+```svelte
+<!-- src/routes/+layout.svelte -->
+<script lang="ts">
+  import { TrafficalProvider } from "@traffical/svelte";
+  let { data, children } = $props();
+</script>
+
+<TrafficalProvider
+  config={{
+    orgId: "org_acme",
+    projectId: "proj_marketplace",
+    env: "production",
+    apiKey: import.meta.env.PUBLIC_TRAFFICAL_API_KEY,
+    localConfig: data.traffical.bundle,
+  }}
+>
+  {@render children()}
+</TrafficalProvider>
+```
+
+The server resolves with the bundle. The client picks up the same bundle via `localConfig` and hydrates without a second fetch. No flash of original content.
+
+See [SSR patterns](/sdks/ssr) for the full pattern, including per-page pre-resolution.
+
+## Anonymous users and `identify`
+
+The Svelte SDK uses the browser client's stable-ID handling. When the user logs in:
+
+```svelte
+<script lang="ts">
+  import { useTrafficalClient } from "@traffical/svelte";
+
+  const client = useTrafficalClient();
+
+  function login(user) {
+    client.identify(user.id);
+  }
+</script>
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="SSR patterns" icon="server" href="/sdks/ssr">
+    Avoiding FOOC with SvelteKit and Next.js.
+  </Card>
+  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+    Patterns for web UI and SSR tests.
+  </Card>
+</CardGroup>

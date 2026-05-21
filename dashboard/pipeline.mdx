@@ -1,0 +1,105 @@
+---
+title: "Pipeline in the dashboard"
+description: "Watch warehouse-native pipeline runs, inspect freshness, debug failures."
+---
+
+The **Pipeline** page is the operational view of warehouse-native metric computation. Use it to verify the pipeline is running, spot failures, and see how fresh your metrics are.
+
+If you're not using warehouse-native metrics, this page is mostly empty — Traffical-native event aggregation doesn't surface here.
+
+<Frame caption="Pipeline overview">
+  <img src="/images/placeholders/pipeline-overview.png" alt="Pipeline overview placeholder" />
+</Frame>
+
+## Runs
+
+The runs list shows recent pipeline executions, newest first.
+
+<Frame caption="Pipeline runs">
+  <img src="/images/placeholders/pipeline-runs.png" alt="Pipeline runs placeholder" />
+</Frame>
+
+Each row:
+
+- **Run ID** — opaque identifier, click to drill in
+- **Started / finished** — timestamps
+- **Status** — `running`, `succeeded`, `failed`, `partial`
+- **Definitions** — how many assignment / fact / metric definitions were touched
+- **Bytes scanned** — total cost (BigQuery especially)
+- **Duration** — wall-clock time
+
+A `partial` run means some definitions succeeded and others failed. The failures don't block the rest of the pipeline.
+
+## Run detail
+
+Click a run to see per-definition results.
+
+<Frame caption="Run detail">
+  <img src="/images/placeholders/run-detail.png" alt="Run detail placeholder" />
+</Frame>
+
+For each definition:
+
+- The SQL that was executed (with template variables already substituted)
+- Rows returned
+- Duration
+- Bytes scanned (where the warehouse reports it)
+- Any error with a stack-like trace
+
+Click the SQL to expand it; click again to copy. Useful when debugging a definition — paste the rendered SQL into your warehouse's own console to reproduce.
+
+## Freshness
+
+The **Freshness** page shows, per definition, how recent the latest computed data is.
+
+<Frame caption="Pipeline freshness">
+  <img src="/images/placeholders/freshness.png" alt="Freshness placeholder" />
+</Frame>
+
+For each definition:
+
+- **Last successful run** — when did this definition last complete?
+- **Lag** — gap between now and last success
+- **Next scheduled run** — when it'll run next
+- **Status** — `healthy`, `stale`, `failing`
+
+If you see a definition stuck in `stale` or `failing`, click through to recent runs to see why. Common causes: warehouse credential rotated, table renamed in a migration, schema column changed type.
+
+## Cost monitoring
+
+The runs list shows bytes scanned per run. For BigQuery, this maps directly to cost. For Snowflake, Databricks, and ClickHouse, query costs come from compute/warehouse uptime which is reported separately by the warehouse.
+
+If a particular definition is expensive:
+
+1. Click into a recent run.
+2. Look at the rendered SQL.
+3. Check whether it's scanning the partitioned column. If `WHERE event_time BETWEEN ...` isn't hitting a partition, the table needs partitioning (or the SQL needs to use the partition column).
+4. Consider sampling — for sanity-check metrics on very large tables, you can `TABLESAMPLE` or query a downsampled view.
+
+## Manual runs
+
+You can trigger a manual pipeline run from the **Runs** page. Useful for:
+
+- Re-running after fixing a broken definition
+- Pulling in late-arriving data after a backfill
+- Verifying a freshly-saved definition works against real data
+
+Manual runs respect the same schedule semantics — they don't break the regular cadence.
+
+## Schedules
+
+Each project has a default pipeline schedule (typically every 15 minutes for active definitions, less often for archived ones). Adjust in **Settings → Pipeline schedule** if you need different cadences.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Definitions" icon="database" href="/dashboard/definitions">
+    Where the SQL is authored.
+  </Card>
+  <Card title="Connectors" icon="plug" href="/connectors/overview">
+    Performance tuning per warehouse.
+  </Card>
+  <Card title="Metrics" icon="chart-line" href="/dashboard/metrics">
+    What the pipeline ultimately produces.
+  </Card>
+</CardGroup>

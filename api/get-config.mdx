@@ -1,0 +1,120 @@
+---
+title: "GET /v1/config/:projectId"
+description: "Fetch the pre-built config bundle for a project. Supports ETag caching for efficient polling."
+---
+
+Returns the config bundle for a project. The bundle contains all parameters, layers, policies, and allocations needed for local SDK resolution.
+
+## Request
+
+```
+GET /v1/config/:projectId
+```
+
+### Path parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `projectId` | `string` | Your Traffical project ID |
+
+### Headers
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `Authorization` | Yes | `Bearer sk_...` or `Bearer pk_...` |
+| `If-None-Match` | No | ETag from a previous response. Returns `304 Not Modified` if the bundle hasn't changed. |
+
+### Query parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `env` | `string` | `production` | Environment name |
+
+## Response
+
+### 200 OK
+
+Returns the config bundle as JSON.
+
+**Headers:**
+
+| Header | Description |
+|--------|-------------|
+| `ETag` | Version identifier for the bundle. Use with `If-None-Match` on subsequent requests. |
+| `Cache-Control` | `public, max-age=60, must-revalidate` |
+
+**Body:**
+
+```json
+{
+  "version": "2026-05-21T10:30:00Z",
+  "hashing": { "unitKey": "userId", "bucketCount": 10000 },
+  "parameters": [
+    { "key": "checkout.button.color",       "type": "string",  "default": "#1E6EFB" },
+    { "key": "checkout.show_trust_badges",  "type": "boolean", "default": false }
+  ],
+  "layers": [
+    {
+      "id": "layer_checkout",
+      "policies": [
+        {
+          "id": "policy_color_test",
+          "state": "running",
+          "kind": "static",
+          "allocations": [
+            {
+              "id": "alloc_a",
+              "name": "control",
+              "bucketRange": [0, 4999],
+              "overrides": { "checkout.button.color": "#1E6EFB" }
+            },
+            {
+              "id": "alloc_b",
+              "name": "treatment",
+              "bucketRange": [5000, 9999],
+              "overrides": { "checkout.button.color": "#22C55E" }
+            }
+          ],
+          "conditions": []
+        }
+      ]
+    }
+  ],
+  "eventDefinitions": [
+    { "name": "purchase", "valueType": "currency", "unit": "USD" }
+  ]
+}
+```
+
+### 304 Not Modified
+
+Returned when the `If-None-Match` header matches the current bundle version. No body is returned.
+
+### 401 Unauthorized
+
+```json
+{
+  "error": "Unauthorized",
+  "message": "Invalid or expired API key"
+}
+```
+
+### 404 Not found
+
+```json
+{
+  "error": "Not Found",
+  "message": "Bundle not found for project"
+}
+```
+
+## ETag caching
+
+The SDKs use ETag caching to poll for bundle updates efficiently:
+
+1. First request — No `If-None-Match` header. The edge returns the full bundle with an `ETag` header.
+2. Subsequent requests — Include `If-None-Match: <previous-etag>`. If the bundle hasn't changed, the edge returns `304 Not Modified` with no body.
+3. When the bundle changes — The ETag changes, and the edge returns the full updated bundle.
+
+This minimizes bandwidth when the bundle hasn't changed, which is the common case.
+

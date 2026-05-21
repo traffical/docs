@@ -1,0 +1,358 @@
+---
+title: "Type-safe events end-to-end"
+description: "Property schemas, property groups, generated TypeScript types, dev-mode warnings, and reject-on-violation enforcement."
+---
+
+Traffical events are typed end-to-end. You declare property schemas in `traffical.yaml`, the CLI generates TypeScript types from those schemas, the SDK type-checks your `track()` calls, the edge validates events on the way in, and the dashboard surfaces violations.
+
+The full chain is opt-in — you can ignore everything on this page and `track()` still works. But once you have a few events, types catch a lot of bugs before they hit production.
+
+## What you get
+
+- **Compile-time safety.** Bad event names, missing required properties, wrong property types — all become TypeScript errors at build time, before the code runs.
+- **Reuse via property groups.** A `geo` group with `market` / `country` / `currency` can be attached to many events. Edit the group once; every event using it inherits the changes.
+- **Edge validation.** The Traffical edge validates incoming events against the schema. In `warn` mode you get a `schemaWarnings` field in the response; in `reject` mode invalid events are dropped before reaching the pipeline.
+- **Dev-mode console warnings.** The SDK can surface violations to the console at development time so you see them while building, not after deploy.
+
+## 1. Declare schemas in `traffical.yaml`
+
+Event property schemas live alongside the event definition:
+
+```yaml
+events:
+  checkout_completed:
+    valueType: currency
+    unit: USD
+    description: User completes a purchase
+    schemaVersion: "1-0-0"
+    schemaEnforcement: warn      # off | warn | reject
+    propertyGroups:
+      - geo
+    properties:
+      order_id:
+        type: string
+        required: true
+        format: uuid
+        description: Unique order identifier
+      total:
+        type: number
+        required: true
+        minimum: 0
+        dimension: true
+      payment_method:
+        type: string
+        required: true
+        enum: [credit_card, paypal, apple_pay]
+        dimension: true
+      items:
+        type: array
+        items:
+          type: object
+          properties:
+            sku:      { type: string, required: true }
+            name:     { type: string }
+            price:    { type: number, minimum: 0 }
+            quantity: { type: integer, minimum: 1 }
+```
+
+### Property fields
+
+| Field | Description |
+|-------|-------------|
+| `type` | `string`, `number`, `integer`, `boolean`, `object`, `array` |
+| `required` | If true, the property must be present |
+| `description` | Free-form, shown in the dashboard |
+| `dimension` | Marks the property as a fact dimension (see [warehouse-native](/concepts/warehouse-native)) — usable for slicing metrics |
+| `enum` | List of allowed values (string/number) |
+| `pattern` | Regex (string types) |
+| `format` | Built-in formats: `uuid`, `email`, `uri`, `date-time` |
+| `minimum`, `maximum` | Numeric bounds |
+| `items` | Element schema for `array` types |
+| `properties` | Nested fields for `object` types |
+
+### Schema enforcement
+
+`schemaEnforcement` controls what happens when an event arrives that doesn't match its schema:
+
+| Value | Behaviour |
+|-------|-----------|
+| `off` | No validation. Events pass through. |
+| `warn` (default) | Validate; surface violations in the API response and dev-mode console; still accept the event into the pipeline. |
+| `reject` | Validate; drop invalid events. Their `decisionId` is unaffected (the user is still in their assignment), but the bad event never lands in metrics. |
+
+`warn` is the right default. Switch to `reject` only after you're confident in the schema — invalid events in `reject` mode disappear, which can hide bugs.
+
+## 2. Property groups for reuse
+
+If the same fields appear on many events, declare them once as a property group:
+
+```yaml
+propertyGroups:
+  geo:
+    description: Geographic context for commerce events
+    schemaVersion: "1-0-0"
+    properties:
+      market:
+        type: string
+        required: true
+        enum: [US, EU, APAC]
+        dimension: true
+      country:
+        type: string
+        dimension: true
+      currency:
+        type: string
+        pattern: "^[A-Z]{3}$"
+        dimension: true
+
+  product:
+    description: Product context
+    properties:
+      product_id:    { type: string, required: true, dimension: true }
+      product_name:  { type: string }
+      category:      { type: string, dimension: true }
+```
+
+Then reference them from events:
+
+```yaml
+events:
+  product_viewed:
+    valueType: count
+    propertyGroups: [product]
+    properties:
+      view_source: { type: string, enum: [search, recommendation, direct] }
+
+  add_to_cart:
+    valueType: count
+    propertyGroups: [product, geo]
+    properties:
+      quantity: { type: integer, minimum: 1 }
+```
+
+The CLI resolves groups locally, so `traffical generate-types` produces types that include the group's fields — no extra plumbing.
+
+## 3. Push and generate types
+
+```bash
+traffical push
+traffical generate-types
+```
+
+`push` syncs schemas and property groups to Traffical (creating, updating, or pruning). `generate-types` writes a `.traffical/traffical.generated.ts` file with:
+
+- A `TrafficalEventName` union of all your event names
+- A `TrafficalEventProperties` map from event name to its property type
+- Per-event interfaces (`CheckoutCompletedProperties`, etc.)
+- A `TypedTrack` function type
+
+A typical generated file:
+
+```typescript
+// Auto-generated — do not edit
+export type TrafficalEventName =
+  | "checkout_completed"
+  | "product_viewed"
+  | "add_to_cart";
+
+export interface CheckoutCompletedProperties {
+  order_id: string;
+  total: number;
+  payment_method: "credit_card" | "paypal" | "apple_pay";
+  items: Array<{
+    sku: string;
+    name?: string;
+    price?: number;
+    quantity?: number;
+  }>;
+  // From group `geo`
+  market: "US" | "EU" | "APAC";
+  country?: string;
+  currency?: string;
+}
+
+export interface ProductViewedProperties {
+  product_id: string;
+  product_name?: string;
+  category?: string;
+  view_source?: "search" | "recommendation" | "direct";
+}
+
+// …
+
+export interface TrafficalEventProperties {
+  checkout_completed: CheckoutCompletedProperties;
+  product_viewed: ProductViewedProperties;
+  add_to_cart: AddToCartProperties;
+}
+
+export type TypedTrack = <E extends TrafficalEventName>(
+  event: E,
+  options: {
+    unitKey: string;
+    properties: TrafficalEventProperties[E];
+    decisionId?: string;
+  }
+) => void;
+```
+
+You can pull and regenerate in one step:
+
+```bash
+traffical pull --include-types
+```
+
+## 4. Type the SDK client
+
+The SDK accepts a `TEvents` generic that constrains `track()`:
+
+```typescript
+import { createTrafficalClient } from "@traffical/node";
+import type { TrafficalEventProperties } from "./traffical.generated";
+
+const traffical = await createTrafficalClient<TrafficalEventProperties>({
+  orgId: "org_acme",
+  projectId: "proj_marketplace",
+  env: "production",
+  apiKey: process.env.TRAFFICAL_API_KEY!,
+});
+
+traffical.track("checkout_completed", {
+  unitKey: "user_789",
+  properties: {
+    order_id: "550e8400-e29b-41d4-a716-446655440000",
+    total: 49.99,
+    payment_method: "credit_card",
+    items: [{ sku: "ABC-123", quantity: 1, price: 49.99 }],
+    market: "US",
+    currency: "USD",
+  },
+});  // ✅
+```
+
+What you get with the type parameter:
+
+```typescript
+// ❌ Compile error — unknown event
+traffical.track("typo_event", { unitKey: "u" });
+
+// ❌ Compile error — missing required properties
+traffical.track("checkout_completed", {
+  unitKey: "u",
+  properties: { order_id: "..." },
+});
+
+// ❌ Compile error — wrong enum value
+traffical.track("checkout_completed", {
+  unitKey: "u",
+  properties: {
+    order_id: "...",
+    total: 49.99,
+    payment_method: "bitcoin",  // not in [credit_card, paypal, apple_pay]
+    items: [],
+    market: "US",
+  },
+});
+```
+
+The React, Svelte, and React Native SDKs accept the same generic — pass it once to the provider/client and every `track()` is typed.
+
+```tsx
+import { TrafficalProvider } from "@traffical/react";
+import type { TrafficalEventProperties } from "./traffical.generated";
+
+<TrafficalProvider<TrafficalEventProperties> config={{ ... }}>
+  ...
+</TrafficalProvider>
+```
+
+## 5. Dev-mode console warnings
+
+Pass `onSchemaWarnings` to the client to receive validation feedback from the edge:
+
+```typescript
+const traffical = await createTrafficalClient<TrafficalEventProperties>({
+  orgId, projectId, env, apiKey,
+  onSchemaWarnings: (warnings) => {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[Traffical] Schema violations:", warnings);
+    }
+  },
+});
+```
+
+`warnings` is an array of `{ eventName, propertyPath, code, message }` — one per violation across the batch. You'll see things like:
+
+```
+[Traffical] Schema violations: [
+  { eventName: "checkout_completed", propertyPath: "items[0].sku", code: "missing_required", message: "Required property 'sku' is missing" },
+  { eventName: "checkout_completed", propertyPath: "payment_method", code: "invalid_enum", message: "Value 'bitcoin' is not in enum [credit_card, paypal, apple_pay]" }
+]
+```
+
+In dev, this catches schema bugs before you ship. In production, you typically silence the callback — the dashboard's **Events → Explorer** shows the same violations in aggregate.
+
+## 6. Reading violations in the dashboard
+
+The dashboard's **Events → Explorer** shows:
+
+- Volume by event
+- A "schema violations" facet showing which events had warnings, broken down by violation code
+- Per-violation drill-in to see example payloads
+
+If you see violations climbing, fix the offending code (or update the schema if the schema is wrong). When the violation rate is essentially zero, you can switch the event to `schemaEnforcement: reject` to make violations hard errors.
+
+## 7. Schema versioning
+
+Schemas have a `schemaVersion` field. Bump it when you make a breaking change (renaming a required field, changing an enum value, etc.). The dashboard preserves old versions for historical event lookup; new events are validated against the current version.
+
+A useful convention: `MAJOR-MINOR-PATCH` where:
+
+- **MAJOR** for breaking changes (rename, type change, new required field)
+- **MINOR** for additive non-breaking changes (new optional field, new enum value)
+- **PATCH** for documentation-only changes
+
+## 8. Property groups in CI
+
+Property groups are versioned independently. When you change a group, every event referencing it picks up the new version on next `traffical push`. Run `traffical status` in CI to catch drift — you don't want a group definition in the dashboard that's out of sync with what your code expects.
+
+## End-to-end summary
+
+```
+                 ┌─────────────────────┐
+1. Author        │ traffical.yaml      │
+                 │ (events + groups)   │
+                 └────────┬────────────┘
+                          │ traffical push
+                          ▼
+2. Sync          ┌─────────────────────┐
+                 │ Traffical platform  │
+                 └────────┬────────────┘
+                          │ traffical generate-types
+                          ▼
+3. Generate      ┌─────────────────────┐
+                 │ traffical.generated │
+                 │ TypeScript types    │
+                 └────────┬────────────┘
+                          │ import
+                          ▼
+4. Code          ┌─────────────────────┐
+                 │ traffical.track(    │
+                 │   "checkout_…", …)  │  ◀── type-checked
+                 └────────┬────────────┘
+                          │
+                          ▼
+5. Edge          ┌─────────────────────┐
+                 │ Validates against   │
+                 │ schema; warn/reject │
+                 └────────┬────────────┘
+                          │
+                          ▼
+6. Pipeline      Metrics, dimensions, decisions
+```
+
+## Reference
+
+- [CLI: `generate-types`](/tools/cli#generate-types)
+- [Events](/concepts/events-and-metrics)
+- [Warehouse-native: fact dimensions](/concepts/warehouse-native#fact-definitions) — dimensions from event properties power slicing

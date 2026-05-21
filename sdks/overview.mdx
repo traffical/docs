@@ -1,0 +1,73 @@
+---
+title: "SDK overview"
+description: "How Traffical SDKs work, what's available, and how to pick one."
+---
+
+Traffical SDKs resolve parameters locally inside your application. The SDK downloads a config bundle, evaluates everything in-process, and never blocks your code on a network call.
+
+## How the SDKs work
+
+1. **Fetch the bundle.** On startup the SDK fetches the config bundle for your (project, environment) pair. The bundle is a single JSON document containing every parameter, layer, and policy.
+2. **Resolve locally.** When you call `getParams` (or `decide`), the SDK computes the user's bucket from their context, evaluates targeting conditions, and returns the resolved values. Sub-millisecond, no network call.
+3. **Track events in the background.** Exposure and decision events are emitted automatically. Track events you emit explicitly are batched and shipped without blocking the calling code.
+4. **Refresh automatically.** The SDK periodically re-fetches the bundle (default: every 60s). ETag caching means unchanged bundles return `304 Not Modified` and cost almost nothing.
+
+## Graceful degradation
+
+If the bundle hasn't loaded yet — or if Traffical is unreachable entirely — the SDK returns the defaults you passed in code. Your app keeps working. Traffical can only raise the ceiling, never lower the floor.
+
+## Evaluation modes
+
+Most SDKs support two evaluation modes:
+
+| Mode | Behaviour | Default for |
+|------|-----------|-------------|
+| `bundle` | SDK fetches the bundle and resolves locally. Sub-millisecond. | Node, web browser, React, Svelte |
+| `server` | SDK calls Traffical for each resolution. Fresh state, higher latency. | React Native |
+
+You usually want `bundle`. Use `server` when caching a full bundle isn't reasonable (very limited memory, very rare resolutions) or for per-entity adaptive policies that need the freshest possible weights.
+
+See [how it works](/how-it-works#evaluation-modes) for details.
+
+## Available SDKs
+
+| Package | Environment | Default mode |
+|---------|------------|--------------|
+| [`@traffical/node`](/sdks/node) | Server (Node.js / Bun) | `bundle` |
+| [`@traffical/js-client`](/sdks/javascript) | Browser, framework-free | `bundle` |
+| [`@traffical/react`](/sdks/react) | React (browser, RSC) | `bundle` |
+| [`@traffical/svelte`](/sdks/svelte) | Svelte + SvelteKit | `bundle` |
+| [`@traffical/react-native`](/sdks/react-native) | iOS / Android via React Native | `server` |
+
+All SDKs share a common core (`@traffical/core`) that implements bundle parsing, bucket hashing, condition evaluation, and resolution. Whichever language or framework you use, the same parameter resolves to the same allocation for the same user.
+
+## Picking an SDK
+
+- **Backend / API routes** → `@traffical/node`. Server runtime, in-memory bundle, sub-ms resolution.
+- **React single-page app or RSC** → `@traffical/react`. Provider + `useTraffical` hook.
+- **SvelteKit or Svelte 5** → `@traffical/svelte`. SSR-friendly with `loadTrafficalBundle()`.
+- **Plain browser app (Vue, no framework, vanilla)** → `@traffical/js-client`. Direct API.
+- **Mobile (iOS / Android via React Native)** → `@traffical/react-native`.
+
+You can mix server and client SDKs in the same app. A common pattern is to resolve on the server for the initial render (no flash of original content) and let the client SDK handle interactive updates. See [SSR patterns](/sdks/ssr).
+
+## Source code
+
+The TypeScript SDK packages live in a public repository at [github.com/traffical/js-sdk](https://github.com/traffical/js-sdk) and are MIT-licensed. The [`@traffical/cli`](/tools/cli) lives in a separate public repository.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="node-js" href="/sdks/node">
+    Server-side SDK reference.
+  </Card>
+  <Card title="React" icon="react" href="/sdks/react">
+    Provider, hooks, SSR.
+  </Card>
+  <Card title="Svelte" icon="s" href="/sdks/svelte">
+    Stores, context, SvelteKit.
+  </Card>
+  <Card title="React Native" icon="mobile" href="/sdks/react-native">
+    iOS / Android with cold-start strategy.
+  </Card>
+</CardGroup>

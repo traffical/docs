@@ -1,0 +1,88 @@
+---
+title: "Warehouse connectors"
+description: "Connect Traffical to your data warehouse for warehouse-native metrics. Postgres, BigQuery, Snowflake, Databricks, and ClickHouse are supported."
+---
+
+To compute metrics directly from your warehouse, Traffical needs a connection to it. The connection is configured once per project; from then on, [assignment definitions](/concepts/warehouse-native#assignment-definitions) and [fact definitions](/concepts/warehouse-native#fact-definitions) reference tables in that warehouse and the pipeline runs the SQL on a schedule.
+
+The pipeline only reads from your source data, but it also writes to a dedicated **Traffical schema** in the same warehouse — that's where it materializes intermediate per-policy tables and stages joins for push-down execution. The credentials you provide need read access on your source schemas and read + write access on the Traffical schema.
+
+## Supported warehouses
+
+| Warehouse | Page |
+|-----------|------|
+| Postgres | [Postgres](/connectors/postgres) |
+| Google BigQuery | [BigQuery](/connectors/bigquery) |
+| Snowflake | [Snowflake](/connectors/snowflake) |
+| Databricks (Unity Catalog) | [Databricks](/connectors/databricks) |
+| ClickHouse | [ClickHouse](/connectors/clickhouse) |
+
+You can also use **Traffical-native** mode, where metrics are computed from track events sent via the SDK. No warehouse connection is needed in that case — see [warehouse-native](/concepts/warehouse-native) for the trade-offs between the two modes.
+
+## How connections work
+
+A connection is a credential record stored encrypted in Traffical, scoped to a project. When the pipeline runs:
+
+1. It looks up the connection.
+2. It opens a session against your warehouse using the credential.
+3. It executes the SQL from your assignment and fact definitions against your source tables (read).
+4. It writes intermediate per-policy materialization tables and staging tables into a designated **Traffical schema** (read + write).
+5. It joins and aggregates inside the warehouse — push-down execution for the dialects that support it — then reads small result sets back into Traffical.
+6. If SDK → warehouse sync is enabled, it also writes `sdk_assignments` and `sdk_tracks` tables in the Traffical schema.
+7. The session closes.
+
+## Permissions
+
+The pipeline needs two kinds of access:
+
+- **Read on your source tables** — wherever your assignment and fact SQL reads from.
+- **Read + write on a designated Traffical schema** — a separate schema/dataset/database that the pipeline owns. Traffical creates tables here, writes to them, and drops them between runs. It never touches your source schemas with anything other than `SELECT`.
+
+The Traffical schema can be anywhere your warehouse will let you put one (`traffical`, `analytics_traffical`, whatever). Specific commands the pipeline issues there:
+
+- `CREATE TABLE IF NOT EXISTS` for per-policy materialized data and staging tables
+- `INSERT INTO ... SELECT` for the staging pattern (overlap-window writes)
+- `DELETE FROM ... WHERE batch_date >= ...` for the overlap-window pattern
+- `DROP TABLE IF EXISTS` for cleanup
+
+For Postgres and ClickHouse the pipeline also issues `CREATE SCHEMA IF NOT EXISTS` / `CREATE DATABASE IF NOT EXISTS` on first run. For BigQuery, Snowflake, and Databricks the Traffical dataset/schema/catalog must already exist (create it before saving the connection).
+
+Specific permission grants per warehouse are documented on each connector's page.
+
+### Why writes into the warehouse?
+
+It's the same reason Traffical can be warehouse-native at all: instead of pulling rows up into a separate compute layer to join them, the pipeline does the join inside the warehouse where the data already lives. The intermediate tables are how that happens. They're disposable — the pipeline re-creates them on each run — but they live in your warehouse so the warehouse's optimizer can take care of large joins.
+
+## Setting up a connection
+
+1. In the dashboard, open **Settings → Warehouse** for your project.
+2. Choose your warehouse type.
+3. Paste the credentials. They're encrypted before being stored.
+4. Click **Test connection** — Traffical opens a session and runs a trivial query to verify.
+5. Save.
+
+Once saved, the connection is available to assignment and fact definitions in that project.
+
+## Cost considerations
+
+The pipeline runs on a schedule. Each run executes the SQL from every active definition. To control cost:
+
+- **Scope your SQL to a date range.** Definitions support `{{start_date}}` and `{{end_date}}` template variables — use them to restrict scans to the window the pipeline asked for, not the whole table.
+- **Use columnar layouts.** BigQuery, Snowflake, ClickHouse, and Databricks Delta tables are columnar — scanning fewer columns scans fewer bytes. Postgres benefits less from this.
+- **Add indexes (Postgres) or partitioning (BigQuery, Snowflake, Databricks).** The pipeline's `WHERE` clauses on `assigned_at` or `event_time` should hit a partition or index whenever possible.
+
+For BigQuery specifically, every query reports `bytesScanned` which you can read in the dashboard's **Pipeline → Runs** view. Use it to spot expensive definitions.
+
+## SDK → warehouse sync (optional)
+
+If you want SDK events to land in your warehouse too — for ad-hoc analysis, ML pipelines, or compliance — configure it in **Settings → SDK sync**. The pipeline writes two tables (`sdk_assignments`, `sdk_tracks`) into the Traffical schema you've already configured for the connection. No separate credentials, no separate destination — same warehouse, same Traffical schema, on a regular cadence.
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+|---------|--------------|
+| "Connection refused" | Network reachability. Check firewall / IP allowlists — Traffical's egress IPs are listed in the dashboard. |
+| "Authentication failed" | Wrong credentials, expired key, or insufficient role privileges. |
+| "Permission denied on table X" | Read role doesn't grant access to that schema/table. |
+| "Query timeout" | SQL takes too long. Scope by date range; add partitioning or indexes. |
+| Empty results despite data in the table | Time-window template variables — the SQL probably filters too aggressively for the pipeline's window. |

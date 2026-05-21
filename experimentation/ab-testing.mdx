@@ -1,0 +1,130 @@
+---
+title: "A/B testing"
+description: "Run a static experiment end-to-end — define parameters, create a policy, implement in code, measure results."
+---
+
+An A/B test in Traffical is a static [policy](/concepts/policies) within a [layer](/concepts/layers). You define two or more allocations with fixed bucket ranges, and the SDK assigns each user to one allocation based on their bucket. You measure the difference between allocations using events.
+
+## End-to-end workflow
+
+### 1. Define the parameter
+
+Create the parameter you want to test — in the dashboard or in `traffical.yaml`:
+
+```yaml
+namespaces:
+  checkout:
+    parameters:
+      button.color:
+        type: string
+        default: "#1E6EFB"
+        description: Primary button color on checkout
+```
+
+Then `traffical push` to sync.
+
+### 2. Create the policy in the dashboard
+
+Open the layer that owns the parameter and create a new policy:
+
+- **Kind:** static
+- **State:** running
+- **Allocations:**
+  - `control` — buckets `0–4999` — `checkout.button.color: "#1E6EFB"`
+  - `treatment` — buckets `5000–9999` — `checkout.button.color: "#22C55E"`
+
+That's a 50/50 split assuming a `bucketCount` of 10000.
+
+### 3. Implement in code
+
+Resolve the parameter wherever you render it. The SDK does the bucketing — your code just reads the value.
+
+```typescript
+import { createTrafficalClient } from "@traffical/node";
+
+const traffical = await createTrafficalClient({
+  orgId: "org_acme",
+  projectId: "proj_marketplace",
+  env: "production",
+  apiKey: process.env.TRAFFICAL_API_KEY!,
+});
+
+function renderCheckout(userId: string) {
+  const params = traffical.getParams({
+    context: { userId },
+    defaults: { "checkout.button.color": "#1E6EFB" },
+  });
+
+  return `<button style="background: ${params["checkout.button.color"]}">Buy now</button>`;
+}
+```
+
+The same user always lands in the same allocation across requests. You don't need to remember assignments — bucketing is deterministic.
+
+### 4. Track the goal event
+
+Track the action you want to measure:
+
+```typescript
+traffical.track("purchase", {
+  unitKey: userId,
+  properties: { order_total: orderTotal, currency: "USD" },
+});
+```
+
+If `purchase` isn't already an event definition, the platform creates one on the fly (or you can declare it in `traffical.yaml` ahead of time).
+
+### 5. Read the results
+
+In the dashboard, open your policy. You'll see per-allocation conversion rates (or sums, or counts, depending on the goal metric you configure), confidence intervals, and significance indicators.
+
+## Targeting a segment
+
+Add conditions to scope the test to a segment. For US English users only:
+
+```json
+{
+  "conditions": [
+    { "field": "locale", "op": "eq", "value": "en-US" }
+  ]
+}
+```
+
+Users outside the segment get the parameter's default value. They aren't part of the experiment population — they don't dilute the result.
+
+See [Policies](/concepts/policies#targeting-conditions) for the full list of operators.
+
+## Picking the unit key
+
+Bucketing is based on your project's [unit key](/concepts/projects-and-environments#the-unit-key). For most experiments this is `userId`. For B2B / multi-tenant SaaS, you usually want `companyId` instead — every user in a company sees the same variant, which is what your customers will expect. If you need both kinds of experiments, create two projects.
+
+## Concluding the test
+
+When you've collected enough data:
+
+1. **Pick the winner.** Update the parameter's default value to the winning variant.
+2. **Complete the policy.** Set the policy state to `completed`.
+3. **Clean up.** The policy stops being evaluated; all users get the new default. The historical results stay in the dashboard.
+
+No code changes are needed at any point in the lifecycle.
+
+## Beyond A/B
+
+If two variants isn't enough, just add more allocations to the policy. Three, five, ten — the math still works as long as you've sized your sample for the smaller per-variant population. For continuous optimization across many variants, use an [adaptive policy](/experimentation/optimization) instead.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Rollouts" icon="forward" href="/experimentation/rollouts">
+    Progressive ramp with health checks.
+  </Card>
+  <Card title="Optimization" icon="chart-line" href="/experimentation/optimization">
+    Adaptive policies that learn from rewards.
+  </Card>
+  <Card title="Experiment design" icon="lightbulb" href="/guides/experiment-design">
+    Hypotheses, metrics, guardrails, sample size.
+  </Card>
+  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+    Patterns by surface (web, mobile, backend, SSR).
+  </Card>
+</CardGroup>

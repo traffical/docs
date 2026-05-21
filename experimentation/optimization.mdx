@@ -1,0 +1,202 @@
+---
+title: "Optimization"
+description: "Adaptive policies that learn from rewards: Thompson Sampling, UCB1, Epsilon-Greedy, per-entity bandits, and contextual bandits."
+---
+
+Adaptive policies go beyond static A/B tests. Instead of fixed allocations, the optimization engine shifts traffic toward better-performing variants based on observed rewards — automatically, continuously, and without code changes.
+
+## When to use adaptive policies
+
+Use adaptive policies when:
+
+- You want to minimise regret — the cost of showing the inferior variant longer than necessary.
+- The best variant may change over time (seasonality, mix shifts).
+- You want continuous optimization rather than a one-time decision.
+- You want personalized selection based on user context (contextual bandits).
+
+Stick with static A/B tests when:
+
+- You need a clean point-in-time decision with an unambiguous winner for stakeholders.
+- The cost of the variant is large enough that you want a deliberate ramp afterwards (use [rollouts](/experimentation/rollouts)).
+- Your goal metric is delayed or noisy (the engine will still work, but a static test gives you a more interpretable result).
+
+## Algorithms
+
+| Algorithm | What it does | Best for |
+|-----------|-------------|----------|
+| `thompson_bernoulli` | Beta-Bernoulli Thompson Sampling. Bayesian exploration/exploitation. | Binary outcomes (clicked/didn't, converted/didn't) |
+| `epsilon_greedy` | Mostly exploits the best-known variant; explores randomly with probability ε. | Simple baseline with predictable exploration rate |
+| `ucb1` | Upper Confidence Bound. Optimistic exploration that naturally decreases over time. | When you want a deterministic, parameter-free explorer |
+| `linear_contextual` | Personalized scoring per user via a trained linear model. Resolved locally. | Personalization — when the best variant depends on user context |
+
+## Setting up an adaptive policy
+
+1. **Define the goal event** in `traffical.yaml` or in the dashboard:
+
+   ```yaml
+   events:
+     purchase:
+       valueType: currency
+       unit: USD
+   ```
+
+2. **Create the policy** in the dashboard:
+   - Kind: `adaptive`
+   - Algorithm: `thompson_bernoulli`
+   - Goal event: `purchase`
+   - Goal type: `conversion_rate`
+   - Min exposures before shift: `100`
+   - Window size: `60` minutes
+
+3. **Define allocations.** Initial ranges can be uniform; the engine will adjust them.
+
+   | Allocation | Initial range | Override |
+   |-----------|--------------|---------|
+   | `low_price` | `0–3332` | `pricing.discount_pct: 5` |
+   | `mid_price` | `3333–6665` | `pricing.discount_pct: 10` |
+   | `high_price` | `6666–9999` | `pricing.discount_pct: 20` |
+
+4. **Implement in code** — same as a static policy:
+
+   ```typescript
+   const params = traffical.getParams({
+     context: { userId: "user_789" },
+     defaults: { "pricing.discount_pct": 0 },
+   });
+
+   applyDiscount(params["pricing.discount_pct"]);
+
+   traffical.track("purchase", {
+     unitKey: "user_789",
+     properties: { order_total: orderTotal },
+   });
+   ```
+
+The SDK resolves from the bundle. The engine periodically retrains and republishes the bundle with updated bucket ranges. Your code never changes.
+
+## Tuning knobs
+
+| Knob | What it does |
+|------|--------------|
+| `minExposuresBeforeShift` | The engine won't change allocations until each allocation has seen at least this many exposures. Prevents premature shifts on noisy early data. |
+| `maxShiftPerUpdate` | Caps how much traffic can move in a single update (e.g. 0.1 = at most 10% of traffic shifts per cycle). |
+| `windowSizeMinutes` | How often the engine re-evaluates. Shorter windows = faster reaction, but noisier. |
+
+## Contextual bandits
+
+The `linear_contextual` algorithm personalizes selection: different users get different variants based on context features. The training pipeline learns coefficients per allocation per feature; those coefficients ship in the config bundle; the SDK uses them to score each allocation for the current user at resolution time.
+
+### What it looks like in code
+
+The code is identical to any other adaptive policy — you just pass more context:
+
+```typescript
+const params = traffical.getParams({
+  context: {
+    userId: "user_789",
+    "user.engagement_score": user.engagementScore,
+    "user.device_type": device.type,
+    "user.days_since_signup": user.daysSinceSignup,
+    "session.referrer": document.referrer,
+  },
+  defaults: {
+    "homepage.layout": "standard",
+  },
+});
+```
+
+The model uses the listed context fields. Fields not in the model's training set are ignored.
+
+### Scoring
+
+For each allocation, the SDK computes:
+
+```
+score(allocation) = intercept(allocation) + Σ (coefficient(feature, allocation) × value(feature))
+```
+
+It then applies softmax with temperature `gamma` to convert scores into selection probabilities, and enforces a minimum probability per allocation (`actionProbabilityFloor`) so the model keeps exploring.
+
+| Setting | Meaning |
+|---------|---------|
+| `gamma` | Softmax temperature. Lower = more deterministic (exploits learned best); higher = more uniform (more exploration). Typical: 0.1–0.5. |
+| `actionProbabilityFloor` | Minimum probability any allocation can have. Guarantees ongoing exploration. Typical: 0.05. |
+| `defaultAllocationScore` | Score for cold-start (no learned coefficients yet). |
+
+### Context logging allowlist
+
+To train the model, the platform needs to see the context fields with each exposure event. To protect PII, only fields you explicitly allow-list are logged:
+
+```json
+{
+  "contextLogging": {
+    "allowedFields": [
+      "user.engagement_score",
+      "user.device_type",
+      "user.days_since_signup",
+      "session.referrer"
+    ]
+  }
+}
+```
+
+Anything outside the allowlist is dropped before storage.
+
+### When to use contextual bandits
+
+When the optimal variant differs per user, and you can describe "who they are" with a handful of features:
+
+- Homepage layout by engagement level and device type
+- CTA copy by referral source and purchase history
+- Recommendation style by user segment
+
+The features should be available at decision time. Don't include features derived from the outcome you're trying to predict.
+
+## Per-entity bandits
+
+For optimization at the entity level — each product, each merchant, each category learns independently — use a per-entity adaptive policy:
+
+```yaml
+entityConfig:
+  entityKeys: ["productId"]
+  resolutionMode: "bundle"      # or "edge"
+```
+
+Each entity gets its own bandit. A product with 1000 views has its own learned weights; a product with 3 views falls back to the global prior.
+
+### Resolution modes
+
+| Mode | How it works | Latency | Freshness |
+|------|-------------|---------|-----------|
+| `bundle` | Entity weights ship in the config bundle. SDK resolves locally. | Sub-ms | Bundle refresh cadence (typically hourly for per-entity policies) |
+| `edge` | SDK calls Traffical for each decision. Returns the latest weights. | ~50ms | Real-time |
+
+`bundle` is the right choice for high-traffic entities (product pages, search results). `edge` is for low-traffic, high-stakes entities where you need every decision to use the freshest possible weights.
+
+### Dynamic allocations
+
+When each entity has a different number of options (e.g. each product has a different image count), use `dynamicAllocations`:
+
+```yaml
+entityConfig:
+  entityKeys: ["productId"]
+  resolutionMode: "bundle"
+  dynamicAllocations:
+    countKey: "imageCount"
+```
+
+If `context.imageCount = 5`, the SDK creates five allocations on the fly and selects from them based on learned weights. The selected index is reported as the allocation name in the decision metadata.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Per-entity adaptive pattern" icon="grip" href="/guides/canonical-experiments#per-entity-adaptive">
+    Full walkthrough with metric setup.
+  </Card>
+  <Card title="Contextual bandit pattern" icon="brain" href="/guides/canonical-experiments#contextual-bandit-personalized">
+    Personalized layouts and CTAs.
+  </Card>
+  <Card title="Warehouse-native" icon="database" href="/concepts/warehouse-native">
+    Training contextual bandits from warehouse data.
+  </Card>
+</CardGroup>

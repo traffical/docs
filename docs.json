@@ -1,49 +1,118 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Traffical",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#1E6EFB",
+    "light": "#4A8FFC",
+    "dark": "#1555C0"
   },
   "favicon": "/favicon.svg",
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
             "group": "Getting started",
+            "icon": "rocket",
             "pages": [
-              "index",
+              "introduction",
+              "why-traffical",
               "quickstart",
-              "development"
+              "guides/first-experiment",
+              "how-it-works"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core concepts",
+            "icon": "book",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/parameters",
+              "concepts/layers",
+              "concepts/policies",
+              "concepts/projects-and-environments",
+              "concepts/events-and-metrics",
+              "concepts/assignments",
+              "concepts/warehouse-native"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Experimentation",
+            "icon": "flask",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "experimentation/feature-flags",
+              "experimentation/ab-testing",
+              "experimentation/rollouts",
+              "experimentation/optimization"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Guides",
+            "icon": "compass",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "guides/canonical-experiments",
+              "guides/experiment-design",
+              "guides/type-safe-events"
             ]
+          },
+          {
+            "group": "Dashboard",
+            "icon": "table-columns",
+            "pages": [
+              "dashboard/overview",
+              "dashboard/parameters",
+              "dashboard/layers-and-policies",
+              "dashboard/events",
+              "dashboard/definitions",
+              "dashboard/metrics",
+              "dashboard/pipeline",
+              "dashboard/decisions",
+              "dashboard/settings"
+            ]
+          },
+          {
+            "group": "Warehouse connectors",
+            "icon": "plug",
+            "pages": [
+              "connectors/overview",
+              "connectors/postgres",
+              "connectors/bigquery",
+              "connectors/snowflake",
+              "connectors/databricks",
+              "connectors/clickhouse"
+            ]
+          },
+          {
+            "group": "Developer tools",
+            "icon": "terminal",
+            "pages": ["tools/cli", "tools/visual-editor", "tools/devtools"]
+          },
+          {
+            "group": "Reference",
+            "icon": "book-open",
+            "pages": ["reference/glossary"]
+          }
+        ]
+      },
+      {
+        "tab": "SDKs",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": ["sdks/overview"]
+          },
+          {
+            "group": "Server SDKs",
+            "pages": ["sdks/node"]
+          },
+          {
+            "group": "Client SDKs",
+            "pages": ["sdks/javascript", "sdks/react", "sdks/svelte", "sdks/react-native"]
+          },
+          {
+            "group": "Patterns",
+            "pages": ["sdks/ssr"]
           }
         ]
       },
@@ -51,18 +120,16 @@
         "tab": "API reference",
         "groups": [
           {
-            "group": "API documentation",
-            "pages": [
-              "api-reference/introduction"
-            ]
+            "group": "Overview",
+            "pages": ["api/overview"]
           },
           {
-            "group": "Endpoint examples",
+            "group": "SDK API",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/get-config",
+              "api/post-resolve",
+              "api/post-decide",
+              "api/post-events"
             ]
           }
         ]
@@ -71,14 +138,14 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
+          "anchor": "Blog",
+          "href": "https://traffical.io/vision",
+          "icon": "newspaper"
         },
         {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
+          "anchor": "GitHub",
+          "href": "https://github.com/traffical",
+          "icon": "github"
         }
       ]
     }
@@ -91,32 +158,32 @@
     "links": [
       {
         "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "href": "mailto:support@traffical.io"
       }
     ],
     "primary": {
       "type": "button",
       "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
+      "href": "https://app.traffical.io"
     }
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "x": "https://x.com/traffical",
+      "github": "https://github.com/traffical",
+      "linkedin": "https://linkedin.com/company/traffical"
     }
   }
 }

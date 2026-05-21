@@ -1,0 +1,146 @@
+---
+title: "Snowflake"
+description: "Connect Traffical to Snowflake using key-pair authentication for warehouse-native metrics."
+---
+
+Traffical reads from Snowflake using key-pair authentication (RSA). This page covers credentials, permissions, and warehouse sizing.
+
+## Connection fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `account` | yes | Snowflake account locator, e.g. `xy12345.eu-central-1` |
+| `username` | yes | Snowflake user — needs `SELECT` on source schemas plus full DDL/DML on a Traffical-owned schema (see below) |
+| `privateKey` | yes | PEM-formatted RSA private key |
+| `warehouse` | yes | Compute warehouse to use (e.g. `ANALYTICS_XS`) |
+| `database` | yes | Default database (definitions can override in SQL) |
+| `schema` | no | Default schema |
+| `role` | no | Snowflake role to assume |
+
+Configure these in **Settings → Warehouse → Snowflake**.
+
+## Creating the user, role, and Traffical schema
+
+The pipeline reads from your source data and writes intermediate tables into a dedicated **Traffical schema**. Both kinds of access live on a single role.
+
+```sql
+-- As an ACCOUNTADMIN or similar privileged role:
+
+CREATE ROLE TRAFFICAL;
+
+GRANT USAGE ON WAREHOUSE ANALYTICS_XS TO ROLE TRAFFICAL;
+
+-- Read on the database that holds your data
+GRANT USAGE ON DATABASE ANALYTICS TO ROLE TRAFFICAL;
+
+-- Read on the source schema(s) where assignments/facts live
+GRANT USAGE ON SCHEMA ANALYTICS.EXPERIMENTS TO ROLE TRAFFICAL;
+GRANT SELECT ON ALL TABLES IN SCHEMA ANALYTICS.EXPERIMENTS TO ROLE TRAFFICAL;
+GRANT SELECT ON FUTURE TABLES IN SCHEMA ANALYTICS.EXPERIMENTS TO ROLE TRAFFICAL;
+
+-- The Traffical schema — pipeline owns this one, full DML + DDL
+CREATE SCHEMA IF NOT EXISTS ANALYTICS.TRAFFICAL;
+GRANT USAGE ON SCHEMA ANALYTICS.TRAFFICAL TO ROLE TRAFFICAL;
+GRANT CREATE TABLE, CREATE VIEW ON SCHEMA ANALYTICS.TRAFFICAL TO ROLE TRAFFICAL;
+GRANT SELECT, INSERT, UPDATE, DELETE ON FUTURE TABLES IN SCHEMA ANALYTICS.TRAFFICAL TO ROLE TRAFFICAL;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ANALYTICS.TRAFFICAL TO ROLE TRAFFICAL;
+
+CREATE USER TRAFFICAL
+  RSA_PUBLIC_KEY = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...your-public-key...'
+  DEFAULT_ROLE = TRAFFICAL
+  DEFAULT_WAREHOUSE = ANALYTICS_XS;
+
+GRANT ROLE TRAFFICAL TO USER TRAFFICAL;
+```
+
+Replace database, schema, and warehouse names with yours. When configuring the connection in Traffical, set `database: ANALYTICS` and provide `ANALYTICS.TRAFFICAL` as the Traffical working schema.
+
+## Generating the key pair
+
+On any machine with OpenSSL:
+
+```bash
+# Private key (8192-bit RSA, unencrypted — the pipeline doesn't support passphrases)
+openssl genrsa -out traffical_key.pem 2048
+
+# Public key
+openssl rsa -in traffical_key.pem -pubout -out traffical_key.pub
+
+# View the public key — paste this into the RSA_PUBLIC_KEY of the CREATE USER above
+cat traffical_key.pub
+```
+
+Then paste the **private key** (the `traffical_key.pem` contents, including the `-----BEGIN PRIVATE KEY-----` headers) into the Traffical connection form.
+
+Store the private key file securely (or delete it after copying). Snowflake supports up to two keys per user, which makes rotation easy: add the new public key, swap the connection to the new private key, then remove the old public key.
+
+## Warehouse sizing
+
+The pipeline runs short-lived queries. An `X-SMALL` warehouse is plenty for most projects. If your fact tables are huge and the pipeline is the bottleneck:
+
+- Bump to `SMALL` or `MEDIUM`. Snowflake charges per second of warehouse uptime, but auto-suspend (60 seconds is typical) keeps idle cost low.
+- Use a dedicated warehouse for Traffical so it doesn't compete for slots with other workloads.
+- Watch the **Pipeline → Runs** view for slow runs — that's where you'll see if you're sized wrong.
+
+## Recommended table design
+
+Cluster on user/entity columns and partition implicitly via the natural ordering of inserts (Snowflake handles micro-partitions automatically):
+
+```sql
+CREATE TABLE ANALYTICS.EXPERIMENT_ASSIGNMENTS (
+  USER_ID          STRING NOT NULL,
+  ASSIGNED_AT      TIMESTAMP_TZ NOT NULL,
+  EXPERIMENT_NAME  STRING NOT NULL,
+  VARIANT          STRING NOT NULL
+)
+CLUSTER BY (ASSIGNED_AT, EXPERIMENT_NAME);
+
+CREATE TABLE ANALYTICS.ORDERS (
+  ORDER_ID     STRING PRIMARY KEY,
+  USER_ID      STRING NOT NULL,
+  ORDER_TOTAL  NUMBER(18, 2) NOT NULL,
+  CURRENCY     STRING,
+  EVENT_TIME   TIMESTAMP_TZ NOT NULL
+)
+CLUSTER BY (EVENT_TIME);
+```
+
+## Example definitions
+
+Assignment definition SQL:
+
+```sql
+SELECT
+  USER_ID         AS user_id,
+  ASSIGNED_AT     AS assigned_at,
+  EXPERIMENT_NAME AS policy_key,
+  VARIANT         AS allocation_key
+FROM ANALYTICS.EXPERIMENT_ASSIGNMENTS
+WHERE ASSIGNED_AT BETWEEN '{{start_date}}'::TIMESTAMP_TZ
+                      AND '{{end_date}}'::TIMESTAMP_TZ
+```
+
+Fact definition SQL:
+
+```sql
+SELECT
+  USER_ID    AS user_id,
+  EVENT_TIME AS event_time,
+  ORDER_TOTAL
+FROM ANALYTICS.ORDERS
+WHERE EVENT_TIME BETWEEN '{{start_date}}'::TIMESTAMP_TZ
+                     AND '{{end_date}}'::TIMESTAMP_TZ
+```
+
+## Network access
+
+Snowflake is HTTPS-only. Traffical reaches it via the SQL API. No firewall setup is needed by default.
+
+If your Snowflake account has **network policies**, add Traffical's egress IPs (listed in **Settings → Warehouse**) to the allowed list.
+
+## Gotchas
+
+- **Lowercase column names.** Snowflake folds unquoted identifiers to uppercase. The pipeline expects lowercase column names in the *output* of your SQL (`user_id`, `assigned_at`, etc.), so use explicit `AS user_id` aliases as in the examples above.
+- **`TIMESTAMP_TZ` vs `TIMESTAMP_NTZ`.** Use `TIMESTAMP_TZ` for time columns to keep timezone handling unambiguous.
+- **Key passphrases.** Snowflake supports passphrase-protected keys, but the Traffical connection doesn't — use an unencrypted key file.
+- **Account locator format.** Make sure to include the region/cloud suffix (e.g. `xy12345.eu-central-1.aws`). The connection will fail with a confusing error if it's wrong.

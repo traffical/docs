@@ -1,0 +1,94 @@
+---
+title: "Decision log"
+description: "An audit trail of every policy lifecycle change — who did what, when, and why."
+---
+
+The **Decision log** is the audit trail for every meaningful change in the project: policy state transitions, allocation overrides, rollout actions, manual completions, optimization milestones, guardrail breaches.
+
+It's both a debugging tool ("why did this experiment pause itself last night?") and a compliance tool ("show every change to this policy in the last quarter").
+
+<Frame caption="Decision log">
+  <img src="/images/placeholders/decisions-list.png" alt="Decision log placeholder" />
+</Frame>
+
+## What gets logged
+
+The log captures decisions across all kinds of policies — static, adaptive, per-entity, contextual — and both human and automated actions.
+
+| Decision type | When it fires |
+|---------------|---------------|
+| `policy_state_changed` | A policy's state moves between `draft`, `running`, `paused`, `completed` |
+| `allocations_overridden` | Allocation bucket ranges or overrides are manually edited |
+| `policy_duplicated` | A policy is forked into a new one |
+| `policy_promoted` | A winning allocation is promoted into the parameter defaults |
+| `rollout_started` / `rollout_paused` / `rollout_resumed` / `rollout_completed` | Lifecycle of a progressive rollout |
+| `rollout_health_violation` | A health check fired during a rollout step |
+| `guardrail_breach` | A guardrail metric crossed a threshold |
+| `optimization_milestone` | An adaptive policy moved between phases (exploring → converging → converged) |
+
+## Actors
+
+Every decision has an actor:
+
+| Actor type | What it means |
+|-----------|---------------|
+| `user` | A human via the dashboard or API |
+| `agent` | An AI agent acting through the API (the [`integrate-ai-tools`](/tools/cli#integrate-ai-tools) flow uses this when an LLM-based assistant is involved) |
+| `system` | Traffical itself (cron jobs, scheduled rollout ramps, optimization engine updates) |
+| `api_key` | A direct API key call without a logged-in user |
+
+This is how you tell the difference between "Alice paused the policy" and "the scheduler paused the policy because a health check failed".
+
+## Reading the log
+
+Each entry shows:
+
+- **Timestamp**
+- **Decision type**
+- **Actor** (with profile photo for users)
+- **Policy / parameter / metric** affected — clickable to navigate
+- **Reason** — free-text rationale, often supplied at action time
+- **Evidence** — structured data about what happened (e.g. before/after allocation ranges, metric value, threshold)
+- **Outcome** — for actions that have a binary result (rollout step succeeded vs failed)
+
+<Frame caption="Decision detail">
+  <img src="/images/placeholders/decision-detail.png" alt="Decision detail placeholder" />
+</Frame>
+
+## Filtering
+
+Filter by:
+
+- Policy (one or many)
+- Actor (a specific person or "system only")
+- Decision type
+- Time range
+
+A common query: "show me every system-driven action in the last 24 hours" — that's the changes that happened while you were asleep.
+
+## Annotations
+
+You can attach a free-text annotation to a decision after the fact. Useful for adding context: "we paused this because the support team flagged a regression, see ticket TR-1234".
+
+Annotations are visible to anyone with project access and become part of the audit trail.
+
+## API access
+
+The decision log is also available via the management API for export to your own systems (data warehouse, SIEM, ticket tracker). See your dashboard's API documentation for endpoints.
+
+## Best practices
+
+- **Write reasons.** When you take a manual action — pause a policy, override an allocation — type a short reason. Three months later, future-you will thank present-you.
+- **Watch for system pauses.** A flurry of `rollout_health_violation` followed by `rollout_paused` means automation did its job. Investigate the metric that triggered it.
+- **Don't rely on it for debugging SDK issues.** The decision log captures *platform* changes. For SDK-level debugging (which user got which assignment), use the [DevTools bookmarklet](/tools/devtools) or query exposure events directly.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Layers & policies" icon="layer-group" href="/dashboard/layers-and-policies">
+    Where most actions originate.
+  </Card>
+  <Card title="Rollouts" icon="forward" href="/experimentation/rollouts">
+    Understanding health-violation triggers.
+  </Card>
+</CardGroup>

@@ -1,0 +1,122 @@
+---
+title: "POST /v1/decide/:policyId"
+description: "Server-side per-entity decision endpoint for adaptive policies with Thompson Sampling."
+---
+
+Requests a server-side decision for a specific adaptive policy. Used for per-entity optimization when the SDK needs fresh entity weights from the edge rather than resolving from the bundle.
+
+<Note>
+  Most use cases don't need this endpoint. The SDK resolves parameters locally from the config bundle. Use this endpoint only for per-entity adaptive policies configured with `resolutionMode: "edge"`.
+</Note>
+
+## Request
+
+```
+POST /v1/decide/:policyId
+```
+
+### Path parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `policyId` | `string` | The adaptive policy ID to get a decision for |
+
+### Headers
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `Authorization` | Yes | `Bearer sk_...` (requires `sdk:read` scope) |
+| `Content-Type` | Yes | `application/json` |
+
+### Body
+
+```json
+{
+  "entityId": "product_123",
+  "unitKeyValue": "user_789",
+  "allocationCount": 5
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `entityId` | `string` | yes | The entity to get a decision for (e.g. `productId`) |
+| `unitKeyValue` | `string` | yes | Unit key value (typically `userId`) — used for deterministic selection |
+| `allocationCount` | `number` | no | For dynamic allocations: how many options exist for this entity |
+| `context` | `object` | no | Additional context (passed through to policy conditions) |
+
+## Response
+
+### 200 OK
+
+```json
+{
+  "allocationIndex": 1,
+  "allocationName": "variant_b",
+  "weights": [0.25, 0.50, 0.25],
+  "coldStart": false,
+  "stateVersion": "2025-01-15T10:30:00Z"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `allocationIndex` | `number` | Index of the selected allocation |
+| `allocationName` | `string` | Name of the selected allocation |
+| `weights` | `number[]` | Current allocation weights (probabilities) |
+| `coldStart` | `boolean` | `true` if no entity-specific weights exist yet (using global prior) |
+| `stateVersion` | `string` | Timestamp of the entity weight state |
+
+### How selection works
+
+The endpoint uses deterministic weighted selection:
+
+1. Reads the current weights for the entity.
+2. Uses a hash of the unit key to deterministically pick an allocation weighted by those probabilities (same user always picks the same allocation while weights don't change).
+3. If no entity-specific weights exist yet, uses the global prior (cold start).
+
+Selection is deterministic given a fixed weight state, so the same `(policyId, entityId, unitKeyValue)` always returns the same allocation until the weights change.
+
+## Batch endpoint
+
+For multiple decisions in a single request:
+
+```
+POST /v1/decide/batch
+```
+
+### Body
+
+```json
+{
+  "requests": [
+    { "policyId": "policy_abc", "entityId": "product_123", "unitKeyValue": "user_789" },
+    { "policyId": "policy_abc", "entityId": "product_456", "unitKeyValue": "user_789" }
+  ]
+}
+```
+
+### Response
+
+```json
+{
+  "results": [
+    {
+      "allocationIndex": 1,
+      "allocationName": "variant_b",
+      "weights": [0.25, 0.50, 0.25],
+      "coldStart": false,
+      "stateVersion": "2025-01-15T10:30:00Z"
+    },
+    {
+      "allocationIndex": 0,
+      "allocationName": "variant_a",
+      "weights": [0.40, 0.35, 0.25],
+      "coldStart": false,
+      "stateVersion": "2025-01-15T10:30:00Z"
+    }
+  ]
+}
+```
+
+The batch endpoint groups decisions by policy ID, so multiple entity decisions for the same policy only require one lookup.

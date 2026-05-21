@@ -1,0 +1,181 @@
+---
+title: "SSR patterns"
+description: "Server-side rendering with SvelteKit, Next.js, and Remix — no flash of original content, no double-fetch on hydration."
+---
+
+Server-side rendering introduces a timing challenge: the server has to resolve parameters during the request lifecycle so the first paint is correct, but the client also needs the assignments for interactive behaviour. If you fetch the bundle twice — once on the server, once on the client — hydration can re-resolve to different values and cause a visible swap.
+
+The pattern is always the same:
+
+1. Fetch the bundle once on the server.
+2. Pass it to the client via your framework's data-loading mechanism.
+3. Initialize the client SDK with the server-provided bundle as `localConfig`.
+4. The client uses the same bundle and resolves identically — no second fetch on hydration.
+
+## SvelteKit
+
+### Layout `load` (server)
+
+```typescript
+// src/routes/+layout.server.ts
+import { loadTrafficalBundle } from "@traffical/svelte/sveltekit";
+import { TRAFFICAL_API_KEY } from "$env/static/private";
+
+export async function load({ fetch }) {
+  const { bundle } = await loadTrafficalBundle({
+    orgId: "org_acme",
+    projectId: "proj_marketplace",
+    env: "production",
+    apiKey: TRAFFICAL_API_KEY,
+    fetch,    // SvelteKit's fetch handles caching
+  });
+
+  return { traffical: { bundle } };
+}
+```
+
+`loadTrafficalBundle` respects standard HTTP caching, so subsequent SSR requests within the cache TTL benefit from SvelteKit's fetch cache.
+
+### Root layout (server + client)
+
+```svelte
+<!-- src/routes/+layout.svelte -->
+<script lang="ts">
+  import { TrafficalProvider } from "@traffical/svelte";
+  let { data, children } = $props();
+</script>
+
+<TrafficalProvider
+  config={{
+    orgId: "org_acme",
+    projectId: "proj_marketplace",
+    env: "production",
+    apiKey: import.meta.env.PUBLIC_TRAFFICAL_API_KEY,
+    localConfig: data.traffical.bundle,
+  }}
+>
+  {@render children()}
+</TrafficalProvider>
+```
+
+### Page
+
+```svelte
+<!-- src/routes/checkout/+page.svelte -->
+<script lang="ts">
+  import { useTraffical } from "@traffical/svelte";
+
+  const { params, track } = useTraffical({
+    defaults: {
+      "checkout.cta_text": "Buy Now",
+      "checkout.layout": "single-page",
+    },
+  });
+</script>
+
+<h1>{params["checkout.cta_text"]}</h1>
+<button onclick={() => track("cta_click")}>Buy</button>
+```
+
+The server resolves with `data.traffical.bundle` and renders the correct variant. The client picks up the same bundle and resolves identically. No swap.
+
+## Next.js (App Router / RSC)
+
+```tsx
+// app/layout.tsx
+import { fetchBundle } from "@traffical/react/server";
+import { TrafficalProvider } from "@traffical/react";
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const bundle = await fetchBundle({
+    orgId: "org_acme",
+    projectId: "proj_marketplace",
+    env: "production",
+    apiKey: process.env.TRAFFICAL_API_KEY!,    // server-only secret
+  });
+
+  return (
+    <html>
+      <body>
+        <TrafficalProvider
+          config={{
+            orgId: "org_acme",
+            projectId: "proj_marketplace",
+            env: "production",
+            apiKey: process.env.NEXT_PUBLIC_TRAFFICAL_API_KEY!,    // public
+            localConfig: bundle,
+          }}
+        >
+          {children}
+        </TrafficalProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+`fetchBundle` is cached via Next.js's `fetch` integration; subsequent renders within the cache window don't re-fetch.
+
+## Next.js (Pages Router)
+
+```tsx
+// pages/_app.tsx
+import { TrafficalProvider } from "@traffical/react";
+
+export default function App({ Component, pageProps }) {
+  return (
+    <TrafficalProvider
+      config={{
+        orgId: "org_acme",
+        projectId: "proj_marketplace",
+        env: "production",
+        apiKey: process.env.NEXT_PUBLIC_TRAFFICAL_API_KEY!,
+        localConfig: pageProps.trafficalBundle,
+      }}
+    >
+      <Component {...pageProps} />
+    </TrafficalProvider>
+  );
+}
+```
+
+```tsx
+// pages/checkout.tsx
+import { fetchBundle } from "@traffical/react/server";
+
+export async function getServerSideProps() {
+  const bundle = await fetchBundle({
+    orgId: "org_acme",
+    projectId: "proj_marketplace",
+    env: "production",
+    apiKey: process.env.TRAFFICAL_API_KEY!,
+  });
+  return { props: { trafficalBundle: bundle } };
+}
+```
+
+## Why this works
+
+- **Same bundle, same hash, same answer.** Both server and client read the same bundle. The hashing function (`hash(unitKey + layerId) % bucketCount`) is identical in `@traffical/core`. The same userId always resolves to the same allocation.
+- **One network fetch.** The server fetches; the client receives the bundle inline. No second fetch on hydration.
+- **First paint is correct.** Because the server resolves before rendering, the user sees the right variant immediately. No flash of original content.
+
+## Pitfalls
+
+- **Mismatched user IDs.** If the server reads `userId` from a session cookie but the client reads it from a different source, the two will resolve to different buckets and you'll see a swap on hydration. Make sure both sides use the same value.
+- **Server-only secrets in the client.** Keep your `sk_...` server key out of the client bundle. Use a public `pk_...` key in the `TrafficalProvider` and the `sk_...` key only in the server-side `fetchBundle`/`loadTrafficalBundle` call.
+- **Stale bundle on long-lived pages.** The client refreshes the bundle every 60s by default. SPAs running for hours will pick up new policies automatically. For static pages, a hard reload is enough.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="SSR + hydration pattern" icon="server" href="/guides/canonical-experiments#ssr--client-hydration">
+    Full end-to-end example.
+  </Card>
+  <Card title="React SDK" icon="react" href="/sdks/react">
+    Provider, hooks, options.
+  </Card>
+  <Card title="Svelte SDK" icon="s" href="/sdks/svelte">
+    Stores, context, runes.
+  </Card>
+</CardGroup>

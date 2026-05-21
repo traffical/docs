@@ -1,0 +1,121 @@
+---
+title: "Dashboard tour"
+description: "A guided walkthrough of the Traffical dashboard — where to find what, and what each section is for."
+---
+
+The dashboard lives at [app.traffical.io](https://app.traffical.io). It's where you create projects, define parameters, run experiments, watch metrics, and manage everything that doesn't fit in code.
+
+This is a tour. Each section links to a deeper walkthrough.
+
+## The hierarchy
+
+The URL structure mirrors the [hierarchy](/concepts/projects-and-environments): organization → project → resource.
+
+```
+app.traffical.io/{orgKey}                          ← org-level: API keys, billing, members
+app.traffical.io/{orgKey}/{projectKey}             ← project-level: everything below
+app.traffical.io/{orgKey}/{projectKey}/parameters
+app.traffical.io/{orgKey}/{projectKey}/layers
+app.traffical.io/{orgKey}/{projectKey}/events
+app.traffical.io/{orgKey}/{projectKey}/metrics
+app.traffical.io/{orgKey}/{projectKey}/definitions
+app.traffical.io/{orgKey}/{projectKey}/pipeline
+app.traffical.io/{orgKey}/{projectKey}/decisions
+app.traffical.io/{orgKey}/{projectKey}/settings
+```
+
+The sidebar follows the same structure.
+
+<Frame caption="Dashboard home — pick an organization">
+  <img src="/images/placeholders/dashboard-home.png" alt="Dashboard home placeholder" />
+</Frame>
+
+## What's where
+
+### Organization
+
+<CardGroup cols={2}>
+  <Card title="API keys" icon="key" href="/dashboard/settings#api-keys">
+    Create and revoke `sk_...` / `pk_...` keys per project + environment.
+  </Card>
+  <Card title="Billing" icon="credit-card">
+    Plan, usage, invoices.
+  </Card>
+  <Card title="Members" icon="users">
+    Invite teammates, manage roles.
+  </Card>
+  <Card title="System" icon="server">
+    Org-wide settings.
+  </Card>
+</CardGroup>
+
+### Project
+
+<CardGroup cols={2}>
+  <Card title="Parameters" icon="sliders" href="/dashboard/parameters">
+    All parameters in the project — synced (from CLI) and dashboard-only.
+  </Card>
+  <Card title="Layers & policies" icon="layer-group" href="/dashboard/layers-and-policies">
+    Where experiments are configured. The bulk of day-to-day work.
+  </Card>
+  <Card title="Events" icon="bolt" href="/dashboard/events">
+    Event definitions, property schemas, the event explorer.
+  </Card>
+  <Card title="Definitions" icon="database" href="/dashboard/definitions">
+    Entities, assignments, facts — for warehouse-native metrics.
+  </Card>
+  <Card title="Metrics" icon="chart-line" href="/dashboard/metrics">
+    Metric definitions and their results.
+  </Card>
+  <Card title="Pipeline" icon="forward" href="/dashboard/pipeline">
+    Pipeline runs, freshness, costs.
+  </Card>
+  <Card title="Decisions" icon="clock-rotate-left" href="/dashboard/decisions">
+    Audit log of every policy lifecycle change.
+  </Card>
+  <Card title="Settings" icon="gear" href="/dashboard/settings">
+    Warehouse connection, SDK sync, hashing config, maintenance.
+  </Card>
+</CardGroup>
+
+## Day-to-day flow
+
+Most teams work like this:
+
+1. **Author parameters in code** via `traffical.yaml` and `traffical push`.
+2. **Create policies in the dashboard** — that's where experiments are configured.
+3. **Watch metrics during the experiment** — visit the policy detail page.
+4. **Promote the winner** — update the parameter default and mark the policy complete.
+
+Parameters live in code (the source of truth). Policies live in the dashboard (because they change frequently and need approval workflows). Events and metric definitions can live in either, depending on team preference.
+
+## Roles
+
+| Role | Can |
+|------|-----|
+| **Admin** | Everything, including billing and member management |
+| **Editor** | Create/edit/delete experiments, parameters, definitions |
+| **Viewer** | Read-only |
+
+Roles are managed at the org level. Project-level scoping (so a team can only edit one specific project) is on the near roadmap.
+
+## Audit trail
+
+Every change in the dashboard is captured in the [decision log](/dashboard/decisions) — policy state transitions, allocation overrides, rollout actions, manual completions, optimization milestones. Use it to answer "who turned this on / who paused it / who promoted that variant".
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Your first experiment" icon="rocket" href="/guides/first-experiment">
+    The end-to-end flow from `traffical init` to reading results.
+  </Card>
+  <Card title="Parameters" icon="sliders" href="/dashboard/parameters">
+    Walkthrough of the parameters page.
+  </Card>
+  <Card title="Layers & policies" icon="layer-group" href="/dashboard/layers-and-policies">
+    Where experiments live.
+  </Card>
+  <Card title="Settings → Warehouse" icon="database" href="/dashboard/settings#warehouse">
+    Connect Postgres, BigQuery, Snowflake, Databricks, or ClickHouse.
+  </Card>
+</CardGroup>

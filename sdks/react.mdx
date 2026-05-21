@@ -1,0 +1,224 @@
+---
+title: "React SDK"
+description: "React provider and useTraffical hook for parameter resolution, event tracking, and SSR hydration."
+---
+
+`@traffical/react` provides a context provider and hooks for resolving parameters and tracking events in React apps. It wraps `@traffical/js-client`, so everything the browser client supports works here too.
+
+## Installation
+
+<CodeGroup>
+  ```bash npm
+  npm install @traffical/react
+  ```
+
+  ```bash pnpm
+  pnpm add @traffical/react
+  ```
+
+  ```bash yarn
+  yarn add @traffical/react
+  ```
+</CodeGroup>
+
+## Setup
+
+Wrap your app with `TrafficalProvider`:
+
+```tsx
+import { TrafficalProvider } from "@traffical/react";
+
+function App() {
+  return (
+    <TrafficalProvider
+      config={{
+        orgId: "org_acme",
+        projectId: "proj_marketplace",
+        env: "production",
+        apiKey: process.env.NEXT_PUBLIC_TRAFFICAL_API_KEY!,
+      }}
+    >
+      <MyApp />
+    </TrafficalProvider>
+  );
+}
+```
+
+Use a **public API key** (`pk_...`) in browser code.
+
+## The `useTraffical` hook
+
+Use `useTraffical` in any component to resolve parameters and track events:
+
+```tsx
+import { useTraffical } from "@traffical/react";
+
+function CheckoutButton() {
+  const { params, track } = useTraffical({
+    defaults: {
+      "checkout.button.color": "#1E6EFB",
+      "checkout.button.label": "Buy now",
+    },
+  });
+
+  return (
+    <button
+      style={{ backgroundColor: params["checkout.button.color"] }}
+      onClick={() => track("cta_click")}
+    >
+      {params["checkout.button.label"]}
+    </button>
+  );
+}
+```
+
+### Hook options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `defaults` | `Record<string, ParameterValue>` | Default values for the parameters this component reads. Required. |
+| `context` | `Context` | Optional extra context merged with provider context. |
+| `tracking` | `"full" \| "decision" \| "none"` | Tracking mode (see below). Default `"full"`. |
+
+### Hook return value
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `params` | `Record<string, ParameterValue>` | Resolved parameter values |
+| `decision` | `DecisionResult \| null` | Full decision record (decisionId, layer assignments) |
+| `ready` | `boolean` | `true` once the bundle has loaded at least once |
+| `error` | `Error \| null` | Any non-fatal error from the last refresh |
+| `track` | `(event, options?) => void` | Track an event |
+| `trackExposure` | `() => void` | Manually emit an exposure (for `"decision"` mode) |
+| `flushEvents` | `() => Promise<void>` | Force flush of pending events |
+
+### Tracking modes
+
+```tsx
+useTraffical({ defaults, tracking: "full" });      // default — automatic decision + exposure
+useTraffical({ defaults, tracking: "decision" });  // automatic decision; you call trackExposure()
+useTraffical({ defaults, tracking: "none" });      // no tracking (SSR, tests)
+```
+
+`"decision"` is useful when the variant is below the fold — you want to record the decision but only count exposure once the user actually sees the change.
+
+## Setting context
+
+Pass user context through the provider; it flows to all hooks:
+
+```tsx
+<TrafficalProvider
+  config={{
+    orgId: "org_acme",
+    projectId: "proj_marketplace",
+    env: "production",
+    apiKey: process.env.NEXT_PUBLIC_TRAFFICAL_API_KEY!,
+  }}
+  context={{
+    userId: currentUser.id,
+    locale: navigator.language,
+    plan: currentUser.plan,
+  }}
+>
+  <MyApp />
+</TrafficalProvider>
+```
+
+When the context changes (e.g. after login), hooks re-resolve with the new values. For very dynamic context, pass `contextFn` instead — a function called on each resolution.
+
+## Anonymous users and `identify`
+
+The React SDK inherits the browser client's stable-ID handling. Before the user logs in, the SDK uses an auto-generated stable ID. After login:
+
+```tsx
+function Login() {
+  const { client } = useTrafficalClient();
+
+  function handleLogin(user) {
+    client.identify(user.id);
+    // assignments may change for this session
+  }
+}
+```
+
+## SSR (Next.js, RSC)
+
+For Next.js (App Router or Pages), fetch the bundle on the server and pass it as `localConfig`:
+
+```tsx
+// app/layout.tsx (RSC)
+import { fetchBundle } from "@traffical/react/server";
+import { TrafficalProvider } from "@traffical/react";
+
+export default async function RootLayout({ children }) {
+  const bundle = await fetchBundle({
+    orgId: "org_acme",
+    projectId: "proj_marketplace",
+    env: "production",
+    apiKey: process.env.TRAFFICAL_API_KEY!,    // server-only
+  });
+
+  return (
+    <TrafficalProvider config={{
+      orgId: "org_acme",
+      projectId: "proj_marketplace",
+      env: "production",
+      apiKey: process.env.NEXT_PUBLIC_TRAFFICAL_API_KEY!,    // public
+      localConfig: bundle,
+    }}>
+      {children}
+    </TrafficalProvider>
+  );
+}
+```
+
+See the [SSR patterns](/sdks/ssr) page for the full setup.
+
+## Standalone tracking
+
+If you only need to track an event, use `useTrafficalTrack`:
+
+```tsx
+import { useTrafficalTrack } from "@traffical/react";
+
+function Footer() {
+  const track = useTrafficalTrack();
+  return <a href="#" onClick={() => track("newsletter_signup_clicked")}>Subscribe</a>;
+}
+```
+
+## Direct client access
+
+If you need to do something the hooks don't expose, get the underlying client:
+
+```tsx
+import { useTrafficalClient } from "@traffical/react";
+
+function DebugPanel() {
+  const client = useTrafficalClient();
+  return <button onClick={() => client.flushEvents()}>Flush</button>;
+}
+```
+
+## Provider options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `config` | `TrafficalClientOptions` | required | Client config — same shape as `@traffical/js-client` |
+| `context` | `Context` | `{}` | Initial context (static) |
+| `contextFn` | `() => Context` | — | Dynamic context — called on every resolution |
+| `unitKeyFn` | `() => string` | — | Custom unit-key resolution |
+| `initialParams` | `Record<string, ParameterValue>` | — | Pre-resolved params for first render (SSR) |
+
+The full set of `TrafficalClientOptions` (refresh interval, plugins, attribution mode, evaluation mode, etc.) is available — same as the [browser SDK](/sdks/javascript#options).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="SSR patterns" icon="server" href="/sdks/ssr">
+    No FOOC, hydration with the same bundle.
+  </Card>
+  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+    Patterns for web UI and SSR tests.
+  </Card>
+</CardGroup>

@@ -1,0 +1,137 @@
+---
+title: "ClickHouse"
+description: "Connect Traffical to ClickHouse (self-hosted, ClickHouse Cloud, Altinity) for warehouse-native metrics."
+---
+
+Traffical reads from ClickHouse via the HTTPS API. This page covers credentials, permissions, and the schema patterns that work well with the pipeline.
+
+## Connection fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `host` | yes | Hostname of your ClickHouse instance |
+| `port` | no | Defaults to `8443` (HTTPS). Use `8123` for plaintext HTTP — not recommended in production |
+| `username` | yes | ClickHouse user — needs `SELECT` on source data plus full DDL/DML on a Traffical-owned database (see below) |
+| `password` | yes | Password for the user |
+| `database` | yes | Default database |
+
+Configure these in **Settings → Warehouse → ClickHouse**.
+
+The connection uses HTTPS automatically when the port is `8443` or `443`. Other ports use HTTP.
+
+## Creating the user and grants
+
+The pipeline reads from your source databases and writes intermediate tables into a Traffical-owned database. Both kinds of access live on a single user.
+
+```sql
+-- As a user with the ACCESS MANAGEMENT privilege:
+
+CREATE USER traffical IDENTIFIED WITH plaintext_password BY '<strong-random-password>';
+
+CREATE ROLE traffical_role;
+
+-- Read on your source data
+GRANT SELECT ON analytics.* TO traffical_role;
+
+-- Write on a Traffical-owned database. The pipeline issues
+-- CREATE DATABASE IF NOT EXISTS on first run, so granting CREATE DATABASE
+-- at the cluster level is enough — or pre-create and grant only on it.
+GRANT CREATE DATABASE ON *.* TO traffical_role;
+GRANT CREATE TABLE, DROP TABLE, INSERT, ALTER, SELECT ON traffical.* TO traffical_role;
+
+GRANT traffical_role TO traffical;
+```
+
+If you'd rather not grant `CREATE DATABASE` at the cluster level, pre-create the database and grant explicitly:
+
+```sql
+CREATE DATABASE traffical;
+GRANT CREATE TABLE, DROP TABLE, INSERT, ALTER, SELECT ON traffical.* TO traffical_role;
+```
+
+`ALTER` is needed because the overlap-delete pattern uses `ALTER TABLE ... DELETE WHERE ...` on ClickHouse (ClickHouse doesn't support point `DELETE` syntax on `MergeTree`). The pipeline already runs this with `SETTINGS mutations_sync = 1` so it's synchronous from the pipeline's point of view.
+
+If you prefer `SHA256` hashed passwords:
+
+```sql
+CREATE USER traffical IDENTIFIED WITH sha256_hash BY '<hex-hash>';
+```
+
+Replace `analytics` with the database your assignment and fact tables live in.
+
+## Recommended schema layout
+
+ClickHouse's strength is fast time-series scans. Use `MergeTree`-family engines and partition on time:
+
+```sql
+CREATE TABLE analytics.experiment_assignments (
+  user_id          String,
+  assigned_at      DateTime64(3, 'UTC'),
+  experiment_name  String,
+  variant          String
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMM(assigned_at)
+ORDER BY (assigned_at, experiment_name, user_id);
+
+CREATE TABLE analytics.orders (
+  order_id     String,
+  user_id      String,
+  order_total  Decimal(18, 2),
+  currency     LowCardinality(String),
+  event_time   DateTime64(3, 'UTC')
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMM(event_time)
+ORDER BY (event_time, user_id);
+```
+
+Monthly partitioning is a good default; switch to daily if your fact tables are very large. The `ORDER BY` keys are also indexes — leading with `event_time` makes the pipeline's date-range filters cheap.
+
+## Example definitions
+
+Assignment definition SQL:
+
+```sql
+SELECT
+  user_id,
+  assigned_at,
+  experiment_name AS policy_key,
+  variant         AS allocation_key
+FROM analytics.experiment_assignments
+WHERE assigned_at BETWEEN toDateTime64('{{start_date}}', 3, 'UTC')
+                      AND toDateTime64('{{end_date}}', 3, 'UTC')
+```
+
+Fact definition SQL:
+
+```sql
+SELECT
+  user_id,
+  event_time,
+  order_total
+FROM analytics.orders
+WHERE event_time BETWEEN toDateTime64('{{start_date}}', 3, 'UTC')
+                     AND toDateTime64('{{end_date}}', 3, 'UTC')
+```
+
+## Network access
+
+ClickHouse exposes HTTPS on port 8443 by default for managed deployments. Traffical connects directly:
+
+- **ClickHouse Cloud / Altinity.Cloud / Tinybird** — add Traffical's egress IPs to the service's IP allowlist (in **Settings → Warehouse**).
+- **Self-hosted** — open port 8443 (or your chosen HTTPS port) from Traffical's IPs through any firewall.
+
+## Performance tips
+
+- **Partition on time.** Pretty much every query the pipeline runs filters by time — partitioning ensures only relevant parts are scanned.
+- **`LowCardinality(String)`.** Use it for columns with few distinct values (status codes, country, currency, allocation name). It reduces storage and speeds up filters.
+- **Materialized views for pre-aggregation.** If you have a very large facts table, consider a materialized view that pre-aggregates per (day, user). Point the fact definition at the materialized view.
+- **Skip indexes** on `user_id` if you have high cardinality and frequent user-level joins.
+
+## Gotchas
+
+- **HTTP vs HTTPS.** The connection uses HTTPS by default. If you set `port` to a plaintext port (8123), credentials travel unencrypted — only do this on a private network.
+- **DateTime precision.** Use `DateTime64(3, 'UTC')` (millisecond precision, UTC) for time columns. Mixed precisions can cause subtle bugs in time-window filters.
+- **`Distributed` tables.** If you query a distributed table, make sure the underlying tables on each shard have consistent schemas. Pipeline errors otherwise show up as cryptic column-mismatch messages.
+- **`SELECT *` is fine but slow.** ClickHouse is columnar; only project the columns you actually use.

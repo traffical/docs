@@ -1,0 +1,104 @@
+---
+title: "POST /v1/resolve"
+description: "Server-side parameter resolution for SDKs in `evaluationMode: \"server\"`."
+---
+
+Resolves parameters for a given context server-side. Use this when an SDK can't cache a full config bundle, or when you want every resolution to use the freshest possible state. The React Native SDK uses this endpoint by default.
+
+Most server and web use cases should prefer the bundle-based path (`GET /v1/config/:projectId` + local resolution) — it's faster, works offline, and scales further.
+
+## Request
+
+```
+POST /v1/resolve
+```
+
+### Headers
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `Authorization` | yes | `Bearer sk_...` or `Bearer pk_...` |
+| `Content-Type` | yes | `application/json` |
+
+### Body
+
+```json
+{
+  "projectId": "proj_marketplace",
+  "env": "production",
+  "context": {
+    "userId": "user_789",
+    "locale": "en-US",
+    "plan": "pro"
+  },
+  "parameters": [
+    "checkout.button.color",
+    "checkout.show_trust_badges",
+    "pricing.discount_pct"
+  ],
+  "defaults": {
+    "checkout.button.color": "#1E6EFB",
+    "checkout.show_trust_badges": false,
+    "pricing.discount_pct": 0
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `projectId` | `string` | yes | Project to resolve against |
+| `env` | `string` | yes | Environment |
+| `context` | `object` | yes | Must include the unit key (e.g. `userId`) |
+| `parameters` | `string[]` | yes | Parameters to resolve |
+| `defaults` | `object` | no | Fallback values for parameters not covered by any policy |
+
+## Response
+
+### 200 OK
+
+```json
+{
+  "decisionId": "dec_abc123",
+  "assignments": {
+    "checkout.button.color": "#22C55E",
+    "checkout.show_trust_badges": true,
+    "pricing.discount_pct": 0
+  },
+  "decisions": [
+    {
+      "layerId": "layer_checkout",
+      "policyId": "policy_color_test",
+      "allocationName": "treatment",
+      "bucket": 7420
+    }
+  ],
+  "bundleVersion": "2026-05-21T10:30:00Z"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `decisionId` | `string` | Use this on subsequent track events for attribution |
+| `assignments` | `object` | Resolved parameter values keyed by parameter key |
+| `decisions` | `Decision[]` | Per-layer assignments (layerId, policyId, allocationName, bucket) |
+| `bundleVersion` | `string` | Version timestamp of the bundle used for this resolution |
+
+### 401 Unauthorized
+
+```json
+{ "error": "Unauthorized", "message": "Invalid or expired API key" }
+```
+
+### 404 Not found
+
+```json
+{ "error": "Not Found", "message": "Project not found" }
+```
+
+## When to use this
+
+- Mobile clients where caching a full bundle isn't reasonable (very limited memory, or very rare resolutions).
+- Server-to-server systems where you want fresh state without managing bundle refresh in your own code.
+- Per-entity adaptive policies where bundle-mode freshness isn't sufficient — though `POST /v1/decide/:policyId` is usually the right answer for that specific case.
+
+For everything else, prefer `GET /v1/config/:projectId` and resolve locally.

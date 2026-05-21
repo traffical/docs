@@ -1,0 +1,144 @@
+---
+title: "Rollouts"
+description: "Progressive delivery with automated ramp, health checks, and rollback strategies."
+---
+
+A **rollout** is a gradual increase in traffic allocation for a new parameter value. Use rollouts when you want to ship a change carefully: start with a small slice, watch for problems, and ramp up automatically when the signal looks good.
+
+Rollouts are configured per policy. They turn a static or adaptive policy into a progressive delivery process — without changing your SDK code at all.
+
+## How a rollout works
+
+When you start a rollout, Traffical records the current allocation bucket ranges as the **target state**. At each step, it scales every allocation's range proportionally toward that target:
+
+```
+Target state:  control [0, 4999]   treatment [5000, 9999]   (50/50 final)
+
+ 5% rollout:   control [0,  249]   treatment [5000, 5249]
+10% rollout:   control [0,  499]   treatment [5000, 5499]
+50% rollout:   control [0, 2499]   treatment [5000, 7499]
+100% rollout:  control [0, 4999]   treatment [5000, 9999]   (full target state)
+```
+
+The ratio between allocations is preserved at every step. Bucket ranges only grow, never shrink — so users who land in `treatment` at 5% stay there at 10%, 50%, 100%. Stability is built in.
+
+A lower-priority fallback policy in the same layer catches traffic outside the rollout's current ranges. For single-allocation rollouts, this is just "everyone not yet in the new variant gets the old behaviour".
+
+## Configuring a rollout
+
+In the dashboard, open a policy and add a rollout configuration:
+
+- **Target percentage** — usually `100`.
+- **Ramp** — either continuous (`incrementPercentage` every `windowSizeMinutes`) or scheduled (an explicit list of `{ percentage, scheduledAt }` steps).
+- **Health checks** — metrics to evaluate before each step.
+- **Rollback strategy** — what to do if a health check fails.
+
+```yaml
+# Conceptual shape
+rolloutConfig:
+  state: "ramping"
+  currentPercentage: 0
+  targetPercentage: 100
+  rampRate:
+    incrementPercentage: 10
+    windowSizeMinutes: 60
+  healthChecks:
+    - metricId: error_rate
+      operator: lte
+      thresholdValue: 0.001
+      minimumExposures: 1000
+      windowMinutes: 60
+  onHealthViolation: "pause"
+  onComplete: "pause_lower_priority"
+  warmupWindows: 2
+  maxStepsPerRun: 3
+```
+
+The scheduler advances the rollout in the background. You don't need any code changes between steps — your SDK just keeps resolving from the latest bundle.
+
+## Health checks
+
+Health checks reference metric definitions, not raw events. Two flavours:
+
+- **Absolute** — compare the metric against a fixed threshold (e.g. error rate ≤ 0.1%).
+- **Relative** — compare against a baseline policy (e.g. conversion rate no worse than 5% below baseline).
+
+Each check requires `minimumExposures` before it runs. If there's not enough data yet, the rollout holds at the current step rather than passing or failing.
+
+| Field | Description |
+|-------|-------------|
+| `metricId` | The metric to evaluate |
+| `operator` | `gte`, `lte`, `gt`, `lt` |
+| `thresholdValue` | Absolute threshold |
+| `baselinePolicyId` | (optional) compare against another policy |
+| `relativeDeltaPercent` | (optional) max acceptable degradation, e.g. `5` for 5% |
+| `minimumExposures` | Required sample size before evaluation |
+| `windowMinutes` | Lookback window |
+
+## Rollback strategies
+
+When a health check fails, the configured action fires:
+
+| Strategy | What happens |
+|----------|--------------|
+| `alert_only` | Log a warning, continue ramping |
+| `pause` | Stop at the current percentage, mark `paused` |
+| `rollback_one_step` | Go back one increment, then pause |
+| `full_rollback` | Snap back to 0%, pause |
+
+## Warm-up windows
+
+After each step, the rollout waits `warmupWindows` evaluation cycles (default 2) before evaluating health. This gives the new traffic level time to produce meaningful data before the next decision.
+
+## Safety limits
+
+- **`maxStepsPerRun`** caps how many advances the scheduler will do in a single evaluation (default 3). This prevents "catch-up" jumps after an outage where the scheduler missed many windows.
+- **Stable buckets** — because ranges only grow, no user is ever moved between allocations during a rollout.
+
+## When a rollout completes
+
+When the rollout reaches its target percentage, the scheduler stops advancing. The `onComplete` action determines what happens to other policies in the same layer:
+
+- `pause_lower_priority` — lower-priority policies in the layer are paused (the rollout has effectively replaced them)
+- `none` — nothing happens; the rollout policy is now at full traffic alongside whatever else was running
+
+You can also manually promote the winning allocation: set the parameter's default to the winning value, mark the policy `completed`, and archive it.
+
+## Manual override
+
+You can pause, resume, jump to a specific percentage, or roll back manually from the dashboard at any time. The scheduler respects whatever state you put the rollout in.
+
+## Lifecycle
+
+| Phase | Typical % | Question |
+|-------|-----------|----------|
+| Canary | 1–5% | Is it safe? |
+| Experiment | 50/50 | Is it better? |
+| Rollout | ramp 5% → 100% | Can we ship the winner? |
+| Complete | 100% (new default) | Archive the policy |
+
+You don't need to do all four. A low-risk feature flag may go straight from rollout to complete. An adaptive policy can stay in learning mode indefinitely.
+
+## Feature flags as rollouts
+
+A boolean parameter with a rollout policy is a feature flag with built-in safety:
+
+```yaml
+parameters:
+  checkout.redesign_enabled:
+    type: boolean
+    default: false
+```
+
+Start with a 5% rollout, attach a health check on your conversion-rate metric, and let the system ramp to 100% — automatically pausing if conversion drops. See [Feature flags](/experimentation/feature-flags).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Feature flags" icon="toggle-on" href="/experimentation/feature-flags">
+    Boolean parameters with rollout safety.
+  </Card>
+  <Card title="Progressive rollout pattern" icon="forward" href="/guides/canonical-experiments#progressive-rollout">
+    Full walkthrough with metric setup.
+  </Card>
+</CardGroup>

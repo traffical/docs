@@ -1,0 +1,60 @@
+---
+title: "Introduction"
+description: "Traffical is parameter-first experimentation, feature flags, and adaptive optimization in one system."
+---
+
+Traffical is a platform for experimentation, feature management, and adaptive optimization. It is built on a single primitive — the **typed parameter** — that unifies A/B testing, feature flags, gradual rollouts, and contextual bandits.
+
+SDKs resolve parameters locally in sub-milliseconds. The optimization engine learns from user behaviour and continuously refines allocations. Metrics are computed either from Traffical-native events or directly from your own data warehouse.
+
+## Key capabilities
+
+- **Parameter-first.** Typed values (string, number, boolean, JSON) with defaults and constraints. Experiments, rollouts, and flags are all policies on top of parameters.
+- **Layered experimentation.** Mutual exclusivity within a layer; orthogonal bucketing across layers. Run dozens of concurrent experiments without them contaminating each other.
+- **Local resolution.** SDKs fetch a config bundle and resolve in-process. Sub-millisecond, works offline, graceful degradation if Traffical is unreachable.
+- **Adaptive optimization.** Thompson Sampling, Epsilon-Greedy, UCB1, per-entity bandits, and linear contextual bandits that personalize per user.
+- **Warehouse-native metrics.** Define metrics as SQL against your own warehouse — Postgres, BigQuery, Snowflake, Databricks, ClickHouse — or use Traffical-native events. Or both.
+- **Config-as-code.** Manage parameters and events in version-controlled YAML. Push, pull, sync, integrate with CI/CD. Type-safe event tracking via generated TypeScript types.
+- **Visual editor and DevTools.** Author no-code UI experiments via a bookmarklet; inspect SDK state and override parameters live in any browser.
+
+## Who is Traffical for?
+
+Engineering teams who want to:
+
+- Run experiments without adding latency to their application
+- Manage configuration as code, alongside the application code that uses it
+- Move beyond feature flags into typed parameters and adaptive optimization
+- Compute metrics from their existing data warehouse
+- Run many concurrent experiments safely
+
+…and the PMs, marketers, and data scientists who work alongside them.
+
+## SDKs
+
+| Package | Environment |
+|---------|-------------|
+| [`@traffical/node`](/sdks/node) | Server-side Node.js / Bun |
+| [`@traffical/js-client`](/sdks/javascript) | Browser, framework-free |
+| [`@traffical/react`](/sdks/react) | React (browser, RSC, Next.js) |
+| [`@traffical/svelte`](/sdks/svelte) | Svelte 5 and SvelteKit |
+| [`@traffical/react-native`](/sdks/react-native) | iOS / Android via React Native |
+| [`@traffical/cli`](/tools/cli) | Config-as-code CLI |
+
+All TypeScript SDKs share a common [`@traffical/core`](https://github.com/traffical/js-sdk) package that implements bucketing, condition evaluation, and resolution. Whichever SDK you use, the same user always resolves to the same allocation.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Why Traffical" icon="lightbulb" href="/why-traffical">
+    The parameter-first philosophy.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Up and running in under five minutes.
+  </Card>
+  <Card title="How it works" icon="gears" href="/how-it-works">
+    Local resolution, evaluation modes, the config bundle.
+  </Card>
+  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+    Patterns for backend, web, mobile, SSR, batch, and more.
+  </Card>
+</CardGroup>

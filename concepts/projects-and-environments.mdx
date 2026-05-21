@@ -1,0 +1,125 @@
+---
+title: "Projects & environments"
+description: "The hierarchy your SDK keys point at: organizations, projects, environments, and unit keys."
+---
+
+Every SDK initialization needs three identifiers — `orgId`, `projectId`, and `env` — plus an API key. This page explains what those mean and what's configured where.
+
+## The hierarchy
+
+```
+Organization (org_acme)
+└── Project (proj_marketplace)        ← unit key, bucket count
+    ├── Environment (production)      ← config bundle, API keys
+    ├── Environment (staging)
+    └── Environment (development)
+```
+
+Three levels, each with a clear job.
+
+### Organization
+
+The top-level tenant. Holds billing, member access, audit logs, and one or more projects. Most teams need exactly one organization. You only need more if you have legally separate entities that must not share data.
+
+### Project
+
+A project is the unit of experimentation. It contains:
+
+- Its parameters, layers, and policies
+- Its event definitions
+- Its hashing configuration — most importantly the **unit key** and the **bucket count**
+
+Two projects never share a config bundle. They can share parameter naming conventions, but not state.
+
+A typical setup is one project per product surface, or one per logical product. A B2C marketplace might have one project (`proj_marketplace`). A B2B SaaS might have two — one keyed on `userId` for user-level experiments, one keyed on `companyId` for company-level experiments.
+
+### Environment
+
+An environment is a runtime variant of the project. Production, staging, and development share the same parameters, layers, and policies — but each environment has its own **parameter default overrides** and its own **API keys**.
+
+What an environment lets you do:
+
+- **Override a parameter's default value per-environment.** Set `feature.enabled = false` in `staging` while keeping it `true` in `production`. The bundle for `staging` ships the override; the bundle for `production` ships the canonical default.
+- **Issue separate API keys** so staging traffic and production traffic are clearly distinguished in dashboards and rate limits.
+- **Serve a separate bundle** for each environment — the SDK fetches `bundle:{projectId}:{env}` and only sees the values relevant for that environment.
+
+What an environment does **not** do:
+
+- **Policies are not environment-scoped.** A policy is created in the project — it applies to every environment. Pausing a policy pauses it everywhere. If you need an experiment to run only in production (or only in staging), use [targeting conditions](/concepts/policies#targeting-conditions) keyed on a context field your SDK sends (e.g. `env` or `deployment_stage`).
+- **Layers, policies, allocations, conditions, and event definitions live at the project level.** They're the same across environments.
+
+Every project comes with `production`, `staging`, and `development` out of the box. You can create more if you need (`preview`, `qa`, per-team environments).
+
+## API keys
+
+API keys are scoped to a project and environment. Two kinds:
+
+| Prefix | Type | Where to use |
+|--------|------|-------------|
+| `sk_...` | **Server key** | Server-side SDKs (`@traffical/node`), CLI, server-to-server API calls. Keep secret. |
+| `pk_...` | **Public key** | Browser SDKs (`@traffical/js-client`, `@traffical/react`, `@traffical/svelte`) and React Native. Safe to expose in client code. |
+
+Server keys can fetch the bundle and send events. Public keys can fetch the bundle and send events but cannot modify configuration. Create and manage keys in **Settings → API keys** in the dashboard.
+
+## The unit key
+
+The **unit key** is the property of the user that determines bucketing. It's a project-level setting. The most common choice is `userId`:
+
+```yaml
+project:
+  hashing:
+    unitKey: userId
+    bucketCount: 10000
+```
+
+You can also pick:
+
+- `companyId` for B2B / multi-tenant SaaS where every user in an organization should see the same variant
+- `deviceId` for pre-login mobile experiences
+- `sessionId` for cohort-based randomization
+- a custom key — anything stable the SDK can read out of `context`
+
+Whichever you pick, the SDK reads the value of that key from the `context` argument you pass to `getParams`. If you set `unitKey: userId`, every call must include `context.userId`.
+
+<Note>
+The unit key choice is hard to change later. If you start with `userId` and switch to `companyId`, every assignment will reshuffle. Pick deliberately.
+</Note>
+
+### Anonymous users
+
+For browser SDKs, you often don't have a `userId` yet — the user hasn't logged in. The browser SDK auto-generates a stable ID (a UUID) on first visit, stores it in `localStorage` with a cookie fallback, and uses it as the unit key. When the user logs in, call `identify(userId)` and the SDK switches over. Assignments may change at that point — anonymous bucketing is ephemeral, logged-in bucketing is the real experiment assignment.
+
+## Bundle scope
+
+Every config bundle is built for exactly one (project, environment) pair. The SDK fetches the bundle for the IDs you initialize it with, and every parameter, layer, and policy in scope is included. You don't need to specify which experiments to load.
+
+```typescript
+const traffical = await createTrafficalClient({
+  orgId: "org_acme",
+  projectId: "proj_marketplace",
+  env: "production",
+  apiKey: process.env.TRAFFICAL_API_KEY!,
+});
+```
+
+Switching `env` from `production` to `staging` swaps the bundle and the API key — your code doesn't change.
+
+## A note on `env`
+
+`env` is a free-form string. The default environments are `production`, `staging`, and `development`, but you can create environments with any name. Whatever string the SDK sends, the service looks up the matching bundle.
+
+This is useful for ephemeral environments (per-PR previews, feature-branch deployments) — create the environment, scope the API key to it, and your team can experiment without touching production.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Parameters" icon="sliders" href="/concepts/parameters">
+    Typed values with defaults.
+  </Card>
+  <Card title="Layers" icon="layer-group" href="/concepts/layers">
+    Mutual exclusivity and orthogonal bucketing.
+  </Card>
+  <Card title="Multi-tenant SaaS pattern" icon="building" href="/guides/canonical-experiments#multi-tenant-saas">
+    When to use a company-keyed project.
+  </Card>
+</CardGroup>

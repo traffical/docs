@@ -1,0 +1,148 @@
+---
+title: "POST /v1/events"
+description: "Send exposure, decision, and track events to the Traffical edge for analytics and optimization."
+---
+
+Ingests events from SDKs and custom integrations. Events are processed for real-time aggregation and stored for optimization.
+
+## Request
+
+```
+POST /v1/events
+```
+
+Also accepts `POST /v1/events/batch` as an alias.
+
+### Headers
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `Authorization` | Yes | `Bearer sk_...` (requires `sdk:write` scope) |
+| `Content-Type` | Yes | `application/json` |
+
+### Body
+
+An array of events (maximum 1000 per request):
+
+```json
+{
+  "events": [
+    {
+      "type": "exposure",
+      "orgId": "org_acme",
+      "projectId": "proj_marketplace",
+      "env": "production",
+      "unitKey": "user_789",
+      "timestamp": "2026-05-21T10:30:00Z",
+      "decisionId": "dec_abc123",
+      "layers": [
+        {
+          "layerId": "layer_checkout",
+          "policyId": "policy_color_test",
+          "allocationName": "treatment",
+          "bucket": 7420
+        }
+      ]
+    },
+    {
+      "type": "track",
+      "orgId": "org_acme",
+      "projectId": "proj_marketplace",
+      "env": "production",
+      "unitKey": "user_789",
+      "timestamp": "2026-05-21T10:35:00Z",
+      "event": "purchase",
+      "properties": { "order_total": 49.99, "currency": "USD" },
+      "decisionId": "dec_abc123"
+    }
+  ]
+}
+```
+
+## Event schemas
+
+### Exposure event
+
+Tracked automatically by SDKs when parameters are resolved.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"exposure"` | Yes | Event type |
+| `unitKey` | `string` | Yes | User identifier for bucketing |
+| `timestamp` | `string` | Yes | ISO 8601 timestamp |
+| `layers` | `LayerAssignment[]` | Yes | Layer assignments (see below) |
+| `decisionId` | `string` | No | Links exposure to subsequent track events |
+| `userId` | `string` | No | User identifier (if different from unitKey) |
+| `sessionId` | `string` | No | Session identifier |
+| `sdkName` | `string` | No | SDK name (for example, `js-client`) |
+| `sdkVersion` | `string` | No | SDK version |
+
+**LayerAssignment:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `layerId` | `string` | Layer ID |
+| `policyId` | `string` | Policy that was applied |
+| `allocationName` | `string` | Allocation name (for example, `control`, `treatment`) |
+| `bucket` | `number` | Computed bucket number (0–999) |
+
+### Track event
+
+Custom events sent by your code for analytics and optimization.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"track"` | yes | Event type |
+| `orgId`, `projectId`, `env` | `string` | yes | Identify the scope |
+| `unitKey` | `string` | yes | User identifier (or whatever the project's unit key is) |
+| `timestamp` | `string` | yes | ISO 8601 timestamp |
+| `event` | `string` | yes | Event name (e.g. `purchase`, `signup`) |
+| `properties` | `Record<string, unknown>` | no | Event payload (typed via [`generate-types`](/tools/cli#type-safe-events)) |
+| `decisionId` | `string` | no | Links to the decision that preceded this event |
+| `attribution` | `TrackAttribution[]` | no | Explicit attribution metadata (advanced) |
+
+### Decision event
+
+Logged by the server-side `/v1/decide` endpoint.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"decision"` | Yes | Event type |
+| `unitKey` | `string` | Yes | User identifier |
+| `timestamp` | `string` | Yes | ISO 8601 timestamp |
+| `layers` | `LayerAssignment[]` | Yes | Layer assignments |
+| `latencyMs` | `number` | No | Processing latency in milliseconds |
+
+## Response
+
+### 200 OK
+
+```json
+{
+  "accepted": 2,
+  "written": 2
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `accepted` | `number` | Number of valid events in the request |
+| `written` | `number` | Number of events successfully processed |
+
+### 400 Bad request
+
+```json
+{
+  "error": "Bad Request",
+  "message": "events must be a non-empty array (max 1000)"
+}
+```
+
+### 401 Unauthorized
+
+```json
+{
+  "error": "Unauthorized",
+  "message": "Invalid or expired API key"
+}
+```

@@ -1,80 +1,134 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Install the Node.js SDK, resolve your first parameter, and track an event in under five minutes."
 ---
 
-## Get started in three steps
+This guide walks you through integrating Traffical into a Node.js application. By the end, you will resolve a parameter value and track an event.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+- A Traffical account with a [project](/concepts/projects-and-environments) created in the [dashboard](https://app.traffical.io)
+- A **server API key** (`sk_...`) from your project settings
+- Node.js 18+
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+<Steps>
+  <Step title="Install the SDK">
+    <CodeGroup>
+      ```bash npm
+      npm install @traffical/node
+      ```
 
-### Step 2: Deploy your changes
+      ```bash pnpm
+      pnpm add @traffical/node
+      ```
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+      ```bash yarn
+      yarn add @traffical/node
+      ```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+      ```bash bun
+      bun add @traffical/node
+      ```
+    </CodeGroup>
+  </Step>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Initialize the client">
+    Create a client with your organization, project, environment, and a server API key. The client fetches the config bundle from Traffical and caches it in memory.
 
-### Step 3: Go live
+    ```typescript
+    import { createTrafficalClient } from "@traffical/node";
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    const traffical = await createTrafficalClient({
+      orgId: "org_acme",
+      projectId: "proj_marketplace",
+      env: "production",
+      apiKey: process.env.TRAFFICAL_API_KEY!,
+    });
+    ```
+
+    The `await` matters — the client fetches the initial bundle before it can resolve parameters. If you can't await at startup, use `createTrafficalClientSync` and call `waitUntilReady()` later.
+  </Step>
+
+  <Step title="Resolve a parameter">
+    Call `getParams` with user context and default values. Resolution is fully local — no API call is made.
+
+    ```typescript
+    const params = traffical.getParams({
+      context: { userId: "user_789", locale: "en-US" },
+      defaults: {
+        "checkout.button.color": "#1E6EFB",
+        "checkout.headline": "Complete your order",
+      },
+    });
+
+    console.log(params["checkout.button.color"]); // "#1E6EFB" or experiment variant
+    console.log(params["checkout.headline"]);     // "Complete your order" or variant
+    ```
+
+    The `context` object is used for two things:
+    - **Bucketing** — the unit key (typically `userId`) determines which allocation the user gets, and the assignment is stable across requests.
+    - **Targeting** — other fields like `locale`, `plan`, or `country` are evaluated against policy conditions.
+
+    The `defaults` object is your safety net. The SDK returns these values when no policy matches, when the bundle hasn't loaded yet, or when Traffical is unreachable.
+  </Step>
+
+  <Step title="Track an event">
+    Send a track event when a user does something you want to measure. Events are batched in the background.
+
+    ```typescript
+    traffical.track("purchase", {
+      unitKey: "user_789",
+      properties: { order_total: 49.99, currency: "USD" },
+    });
+    ```
+
+    If you're running an adaptive policy, the optimization engine uses these events as reward signals to learn which variants perform best.
+  </Step>
+</Steps>
+
+## Full example
+
+```typescript
+import { createTrafficalClient } from "@traffical/node";
+
+const traffical = await createTrafficalClient({
+  orgId: "org_acme",
+  projectId: "proj_marketplace",
+  env: "production",
+  apiKey: process.env.TRAFFICAL_API_KEY!,
+});
+
+function handleCheckout(userId: string, orderTotal: number) {
+  const params = traffical.getParams({
+    context: { userId },
+    defaults: {
+      "checkout.button.color": "#1E6EFB",
+      "checkout.show_trust_badges": false,
+    },
+  });
+
+  renderCheckout({
+    buttonColor: params["checkout.button.color"],
+    showTrustBadges: params["checkout.show_trust_badges"],
+  });
+
+  traffical.track("checkout_started", { unitKey: userId });
+}
+```
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="How it works" icon="gears" href="/how-it-works">
+    Local resolution, evaluation modes, and the config bundle.
+  </Card>
+  <Card title="Parameters" icon="sliders" href="/concepts/parameters">
+    Typed values with defaults.
+  </Card>
+  <Card title="Projects & environments" icon="folder-tree" href="/concepts/projects-and-environments">
+    What `orgId`, `projectId`, and `env` refer to.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/tools/cli">
+    Manage parameters as code.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

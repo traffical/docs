@@ -1,0 +1,172 @@
+---
+title: "Layers & policies in the dashboard"
+description: "Creating layers, configuring policies, managing allocations, conditions, and rollouts."
+---
+
+The **Layers** page is the busiest part of the dashboard. It's where every experiment, rollout, and feature-flag policy is created and managed.
+
+<Frame caption="Layers list">
+  <img src="/images/placeholders/layers-list.png" alt="Layers list placeholder" />
+</Frame>
+
+## The layer list
+
+Each row is a [layer](/concepts/layers):
+
+- **Name** — what you called it
+- **Parameters** — how many parameters this layer owns
+- **Policies** — how many policies are configured, with state breakdown
+- **Bucket count** — typically 10000 for the project (configurable in **Settings → Hashing**)
+
+The base layer is always present. Create additional layers to keep concurrent experiments cleanly separated — group parameters that are tested together in the same layer.
+
+## Layer detail
+
+Clicking a layer opens its detail page with two tabs: **Parameters** (parameters in the layer) and **Policies** (policies configured against those parameters).
+
+<Frame caption="Layer detail">
+  <img src="/images/placeholders/layer-detail.png" alt="Layer detail placeholder" />
+</Frame>
+
+### Policies list
+
+Each policy in the layer shows:
+
+- Name and key
+- Kind (static / adaptive / adaptive per-entity / adaptive contextual)
+- State (draft / running / paused / completed)
+- Allocations and their current bucket ranges
+- Whether a rollout is attached
+- Recent exposure volume
+
+Policies are ordered by priority — when a user is eligible for multiple, the highest-priority eligible one applies. Drag to reorder.
+
+## Creating a policy
+
+**New policy** opens the policy editor.
+
+<Frame caption="Policy editor — basics">
+  <img src="/images/placeholders/policy-editor-basics.png" alt="Policy editor basics placeholder" />
+</Frame>
+
+Fill in:
+
+1. **Name** — human-readable
+2. **Key** — stable identifier (used in warehouse-native assignment SQL to match)
+3. **Kind** — static or adaptive
+4. **State** — start in `draft`, switch to `running` when ready
+
+### Allocations
+
+Add allocations — each is a (name, bucket range, parameter overrides) tuple.
+
+<Frame caption="Policy editor — allocations">
+  <img src="/images/placeholders/policy-editor-allocations.png" alt="Policy editor allocations placeholder" />
+</Frame>
+
+For static policies you set bucket ranges directly. For adaptive policies, start with uniform ranges — the engine will adjust them based on observed rewards.
+
+You can use the percentage shortcuts (50/50, 33/33/33, 90/10) or enter ranges manually. The dashboard validates that ranges don't overlap and total ≤ bucket count.
+
+### Conditions (targeting)
+
+<Frame caption="Policy editor — conditions">
+  <img src="/images/placeholders/policy-editor-conditions.png" alt="Policy editor conditions placeholder" />
+</Frame>
+
+Add condition rows to restrict eligibility. All conditions must match (AND). Operators are `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `nin`, `contains`, `regex` — see [Policies](/concepts/policies#targeting-conditions).
+
+Common patterns:
+
+- `locale in [en-US, en-GB]` — English-speaking markets
+- `plan neq free` — paying customers only
+- `email contains @yourcompany.com` — internal users only
+
+### Eligible bucket range
+
+For non-overlapping experiments in the same layer, set an **eligible bucket range** — the policy only applies to users whose layer bucket falls in that range. Two policies with `[0–4999]` and `[5000–9999]` ranges never see the same user.
+
+### Adaptive configuration
+
+If you set Kind to `adaptive`, additional sections appear:
+
+<Frame caption="Adaptive policy configuration">
+  <img src="/images/placeholders/adaptive-config.png" alt="Adaptive configuration placeholder" />
+</Frame>
+
+- **Algorithm** — Thompson Sampling, Epsilon-Greedy, UCB1, or Linear Contextual
+- **Goal event** — pick from existing event definitions
+- **Goal type** — `conversion_rate`, `sum`, or `count`
+- **Min exposures before shift** — prevents premature shifts on noisy early data
+- **Window size** — how often the engine re-evaluates (5m, 15m, 60m, 6h, 24h)
+- **Max shift per update** — caps how aggressively traffic can move
+
+For per-entity bandits, expand **Entity configuration** and provide entity keys (e.g. `productId`). For contextual bandits, expand **Context logging** and list the allowed context fields.
+
+### Rollouts
+
+A policy can have a rollout configuration attached. Click **Add rollout** in the policy editor or on the policy detail page.
+
+<Frame caption="Rollout configuration">
+  <img src="/images/placeholders/rollout-config.png" alt="Rollout configuration placeholder" />
+</Frame>
+
+Set:
+
+- **Target percentage** — usually 100
+- **Ramp** — either continuous (`X% every Y minutes`) or a schedule (list of `{percentage, scheduledAt}` steps)
+- **Health checks** — one or more metric conditions evaluated before each step
+- **On health violation** — `pause`, `rollback_one_step`, `full_rollback`, or `alert_only`
+
+See [Rollouts](/experimentation/rollouts) for the full mechanics.
+
+## Policy detail
+
+The policy detail page is where you read results.
+
+<Frame caption="Policy detail — metrics">
+  <img src="/images/placeholders/policy-detail-metrics.png" alt="Policy detail metrics placeholder" />
+</Frame>
+
+Tabs:
+
+- **Overview** — current state, exposure counts, top-line conversion rates per allocation
+- **Metrics** — every metric attached to this policy with per-allocation results and significance
+- **Allocations** — current bucket ranges (live for adaptive policies); manual override
+- **Conditions** — targeting rules
+- **Activity** — every change to this policy (links to the [decision log](/dashboard/decisions))
+
+### Manual actions
+
+From the policy detail page you can:
+
+- **Pause / resume** the policy
+- **Override allocations** — manually adjust bucket ranges (useful for cutting traffic to a misbehaving variant)
+- **Promote an allocation** — copy a winning allocation's parameter overrides into the parameter defaults
+- **Duplicate** the policy — useful for forking an experiment for a new segment
+- **Complete** the policy — final state, stops being evaluated, preserves history
+
+All manual actions land in the [decision log](/dashboard/decisions) with the actor and timestamp.
+
+## Tips
+
+- **Always start in `draft`.** Build out the allocations and conditions, then flip to `running` when you're ready. Switching state is fast; building a misconfigured running policy is a panic.
+- **Use the eligible bucket range** for non-overlapping experiments rather than separate layers. Layers are for parameters; ranges are for sub-segments of the same layer.
+- **Name allocations descriptively.** `control` and `treatment` are conventional, but `low_price_5` is more useful than `treatment_b` six months later.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="A/B testing" icon="flask" href="/experimentation/ab-testing">
+    Walking through a static policy end-to-end.
+  </Card>
+  <Card title="Optimization" icon="chart-line" href="/experimentation/optimization">
+    Adaptive algorithms, contextual bandits, per-entity bandits.
+  </Card>
+  <Card title="Rollouts" icon="forward" href="/experimentation/rollouts">
+    Progressive delivery with health gates.
+  </Card>
+  <Card title="Decision log" icon="clock-rotate-left" href="/dashboard/decisions">
+    Audit trail of every policy change.
+  </Card>
+</CardGroup>

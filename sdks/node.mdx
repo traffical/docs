@@ -1,0 +1,242 @@
+---
+title: "Node.js SDK"
+description: "Server-side SDK for Node.js and Bun — install, initialize, resolve parameters, track events."
+---
+
+`@traffical/node` is the server-side SDK for Node.js and Bun. It fetches the config bundle on startup, resolves parameters locally per request, and ships events to Traffical in the background.
+
+## Installation
+
+<CodeGroup>
+  ```bash npm
+  npm install @traffical/node
+  ```
+
+  ```bash pnpm
+  pnpm add @traffical/node
+  ```
+
+  ```bash yarn
+  yarn add @traffical/node
+  ```
+
+  ```bash bun
+  bun add @traffical/node
+  ```
+</CodeGroup>
+
+## Initialization
+
+```typescript
+import { createTrafficalClient } from "@traffical/node";
+
+const traffical = await createTrafficalClient({
+  orgId: "org_acme",
+  projectId: "proj_marketplace",
+  env: "production",
+  apiKey: process.env.TRAFFICAL_API_KEY!,
+});
+```
+
+Use `createTrafficalClient` (async) when you can `await` at startup — it waits for the first bundle fetch. If you can't await (e.g. in module top-level code where top-level await isn't available), use `createTrafficalClientSync` and call `await traffical.waitUntilReady()` before the first resolution.
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `orgId` | `string` | required | Organization ID |
+| `projectId` | `string` | required | Project ID |
+| `env` | `string` | required | Environment name (`"production"`, `"staging"`, etc.) |
+| `apiKey` | `string` | required | Server API key (`sk_...`) |
+| `baseUrl` | `string` | `https://sdk.traffical.io` | SDK API base URL |
+| `refreshIntervalMs` | `number` | `60000` | How often to re-fetch the bundle |
+| `localConfig` | `ConfigBundle` | — | Embed a bundle for instant cold-start |
+| `eventBatchSize` | `number` | `10` | Events per batch before flushing |
+| `eventFlushIntervalMs` | `number` | `30000` | Max time before flushing pending events |
+| `trackDecisions` | `boolean` | `true` | Emit decision events alongside exposures |
+| `attributionMode` | `"cumulative" \| "decision"` | `"cumulative"` | Track-event attribution strategy |
+
+## Resolving parameters
+
+```typescript
+const params = traffical.getParams({
+  context: { userId: "user_789", locale: "en-US", plan: "pro" },
+  defaults: {
+    "checkout.button.color": "#1E6EFB",
+    "checkout.headline": "Complete your order",
+    "checkout.show_trust_badges": false,
+    "pricing.discount_pct": 0,
+  },
+});
+
+params["checkout.button.color"];     // "#22C55E" if assigned to treatment
+params["checkout.show_trust_badges"]; // true if policy overrides it
+params["pricing.discount_pct"];       // 0 (no policy → default)
+```
+
+### Context
+
+The `context` object is used for:
+
+- **Bucketing** — the unit key (typically `userId`, as configured on the [project](/concepts/projects-and-environments)) drives which allocation the user gets.
+- **Targeting** — every field is available for policy condition evaluation. A policy with the condition `plan in ["pro", "enterprise"]` only applies when `context.plan` is one of those values.
+
+### Defaults
+
+Always pass defaults for every parameter you read. They're the fallback when no policy matches, when the bundle isn't loaded yet, or when Traffical is unreachable — and they make your code's intent explicit even when there's no active experiment.
+
+## Decisions vs `getParams`
+
+`getParams` returns just the resolved values. `decide` returns a full decision record with `decisionId` and the layer-by-layer assignments — useful when you want to pass the decision ID downstream:
+
+```typescript
+const decision = traffical.decide({
+  context: { userId: req.user.id },
+  defaults: { "recommendations.algorithm": "collaborative" },
+});
+
+const recs = await getRecommendations(req.user.id, decision.assignments["recommendations.algorithm"]);
+
+res.json({
+  recommendations: recs,
+  meta: { decisionId: decision.decisionId },   // frontend can attribute clicks back to this decision
+});
+```
+
+See [decisions & attribution](/concepts/assignments) for when this matters.
+
+## Tracking events
+
+```typescript
+// Conversion with a value
+traffical.track("purchase", {
+  unitKey: "user_789",
+  properties: { order_total: 49.99, currency: "USD" },
+});
+
+// Action without a value
+traffical.track("add_to_cart", { unitKey: "user_789" });
+
+// Cross-process — attribute to a specific decision
+traffical.track("page_view", {
+  unitKey: "user_789",
+  decisionId: "dec_abc123",
+  properties: { path: "/checkout" },
+});
+```
+
+### Track options
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `unitKey` | `string` | yes | The user ID (or whatever the project's unit key is) |
+| `properties` | `object` | no | Event payload — anything relevant |
+| `decisionId` | `string` | no | Tie this event to a specific decision (cross-process) |
+
+## Express middleware pattern
+
+```typescript
+import express from "express";
+import { createTrafficalClient } from "@traffical/node";
+
+const app = express();
+
+const traffical = await createTrafficalClient({
+  orgId: "org_acme",
+  projectId: "proj_marketplace",
+  env: "production",
+  apiKey: process.env.TRAFFICAL_API_KEY!,
+});
+
+app.use((req, res, next) => {
+  const userId = req.session?.userId ?? req.cookies?.anonymousId;
+  if (userId) {
+    req.traffical = traffical.getParams({
+      context: { userId, locale: req.headers["accept-language"] },
+      defaults: {
+        "checkout.button.color": "#1E6EFB",
+        "checkout.show_trust_badges": false,
+      },
+    });
+  }
+  next();
+});
+
+app.get("/checkout", (req, res) => {
+  res.render("checkout", {
+    buttonColor: req.traffical["checkout.button.color"],
+    showBadges: req.traffical["checkout.show_trust_badges"],
+  });
+});
+```
+
+## Type-safe events
+
+Generate TypeScript types from your event definitions to catch invalid event names and properties at compile time:
+
+```bash
+bunx @traffical/cli generate-types
+```
+
+```typescript
+import type { TrafficalEventProperties } from "./traffical.generated";
+
+type TypedTrack = <E extends keyof TrafficalEventProperties>(
+  event: E,
+  options: { unitKey: string; properties?: TrafficalEventProperties[E]; decisionId?: string }
+) => void;
+
+const track = traffical.track.bind(traffical) as TypedTrack;
+
+track("purchase", {
+  unitKey: "user_789",
+  properties: { order_total: 99.99, payment_method: "visa" },     // ✅
+});
+
+track("purchase", {
+  unitKey: "user_789",
+  properties: { order_total: 99.99, unknown_field: true },        // ❌ compile error
+});
+```
+
+## Error handling
+
+The SDK never throws during resolution. If the bundle isn't loaded yet — or if it never loaded successfully — `getParams` returns your defaults. Initialization errors surface as a rejected promise:
+
+```typescript
+const traffical = await createTrafficalClient({
+  orgId, projectId, env, apiKey,
+}).catch((err) => {
+  console.error("Failed to initialize Traffical:", err);
+  return null;
+});
+```
+
+You can keep a `null` client around and guard your calls — but more often it's cleaner to use `createTrafficalClientSync`, which returns a usable client immediately (resolution falls back to defaults until the bundle arrives) and never rejects at construction.
+
+## Shutdown
+
+Flush pending events before your process exits:
+
+```typescript
+await traffical.close();
+```
+
+This sends any buffered events and stops the background refresh.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="A/B testing" icon="flask" href="/experimentation/ab-testing">
+    Run a static experiment.
+  </Card>
+  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+    Patterns for backend, batch, and cross-surface tests.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/tools/cli">
+    Manage parameters as code.
+  </Card>
+  <Card title="API reference" icon="code" href="/api/overview">
+    The endpoints the SDK calls.
+  </Card>
+</CardGroup>

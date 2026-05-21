@@ -1,0 +1,108 @@
+---
+title: "Feature flags"
+description: "A feature flag is a boolean parameter under a policy. Same primitives, with optional safety from rollouts and targeting."
+---
+
+A feature flag in Traffical isn't a separate feature — it's a [boolean parameter](/concepts/parameters) plus a [policy](/concepts/policies) that overrides it for selected users. Everything you do with a feature flag is a special case of the more general parameter model.
+
+That said, "feature flag" is the most common starting point for teams adopting an experimentation platform, so this page explains the patterns directly.
+
+## The simplest possible flag
+
+A pure on/off toggle for all traffic:
+
+```yaml
+parameters:
+  checkout.redesign_enabled:
+    type: boolean
+    default: false
+```
+
+Flip the default in the dashboard (or push `default: true` via the CLI) and every user gets the new value on the next bundle refresh. No experiment, no policy — just a remote-controlled boolean.
+
+```typescript
+const { params } = useTraffical({
+  defaults: { "checkout.redesign_enabled": false },
+});
+
+if (params["checkout.redesign_enabled"]) {
+  return <NewCheckout />;
+}
+return <OldCheckout />;
+```
+
+If Traffical is unreachable, the default in code is what your application sees.
+
+## Targeted flags
+
+For "enable for internal users" or "enable for a specific company" patterns, create a static policy with conditions:
+
+```
+Layer: base
+└── Policy: internal_only (static, running)
+    └── treatment: buckets 0–9999 → checkout.redesign_enabled = true
+    └── conditions: [{ field: "email", op: "contains", value: "@traffical.io" }]
+```
+
+Users matching the condition get `true`. Everyone else gets the default (`false`). The same pattern works for company-scoped flags, plan-scoped flags, country-scoped flags — any condition you can express against context.
+
+## Percentage rollouts
+
+For "release this to 5% of traffic" patterns, attach a [rollout](/experimentation/rollouts) to a static policy:
+
+```
+Layer: base
+└── Policy: new_checkout_rollout (static, running, with rolloutConfig)
+    └── treatment: buckets 0–499 (starting at 5%) → checkout.redesign_enabled = true
+    └── (rollout config ramps to 100% over time)
+```
+
+Users in the current bucket range get `true`; everyone else gets `false`. The rollout machinery handles ramping the range over time, optionally with health checks.
+
+## Killswitches
+
+A killswitch is just a boolean parameter you flip to `false` (or `true`, depending on the polarity) in an emergency. There's no special API:
+
+```yaml
+parameters:
+  payments.allow_new_provider:
+    type: boolean
+    default: true
+```
+
+If the new payment provider starts failing, flip the default to `false` in the dashboard and the bundle propagates within the SDK's refresh interval (default 60s). For shorter propagation, reduce `refreshIntervalMs` on the client.
+
+For a faster guarantee, combine this with a [progressive rollout](/experimentation/rollouts) that monitors a health metric (e.g. error rate) — Traffical will auto-pause or auto-rollback before a human notices.
+
+## Flags as the entry point to experiments
+
+A common pattern: start a feature behind a percentage rollout, watch the metrics, then graduate the flag into a full A/B test by adding a treatment allocation with a different value.
+
+That's not a migration — it's a one-line change to the same policy. The parameter's type doesn't change. The SDK code doesn't change. You just turn one allocation into two.
+
+## What feature flags can't do alone
+
+If you find yourself adding more booleans to control variant behaviour (`show_new_layout`, `use_new_copy`, `apply_new_discount` — all in the same experiment), you're hitting the wall of the boolean model. Switch to typed parameters:
+
+```yaml
+parameters:
+  checkout.layout:        { type: string,  default: "classic" }   # "classic" | "v2" | "v3"
+  checkout.headline:      { type: string,  default: "Complete your order" }
+  checkout.discount_pct:  { type: number,  default: 0 }
+```
+
+One policy can override all three together. One A/B test compares "classic" against "v2" without three correlated booleans masquerading as one experiment.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Rollouts" icon="forward" href="/experimentation/rollouts">
+    Progressive ramp with health checks.
+  </Card>
+  <Card title="A/B testing" icon="flask" href="/experimentation/ab-testing">
+    From a flag to a real experiment.
+  </Card>
+  <Card title="Parameters" icon="sliders" href="/concepts/parameters">
+    Beyond booleans — typed values.
+  </Card>
+</CardGroup>

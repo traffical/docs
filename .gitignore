@@ -1,0 +1,5 @@
+.agents/
+.claude/
+.cursor/
+.DS_Store
+node_modules/

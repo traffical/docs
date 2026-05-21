@@ -1,0 +1,108 @@
+---
+title: "Definitions in the dashboard"
+description: "Entities, assignments, and facts — the building blocks of warehouse-native metrics."
+---
+
+The **Definitions** section is where warehouse-native experimentation lives. You won't visit this page if you're using Traffical-native events only — but if any of your metrics come from your own data warehouse, this is the canvas.
+
+The section has three sub-pages: **Entities**, **Assignments**, and **Facts**. See [warehouse-native](/concepts/warehouse-native) for the conceptual model.
+
+<Frame caption="Definitions overview">
+  <img src="/images/placeholders/definitions-overview.png" alt="Definitions overview placeholder" />
+</Frame>
+
+## Entities
+
+An **entity** is the unit of randomization — User, Company, Device. Each entity has a `keyType` that matches the project's unit key.
+
+<Frame caption="Entities list">
+  <img src="/images/placeholders/entities.png" alt="Entities placeholder" />
+</Frame>
+
+Most projects have one entity (`user` keyed on `userId`). B2B / multi-tenant projects often have two (`user` and `company`). Defining an entity is a one-line action — name, key type — and is rarely revisited.
+
+## Assignments
+
+An **assignment definition** is the SQL that produces the user → variant mapping for warehouse-native experiments.
+
+<Frame caption="Assignments list">
+  <img src="/images/placeholders/assignments.png" alt="Assignments placeholder" />
+</Frame>
+
+Each row in the list:
+
+- Name
+- Entity it's keyed on
+- Source — SQL (warehouse) or SDK-managed (auto-generated from exposure events)
+- Last run timestamp and status
+
+Most projects don't need any assignment definitions — SDK-managed assignments are created automatically when the SDK emits exposure events. You only need an explicit assignment definition when assignments come from somewhere other than a Traffical SDK (a migration from another tool, a custom assignment service, a warehouse table maintained outside Traffical).
+
+### Creating an assignment definition
+
+<Frame caption="Assignment editor">
+  <img src="/images/placeholders/assignment-editor.png" alt="Assignment editor placeholder" />
+</Frame>
+
+In the editor:
+
+1. **Name** the definition
+2. **Pick the entity** (user, company)
+3. **Pick the warehouse connection**
+4. **Write the SQL.** It must return columns: the entity key (e.g. `user_id`), `assigned_at`, `policy_key`, `allocation_key`. Use `{{start_date}}` and `{{end_date}}` template variables for time scoping.
+5. **Preview** — the dashboard runs a small `LIMIT 10` sample to verify the columns and types.
+
+The `policy_key` column values must match `key` fields on Traffical policies. The `allocation_key` values must match allocation `key` fields. This is how the pipeline knows which Traffical policy the warehouse data corresponds to.
+
+## Facts
+
+A **fact definition** is the SQL that produces outcome events.
+
+<Frame caption="Facts list">
+  <img src="/images/placeholders/facts.png" alt="Facts placeholder" />
+</Frame>
+
+Each fact can power many metrics — an `orders` fact can be aggregated into "revenue per user" (sum), "conversion rate" (proportion with any order), and "order count" (count). The fact is the data; the metric defines the aggregation.
+
+### Creating a fact definition
+
+<Frame caption="Fact editor">
+  <img src="/images/placeholders/fact-editor.png" alt="Fact editor placeholder" />
+</Frame>
+
+In the editor:
+
+1. **Name** the definition
+2. **Pick the entity** (user, company — what each row is associated with)
+3. **Pick the warehouse connection**
+4. **Write the SQL.** It must return the entity key, an `event_time`, and any value columns you want to aggregate (e.g. `order_total`).
+5. **Preview** — sample query against the warehouse to verify columns and types.
+
+A fact can be joined to multiple entities (a row tied to both `user_id` and `company_id`) — useful for SaaS metrics measured at the user level but randomized at the company level.
+
+## Validation and previews
+
+When you save a definition, the dashboard runs a small query against your warehouse to:
+
+- Verify the connection works
+- Confirm the columns exist with the expected types
+- Show a sample of the data so you can sanity-check
+
+Validation errors surface immediately. If the preview looks wrong, fix the SQL before saving.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Warehouse-native" icon="database" href="/concepts/warehouse-native">
+    The conceptual model.
+  </Card>
+  <Card title="Connectors" icon="plug" href="/connectors/overview">
+    Per-warehouse setup details.
+  </Card>
+  <Card title="Metrics" icon="chart-line" href="/dashboard/metrics">
+    Turning facts into measurable metrics.
+  </Card>
+  <Card title="Pipeline" icon="forward" href="/dashboard/pipeline">
+    Watching the SQL run.
+  </Card>
+</CardGroup>

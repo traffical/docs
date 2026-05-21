@@ -1,0 +1,115 @@
+---
+title: "Settings"
+description: "Project settings — warehouse connection, SDK sync, hashing, API keys, maintenance."
+---
+
+The **Settings** section gathers per-project configuration that doesn't live in any other tab. Some of it is set once and forgotten; some changes how the platform behaves.
+
+<Frame caption="Settings overview">
+  <img src="/images/placeholders/settings-overview.png" alt="Settings overview placeholder" />
+</Frame>
+
+## API keys
+
+Org-level (in `/{orgKey}/api-keys`). Create and revoke keys scoped to a project and environment.
+
+<Frame caption="API keys management">
+  <img src="/images/placeholders/api-keys.png" alt="API keys placeholder" />
+</Frame>
+
+| Field | Description |
+|-------|-------------|
+| **Type** | `Server` (`sk_...`) or `Public` (`pk_...`) — see [Projects & environments](/concepts/projects-and-environments#api-keys) |
+| **Project** | Which project the key can read/write |
+| **Environment** | `production`, `staging`, or custom |
+| **Expires** | Optional expiry — recommended for keys handed to CI |
+
+Server keys are shown once at creation. Copy them then — they can't be retrieved later. If you lose one, revoke it and create a new one.
+
+## Warehouse connection
+
+In `/{orgKey}/{projectKey}/settings/warehouse`. Configure the warehouse Traffical reads from for warehouse-native metrics.
+
+<Frame caption="Warehouse connection editor">
+  <img src="/images/placeholders/warehouse-settings.png" alt="Warehouse settings placeholder" />
+</Frame>
+
+Pick a warehouse type — Postgres, BigQuery, Snowflake, Databricks, ClickHouse — and paste credentials. See [Connectors](/connectors/overview) for what each one needs.
+
+The credentials are encrypted at rest and never returned in plaintext after saving. To rotate, paste the new credentials and save again.
+
+## SDK sync
+
+In `/{orgKey}/{projectKey}/settings/sdk-sync`. Optional. Configure whether SDK-emitted events (exposures, decisions, track events) get written to your warehouse on a schedule.
+
+<Frame caption="SDK sync settings">
+  <img src="/images/placeholders/sdk-sync.png" alt="SDK sync placeholder" />
+</Frame>
+
+If enabled, the pipeline writes two tables — `sdk_assignments` and `sdk_tracks` — inside the Traffical schema of your connected warehouse, on a regular cadence (typically every 15 minutes) using the warehouse credentials configured above.
+
+Why turn it on:
+
+- You want SDK events available alongside your other warehouse data for ad-hoc analysis.
+- ML pipelines need exposures and rewards in the warehouse.
+- Compliance requires data residency in your own infrastructure.
+
+If you only need event ingestion for dashboards (no warehouse), leave this off.
+
+## Hashing
+
+In `/{orgKey}/{projectKey}/settings`. Configure how bucketing works for the project.
+
+<Frame caption="Hashing configuration">
+  <img src="/images/placeholders/hashing.png" alt="Hashing settings placeholder" />
+</Frame>
+
+| Field | Description |
+|-------|-------------|
+| **Unit key** | The context field that drives bucketing — `userId` (default), `companyId`, `deviceId`, or a custom field |
+| **Bucket count** | Granularity — `10000` is the default |
+
+<Note>
+Changing the unit key or bucket count reshuffles every assignment in the project. Only do this when there are no live experiments — or commit to invalidating their results.
+</Note>
+
+## Environments
+
+In `/{orgKey}/{projectKey}/settings`. List, create, and delete environments. Every project has `production`, `staging`, and `development` by default. Create more for preview branches, per-team workspaces, etc.
+
+Environments share parameters, layers, and policies — they differ in **parameter default overrides** (set per-environment in the parameter editor) and in **API keys** (scoped to a specific environment). Policies themselves are project-level: pausing a policy pauses it everywhere. If you want an experiment scoped to one environment, use [targeting conditions](/concepts/policies#targeting-conditions) on a context field your SDK sends.
+
+## Maintenance
+
+In `/{orgKey}/{projectKey}/settings/maintenance`. Project-level actions that are rarely useful but occasionally critical.
+
+- **Rebuild config bundle** — force a rebuild of the SDK-facing bundle. Useful if you suspect a stale bundle.
+- **Force pipeline run** — kick off an immediate warehouse-native pipeline run.
+- **Archive project** — soft delete. Archived projects can be restored within 30 days.
+- **Delete project** — hard delete. Irreversible.
+
+<Frame caption="Maintenance actions">
+  <img src="/images/placeholders/maintenance.png" alt="Maintenance placeholder" />
+</Frame>
+
+## Notifications
+
+In `/{orgKey}/{projectKey}/settings/notifications` (when available on your plan). Configure where the platform sends alerts:
+
+- Rollout health violations
+- Guardrail breaches
+- Pipeline failures
+- Optimization milestones
+
+Common destinations: email, Slack webhook, generic webhook.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Connectors" icon="plug" href="/connectors/overview">
+    Per-warehouse credential setup.
+  </Card>
+  <Card title="Projects & environments" icon="folder-tree" href="/concepts/projects-and-environments">
+    The hierarchy these settings belong to.
+  </Card>
+</CardGroup>

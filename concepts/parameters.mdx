@@ -1,0 +1,150 @@
+---
+title: "Parameters"
+description: "Parameters are typed configuration values with defaults — the building block of everything in Traffical."
+---
+
+A **parameter** is a typed configuration value with a default. Parameters are the atomic unit in Traffical: experiments, feature flags, rollouts, and adaptive optimization are all [policies](/concepts/policies) that override parameter values for selected users.
+
+## Parameter types
+
+Every parameter has a type that determines what values it can hold.
+
+<Tabs>
+  <Tab title="String">
+    ```yaml
+    button.color:
+      type: string
+      default: "#1E6EFB"
+      description: Primary button color on checkout
+    ```
+
+    Use for colors, labels, copy, URLs, template names, anything textual.
+  </Tab>
+  <Tab title="Number">
+    ```yaml
+    discount_pct:
+      type: number
+      default: 0
+      constraints:
+        min: 0
+        max: 50
+    ```
+
+    Use for prices, percentages, thresholds, weights, timeouts. Supports `min` and `max` constraints.
+  </Tab>
+  <Tab title="Boolean">
+    ```yaml
+    show_trust_badges:
+      type: boolean
+      default: false
+    ```
+
+    Use for feature flags and simple toggles. A boolean parameter under a rollout policy is functionally a [feature flag](/experimentation/feature-flags).
+  </Tab>
+  <Tab title="JSON">
+    ```yaml
+    hero_config:
+      type: json
+      default:
+        headline: Welcome back
+        showBanner: true
+        maxItems: 5
+    ```
+
+    Use for structured configuration where a single parameter controls several related settings together.
+  </Tab>
+</Tabs>
+
+## Namespaces
+
+Parameter keys use dot notation to create logical groupings:
+
+```
+checkout.button.color
+checkout.headline
+checkout.show_trust_badges
+pricing.discount_pct
+homepage.hero_config
+```
+
+Namespaces are a convention — they have no runtime semantics — but they map directly onto how the [CLI](/tools/cli) organizes parameters in `traffical.yaml` and onto how the dashboard displays them. Group related parameters under a shared prefix so they stay together.
+
+## Default values
+
+Every parameter has a default. The SDK returns the default whenever no policy overrides it for the current user — and as a safety net when the bundle hasn't loaded yet or Traffical is unreachable.
+
+Defaults appear in two places:
+
+1. **In Traffical** — the canonical value, set in the dashboard or via the CLI.
+2. **In your code** — a fallback you pass into `getParams`. This is what your application sees if no bundle is available at all (first call before the network completes, offline, etc.).
+
+```typescript
+const params = traffical.getParams({
+  context: { userId: "user_789" },
+  defaults: {
+    "checkout.button.color": "#1E6EFB",
+  },
+});
+```
+
+If a parameter exists in the bundle, the resolved bundle value wins. If it doesn't, the code default is returned. Always pass code defaults for every parameter you read — your app keeps working even if Traffical doesn't.
+
+## Constraints
+
+Parameters can declare optional constraints. They're enforced at edit time (in the dashboard and in `traffical push`) but not at SDK resolution.
+
+| Constraint | Applies to | Description |
+|------------|-----------|-------------|
+| `min` | number | Minimum allowed value |
+| `max` | number | Maximum allowed value |
+| `pattern` | string | Regex that values must match |
+| `allowedValues` | string, number | Enum of permitted values |
+
+## Config-as-code
+
+Parameters can live in a `traffical.yaml` file alongside your application code and sync with Traffical via the [CLI](/tools/cli):
+
+```yaml
+version: "1.0"
+project:
+  id: proj_marketplace
+  orgId: org_acme
+
+parameters:
+  feature_enabled:
+    type: boolean
+    default: false
+    description: Master toggle for the new feature
+
+namespaces:
+  checkout:
+    parameters:
+      button.color:
+        type: string
+        default: "#1E6EFB"
+      show_trust_badges:
+        type: boolean
+        default: false
+
+  pricing:
+    parameters:
+      discount_pct:
+        type: number
+        default: 0
+        constraints:
+          min: 0
+          max: 50
+
+events:
+  purchase:
+    valueType: currency
+    unit: USD
+```
+
+Run `traffical push` to sync. Parameters managed via the CLI are marked as **synced** in the dashboard — their definitions become read-only in the UI to prevent drift between your repo and the platform. Policies and allocations still live in the dashboard; the CLI manages parameter definitions and event schemas.
+
+## How parameters relate to other concepts
+
+- [Layers](/concepts/layers) — every parameter belongs to exactly one layer. Layers exist so concurrent experiments don't interfere.
+- [Policies](/concepts/policies) — policies override parameter defaults for users matching their conditions and falling in their bucket ranges.
+- [Events](/concepts/events-and-metrics) — track events let the optimization engine learn which parameter values perform best.

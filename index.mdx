@@ -1,97 +1,31 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Traffical documentation"
+description: "Parameter-first experimentation, feature flags, and adaptive optimization with sub-millisecond local resolution."
 ---
 
-## Setting up
+Traffical is an experimentation, feature management, and optimization platform built around a single primitive: the **parameter**. Define typed parameters with defaults; run A/B tests, progressive rollouts, and adaptive bandits as policies on top of them; resolve values locally in your SDK with sub-millisecond latency.
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install the SDK, resolve your first parameter, track an event — under five minutes.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Core concepts" icon="book" href="/concepts/parameters">
+    Parameters, layers, policies, projects, assignments, warehouse-native.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="SDKs" icon="code" href="/sdks/overview">
+    Node, React, Svelte, React Native, framework-free browser.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+    Patterns by surface — backend, web, mobile, SSR, batch, contextual.
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## Why Traffical?
 
-Everything you need to create world-class documentation.
+Most experimentation tools start from the feature flag — a boolean. Traffical starts from the **parameter**: a typed value with a default. A/B tests, rollouts, feature flags, and adaptive optimization are all policies that override parameter values for selected users.
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+This means a single system handles colour tests, price experiments, algorithm changes, gradual rollouts, and personalized content — through the same SDK, the same dashboard, the same primitives.
 
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
+<Card title="Read why" icon="lightbulb" href="/why-traffical">
+  The parameter-first philosophy and the gap between shipping fast and shipping right.
 </Card>

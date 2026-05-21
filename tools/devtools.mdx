@@ -1,0 +1,39 @@
+---
+title: "DevTools"
+description: "Inspect SDK state, current assignments, and exposure events live in your browser."
+---
+
+The DevTools bookmarklet is a debugging surface that overlays on any page where a Traffical client SDK is running. It lets you see exactly what the SDK is doing — which parameters resolved to which values, why, and what events were emitted.
+
+DevTools is independent of the [visual editor](/tools/visual-editor): the visual editor authors experiments, DevTools inspects them.
+
+## What you can see
+
+- **Current resolutions** — every parameter the SDK has resolved this session, the policy and allocation each one came from, and the bucket the user landed in.
+- **Exposure and track events** — the event stream the SDK has emitted, with timestamps and decision IDs.
+- **Context** — the `context` object the SDK is using for bucketing and targeting.
+- **Bundle version** — the version of the config bundle currently in memory.
+
+## What you can do
+
+- **Override a parameter** — force a value locally for the current browser session. Useful for testing the treatment variant without being assigned to it.
+- **Force a refresh** — re-fetch the bundle on demand.
+- **Identify** — switch the unit key to a different user ID and watch the assignments reshuffle.
+
+Overrides are local to the browser — they don't affect other users or the platform.
+
+## Setup
+
+1. Open **DevTools** in your Traffical dashboard.
+2. Drag the bookmarklet to your browser's bookmarks bar.
+3. Navigate to any page where your app has the Traffical client SDK initialized.
+4. Click the bookmarklet — the DevTools panel attaches in a shadow DOM (so it can't conflict with your page styles).
+
+The panel is signed in to Traffical via your dashboard session; it can see human-readable names for parameters, layers, and policies.
+
+## When to use it
+
+- Diagnosing why a user is in the wrong variant (wrong bucket? wrong context? policy paused?)
+- Testing the treatment variant of an experiment without being assigned to it
+- Walking through an experiment with a colleague who isn't on your team
+- Verifying that `identify()` flips assignments cleanly after login

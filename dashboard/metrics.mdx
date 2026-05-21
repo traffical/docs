@@ -1,0 +1,117 @@
+---
+title: "Metrics in the dashboard"
+description: "Defining metrics, reading per-policy results, configuring goal metrics for adaptive policies and rollout health gates."
+---
+
+The **Metrics** page is where you turn raw events or warehouse facts into measurable numbers — and where you read experiment results.
+
+<Frame caption="Metrics list">
+  <img src="/images/placeholders/metrics-list.png" alt="Metrics list placeholder" />
+</Frame>
+
+## The list
+
+Each metric:
+
+- **Name** — human-readable
+- **Source** — a Traffical-native event or a warehouse fact
+- **Aggregation** — `conversion_rate`, `sum`, `count`
+- **Used by** — policies attached as goal or health metrics
+- **Current value** — the latest computed aggregate across all traffic
+
+The same metric can be used in many policies. Defining `revenue_per_user` once and attaching it to every checkout-related experiment is the common pattern.
+
+## Creating a metric
+
+<Frame caption="Metric editor">
+  <img src="/images/placeholders/metric-editor.png" alt="Metric editor placeholder" />
+</Frame>
+
+Pick a source first:
+
+| Source | What it means |
+|--------|--------------|
+| **Event** | Aggregate a Traffical-native track event |
+| **Fact** | Aggregate a warehouse-native fact definition |
+
+Then pick an aggregation:
+
+| Aggregation | Numerator | Denominator | Output |
+|-------------|-----------|-------------|--------|
+| `conversion_rate` | Unique users with ≥ 1 event | Unique users exposed | Proportion (0–1) |
+| `sum` | Sum of value column | Unique users exposed | Per-user average |
+| `count` | Count of events | Unique users exposed | Per-user rate |
+
+For `sum`, you also pick the value column (e.g. `order_total`). For `count`, no column is needed.
+
+## Filters and dimensions
+
+A metric can be filtered (e.g. "only completed orders") or grouped by a dimension (e.g. by `country`).
+
+For event-sourced metrics, the available filters and dimensions come from properties marked `dimension: true` on the event's [property schema](/dashboard/events#properties).
+
+For fact-sourced metrics, available filters are columns returned by the fact SQL.
+
+## Metric detail
+
+<Frame caption="Metric detail">
+  <img src="/images/placeholders/metric-detail.png" alt="Metric detail placeholder" />
+</Frame>
+
+The detail page shows:
+
+- Current value with trend over time
+- Top breakdowns by configured dimensions
+- All policies using this metric as a goal or health gate
+
+Use the time-range selector to look at any window.
+
+## Attaching to policies
+
+Open a policy → **Metrics** → **Add metric**.
+
+<Frame caption="Attach metric to policy">
+  <img src="/images/placeholders/metric-attach.png" alt="Attach metric placeholder" />
+</Frame>
+
+A policy can have:
+
+- **One goal metric.** What the experiment is optimizing for (drives adaptive allocation shifts, surfaces as the primary result).
+- **Any number of guardrail metrics.** Side effects you want to watch.
+- **Rollout health metrics.** For policies with a rollout, metrics that gate ramp progression.
+
+For adaptive policies, only the goal metric drives the engine. Guardrails are surfaced in the UI but don't influence allocations.
+
+## Reading per-policy results
+
+On a policy's detail page, each metric shows per-allocation:
+
+- The point estimate (e.g. conversion rate = 0.087)
+- A confidence interval
+- A significance indicator (when the experiment has enough data to make a confident call)
+
+<Frame caption="Policy metric results">
+  <img src="/images/placeholders/policy-metric-results.png" alt="Policy metric results placeholder" />
+</Frame>
+
+Significance is computed using cluster-robust standard errors when the metric is measured at a different level than the randomization (e.g. randomized by company, measured per user). The dashboard handles this automatically based on entity definitions.
+
+## Best practices
+
+- **Pick metrics carefully.** A metric that's noisy at your traffic level will say "no significant effect" forever. Use a more direct outcome where possible.
+- **Don't add too many guardrails.** Three is plenty. Twenty is paralyzing.
+- **Match metric to randomization level.** If your project is keyed on `companyId`, prefer company-level metrics for goals. User-level metrics are still valid with cluster-robust analysis but slow to converge.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Experiment design" icon="lightbulb" href="/guides/experiment-design">
+    Picking goal metrics and guardrails.
+  </Card>
+  <Card title="Definitions" icon="database" href="/dashboard/definitions">
+    Where warehouse-native fact definitions live.
+  </Card>
+  <Card title="Rollouts" icon="forward" href="/experimentation/rollouts">
+    Health-gated progressive delivery.
+  </Card>
+</CardGroup>

@@ -1,0 +1,133 @@
+---
+title: "JavaScript SDK"
+description: "Browser client SDK for framework-free apps and as the foundation for the React and Svelte SDKs."
+---
+
+`@traffical/js-client` is the framework-agnostic browser SDK. It fetches the config bundle, resolves parameters in the browser, tracks exposure events, and manages anonymous-user identity automatically.
+
+If you're using React or Svelte, prefer the [React SDK](/sdks/react) or [Svelte SDK](/sdks/svelte) — they wrap this client with framework-native APIs.
+
+## Installation
+
+<CodeGroup>
+  ```bash npm
+  npm install @traffical/js-client
+  ```
+
+  ```bash pnpm
+  pnpm add @traffical/js-client
+  ```
+
+  ```bash yarn
+  yarn add @traffical/js-client
+  ```
+</CodeGroup>
+
+## Setup
+
+```typescript
+import { createTrafficalClient } from "@traffical/js-client";
+
+const traffical = await createTrafficalClient({
+  orgId: "org_acme",
+  projectId: "proj_marketplace",
+  env: "production",
+  apiKey: "pk_live_your_public_key",
+});
+```
+
+<Note>
+Use a **public API key** (`pk_...`) in browser code. Public keys can fetch the bundle and send events but cannot modify configuration — safe to ship in client bundles.
+</Note>
+
+## Resolving parameters
+
+```typescript
+const params = traffical.getParams({
+  context: { userId: "user_789" },
+  defaults: {
+    "homepage.hero_headline": "Welcome back",
+    "homepage.show_banner": true,
+  },
+});
+
+document.querySelector("h1")!.textContent = params["homepage.hero_headline"];
+```
+
+An exposure event is emitted automatically the first time a user/assignment combination is resolved in a session.
+
+## Anonymous users and `identify`
+
+The browser SDK auto-generates a stable ID (`stableId`) on first visit, stores it in `localStorage` with a cookie fallback, and uses it as the unit key until a real user ID is available. When the user logs in:
+
+```typescript
+traffical.identify("user_789");
+```
+
+This switches the unit key to the real `userId`. Bucket assignments may change at this point — anonymous bucketing is ephemeral, logged-in bucketing is the real experiment assignment.
+
+You can read the current stable ID with `traffical.getStableId()`.
+
+## Tracking events
+
+```typescript
+traffical.track("signup", { unitKey: "user_789" });
+
+traffical.track("purchase", {
+  unitKey: "user_789",
+  properties: { order_total: 29.99, currency: "USD" },
+});
+```
+
+Events are batched in memory and flushed in the background.
+
+## Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `orgId` | `string` | required | Organization ID |
+| `projectId` | `string` | required | Project ID |
+| `env` | `string` | required | Environment name |
+| `apiKey` | `string` | required | Public API key (`pk_...`) |
+| `baseUrl` | `string` | `https://sdk.traffical.io` | SDK API base URL |
+| `refreshIntervalMs` | `number` | `60000` | Bundle refresh interval |
+| `localConfig` | `ConfigBundle` | — | Embedded bundle for cold-start |
+| `evaluationMode` | `"bundle" \| "server"` | `"bundle"` | See [how it works](/how-it-works#evaluation-modes) |
+| `attributionMode` | `"cumulative" \| "decision"` | `"cumulative"` | Track-event attribution strategy |
+| `trackDecisions` | `boolean` | `true` | Emit decision events alongside exposures |
+| `disableAutoStableId` | `boolean` | `false` | Disable auto-generation of `stableId` |
+| `storage` | `StorageProvider` | `LocalStorageProvider` | Persistence for the stable ID |
+| `plugins` | `TrafficalPlugin[]` | `[]` | Plugins (DOM bindings, redirect tests, devtools) |
+
+## Bundle caching
+
+The browser SDK caches the bundle in memory. The first page load fetches it; subsequent loads benefit from HTTP caching at the CDN edge (`Cache-Control: public, max-age=60, must-revalidate` with ETag). On warm loads, resolution is available immediately.
+
+## Plugins
+
+The browser SDK has a small plugin system that powers some of Traffical's other tools:
+
+| Plugin | Purpose |
+|--------|---------|
+| **DOM bindings** | Auto-apply parameter values to DOM elements (used by the [visual editor](/tools/visual-editor)) |
+| **Redirect tests** | URL split-testing — redirect users to different URLs based on assignment |
+| **Warehouse-native logger** | Forward assignment events to your warehouse |
+| **DevTools** | Live SDK inspection in the browser (used by the [DevTools bookmarklet](/tools/devtools)) |
+
+```typescript
+import { createTrafficalClient, createDOMBindingPlugin } from "@traffical/js-client";
+
+const traffical = await createTrafficalClient({
+  orgId, projectId, env, apiKey,
+  plugins: [createDOMBindingPlugin()],
+});
+```
+
+## Framework SDKs
+
+If you're using React or Svelte, use the framework-specific SDKs instead:
+
+- [`@traffical/react`](/sdks/react) — provider and `useTraffical` hook
+- [`@traffical/svelte`](/sdks/svelte) — stores and context API
+
+Both wrap `@traffical/js-client` and expose the same plugin system.

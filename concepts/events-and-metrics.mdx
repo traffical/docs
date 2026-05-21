@@ -1,0 +1,212 @@
+---
+title: "Events"
+description: "Exposure, decision, and track events — what gets captured and how it powers experiments and optimization."
+---
+
+Events are how Traffical sees what happened in your application: which variants users were exposed to and what they did afterwards. Events power metric dashboards, statistical significance calculations, and the optimization engine that learns from user behaviour.
+
+There are three kinds of events.
+
+## Event types
+
+<Tabs>
+  <Tab title="Exposure">
+    **Exposure events** are emitted automatically when the SDK resolves parameters. They record the user's assignment for each layer they touched.
+
+    ```json
+    {
+      "type": "exposure",
+      "unitKey": "user_789",
+      "timestamp": "2026-05-21T10:30:00Z",
+      "decisionId": "dec_abc123",
+      "layers": [
+        {
+          "layerId": "layer_checkout",
+          "policyId": "policy_color_test",
+          "allocationName": "treatment",
+          "bucket": 7420
+        }
+      ]
+    }
+    ```
+
+    Exposure events are deduplicated within a session, so the same user/assignment combination isn't tracked over and over.
+
+    They form the denominator in conversion-rate metrics: how many users were exposed to each variant.
+  </Tab>
+  <Tab title="Track">
+    **Track events** are the events your code emits to record user outcomes — purchases, signups, clicks, anything that matters.
+
+    ```typescript
+    traffical.track("purchase", {
+      unitKey: "user_789",
+      properties: { order_total: 49.99, currency: "USD" },
+    });
+    ```
+
+    The payload sent to the service:
+
+    ```json
+    {
+      "type": "track",
+      "unitKey": "user_789",
+      "timestamp": "2026-05-21T10:35:00Z",
+      "event": "purchase",
+      "properties": { "order_total": 49.99, "currency": "USD" },
+      "decisionId": "dec_abc123"
+    }
+    ```
+
+    The `decisionId` links the track event back to a parameter resolution. Track events are the reward signals for adaptive policies — and the numerators in conversion-rate metrics.
+  </Tab>
+  <Tab title="Decision">
+    **Decision events** are emitted automatically alongside exposures. They record the SDK's full decision — the parameters resolved, the unit key, the assignments — so you can measure intent-to-treat even when an exposure doesn't fire (e.g. the user navigates away before seeing the variant).
+
+    ```json
+    {
+      "type": "decision",
+      "unitKey": "user_789",
+      "decisionId": "dec_xyz789",
+      "timestamp": "2026-05-21T10:30:00Z",
+      "assignments": {
+        "checkout.button.color": "#22C55E",
+        "checkout.show_trust_badges": true
+      }
+    }
+    ```
+
+    Decision events can be turned off (`trackDecisions: false`) if you only want to measure treatment-on-treated.
+  </Tab>
+</Tabs>
+
+## Event definitions
+
+Event definitions describe the track events your system emits. They're created in three ways:
+
+1. **Config-as-code** — declared in `traffical.yaml` and synced with `traffical push`
+2. **Dashboard** — created manually in the UI
+3. **Auto-discovered** — created automatically the first time the SDK sends an event name the platform hasn't seen before
+
+```yaml
+events:
+  purchase:
+    valueType: currency
+    unit: USD
+    description: Completed purchase
+
+  add_to_cart:
+    valueType: count
+    description: Item added to cart
+
+  signup:
+    valueType: boolean
+    description: User signed up
+```
+
+### Value types
+
+| Value type | Description | Typical example |
+|-----------|-------------|-----------------|
+| `currency` | Monetary values | Revenue in USD |
+| `count` | Numeric counts | Items added, pages viewed |
+| `rate` | Proportions or percentages | Completion rate |
+| `boolean` | Binary outcomes | Converted / didn't convert |
+
+### Property schemas
+
+Events can declare schemas for their payload properties. Schemas serve three purposes: they generate TypeScript types for `track()`, they let the edge validate incoming events, and they mark which properties are dimensions for slicing metrics in the warehouse-native pipeline.
+
+```yaml
+events:
+  purchase:
+    valueType: currency
+    unit: USD
+    schemaEnforcement: warn      # off | warn | reject
+    properties:
+      order_id:
+        type: string
+        required: true
+        format: uuid
+      total:
+        type: number
+        required: true
+        minimum: 0
+      payment_method:
+        type: string
+        required: true
+        enum: [credit_card, paypal, apple_pay]
+        dimension: true           # usable for breakdowns
+```
+
+`schemaEnforcement` controls what happens when an event doesn't match its schema: `off` skips validation, `warn` validates and returns warnings in the API response but still accepts the event, `reject` drops invalid events before they reach the pipeline.
+
+Common properties used across many events can be extracted into **property groups** for reuse:
+
+```yaml
+propertyGroups:
+  geo:
+    properties:
+      market:    { type: string, enum: [US, EU, APAC], dimension: true }
+      country:   { type: string, dimension: true }
+      currency:  { type: string, pattern: "^[A-Z]{3}$", dimension: true }
+
+events:
+  purchase:
+    valueType: currency
+    propertyGroups: [geo]
+    properties:
+      order_id: { type: string, required: true }
+```
+
+See [Type-safe events](/guides/type-safe-events) for the full end-to-end flow including CLI codegen, SDK type parameters, and dev-mode validation warnings.
+
+## Attribution
+
+Events are attributed to decisions via the `decisionId` field. When the SDK resolves parameters, it generates a decision ID. When you call `track()` shortly afterwards, the SDK includes the same `decisionId` so the event is causally linked to the assignment.
+
+The SDK supports two attribution modes:
+
+| Mode | Behaviour | Use when |
+|------|-----------|----------|
+| `cumulative` (default) | A track event is attributed to **every** layer the user has been exposed to in the session. | Cross-page funnels (catalog → PDP → checkout) where multiple experiments contributed to the outcome. |
+| `decision` | A track event is attributed only to the layers from the specific decision it's tied to. | When you need strict single-decision attribution (often warehouse-native analyses). |
+
+For batch and offline systems (email sends, push notifications) you can pass `decisionId` through your external system and back in when the outcome event arrives. See the [email / batch pattern](/guides/canonical-experiments#email-and-batch).
+
+When a track event has no `decisionId`, the platform falls back to time-window attribution: events are linked to the most recent decision for the same unit key, within a configurable attribution window.
+
+## Type-safe events
+
+The CLI can generate TypeScript types from your event definitions:
+
+```bash
+traffical generate-types
+```
+
+This produces a `TrafficalEventProperties` map you can use to type your `track()` calls — invalid event names and property keys become compile errors. See the [CLI page](/tools/cli#type-safe-events) for the wrapper pattern.
+
+## What happens after an event is sent?
+
+SDKs batch events in memory and flush to Traffical in the background. They're used for:
+
+- **Metric computation** — for dashboards, significance tests, and the optimization engine.
+- **Bandit learning** — adaptive policies use track events as reward signals; the optimization engine periodically retrains and republishes allocations or coefficients into the bundle.
+
+If you'd rather compute metrics from your own data warehouse instead of (or in addition to) Traffical-native events, see [warehouse-native](/concepts/warehouse-native).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Decisions & attribution" icon="link" href="/concepts/assignments">
+    How decision IDs flow through your application.
+  </Card>
+  <Card title="Warehouse-native" icon="database" href="/concepts/warehouse-native">
+    Compute metrics directly from your data warehouse.
+  </Card>
+  <Card title="A/B testing" icon="flask" href="/experimentation/ab-testing">
+    End-to-end experiment with events.
+  </Card>
+  <Card title="Optimization" icon="chart-line" href="/experimentation/optimization">
+    Events as reward signals for adaptive policies.
+  </Card>
+</CardGroup>

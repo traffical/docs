@@ -1,0 +1,115 @@
+---
+title: "Events in the dashboard"
+description: "Event definitions, property schemas, property groups, the event explorer, and schema violation diagnostics."
+---
+
+The **Events** page is where you manage event definitions and their property schemas, and where you explore event volume and violations.
+
+<Frame caption="Events list">
+  <img src="/images/placeholders/events-list.png" alt="Events list placeholder" />
+</Frame>
+
+## The events list
+
+Each row shows:
+
+- **Name** — the event identifier
+- **Value type** — `currency`, `count`, `rate`, `boolean`
+- **Recent volume** — events per hour
+- **Schema status** — number of properties, `schemaEnforcement` mode, violation rate
+- **Source** — `synced` (CLI), `dashboard-only`, or `auto-discovered`
+
+Sort by recent volume to see what's actually flowing. Filter by source to find auto-discovered events that should be properly defined.
+
+## Event detail
+
+Clicking an event opens its detail page with several tabs.
+
+<Frame caption="Event detail — overview">
+  <img src="/images/placeholders/event-detail-overview.png" alt="Event detail overview placeholder" />
+</Frame>
+
+### Overview
+
+- Value type, unit, description
+- Schema version and enforcement mode
+- Volume sparkline
+- Top properties by usage
+- Currently-attached property groups
+
+### Properties
+
+The list of declared properties with their types, constraints, and `dimension: true` flag.
+
+If the event is synced from `traffical.yaml`, properties are read-only — edit them in code. If it's dashboard-only, you can add, edit, or delete properties here.
+
+<Frame caption="Event detail — properties">
+  <img src="/images/placeholders/event-detail-properties.png" alt="Event detail properties placeholder" />
+</Frame>
+
+### Violations
+
+If `schemaEnforcement` is `warn` or `reject`, the violations tab shows:
+
+- Total violations in the last 24 hours / 7 days
+- Breakdown by property and violation code
+- Sample payloads for each violation type
+
+<Frame caption="Schema violation diagnostics">
+  <img src="/images/placeholders/violations.png" alt="Violations placeholder" />
+</Frame>
+
+Use this to find bugs in your `track()` code before promoting `schemaEnforcement` to `reject`.
+
+### Schema versions
+
+The full version history of the event's schema with diff between consecutive versions. Old events validated against old versions are still readable; new events validate against the current version.
+
+## Property groups
+
+The **Property groups** sub-page lists all property groups in the project.
+
+<Frame caption="Property groups">
+  <img src="/images/placeholders/property-groups.png" alt="Property groups placeholder" />
+</Frame>
+
+Click a group to see its properties and which events reference it. Editing a group affects every event using it on next bundle refresh.
+
+See [Type-safe events](/guides/type-safe-events) for how property groups work end-to-end.
+
+## Event explorer
+
+The explorer lets you query event volume by dimension.
+
+<Frame caption="Event explorer">
+  <img src="/images/placeholders/event-explorer.png" alt="Event explorer placeholder" />
+</Frame>
+
+- Pick an event
+- Filter by any property
+- Group by any property marked `dimension: true`
+- Time range
+
+It's the closest thing to a SQL query without writing SQL. Useful for ad-hoc questions like "how many `add_to_cart` events came from the US last week, broken down by category?"
+
+For deeper analysis, route the same events into your data warehouse via SDK sync and query there.
+
+## Best practices
+
+- **Define schemas as soon as an event matters.** Auto-discovered events are fine in development; in production you want explicit schemas so the dashboard knows which fields are dimensions and the SDK type-checks `track()` calls.
+- **Mark dimensions explicitly.** Properties used for breakdowns and metric slicing need `dimension: true`. The pipeline ignores non-dimension fields for aggregation purposes.
+- **Start with `schemaEnforcement: warn`.** Watch the violations tab for a week or two. When the rate is essentially zero, flip to `reject`.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Type-safe events" icon="shield-check" href="/guides/type-safe-events">
+    End-to-end: YAML → CLI codegen → SDK types → edge validation.
+  </Card>
+  <Card title="Events concept" icon="bolt" href="/concepts/events-and-metrics">
+    Exposure, decision, and track events.
+  </Card>
+  <Card title="Metrics" icon="chart-line" href="/dashboard/metrics">
+    Turn events into metrics.
+  </Card>
+</CardGroup>

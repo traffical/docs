@@ -1,0 +1,161 @@
+---
+title: "Experiment design"
+description: "A practical checklist for PMs, marketers, and engineers running their first few experiments — hypotheses, metrics, guardrails, sample size."
+---
+
+The mechanics of running an experiment are straightforward. The hard part is making sure the experiment answers a question you actually care about. This page is a practical checklist — not a statistics textbook.
+
+## Start with a hypothesis
+
+A useful hypothesis names three things: a **change**, a **direction**, and a **metric**.
+
+> Changing the checkout CTA from "Buy Now" to "Complete Purchase" will **increase** the **checkout completion rate**.
+
+Useless versions:
+
+- "Let's test the CTA copy." (No direction, no metric.)
+- "I think a different CTA might work better." (No measurable thing.)
+- "Optimize the funnel." (Optimize what?)
+
+If you can't fill in those three slots, you're not ready to run an experiment. Sometimes the answer is: do a smaller analysis first to figure out the metric.
+
+## Pick the goal metric carefully
+
+The goal metric should be:
+
+- **Directly attributable to the change.** A checkout CTA test should measure checkout completion, not week-over-week revenue. Revenue moves for too many reasons.
+- **Timely enough to read.** If your goal is a 30-day renewal rate and your experiment runs two weeks, you have a problem.
+- **Sensitive enough to detect a realistic effect.** Total revenue is too noisy for small UI changes. Conversion rate on the touched flow is usually better.
+- **Aligned with what your team actually wants.** If everyone agrees "more signups" is the goal, don't measure pageviews because they're easier.
+
+| Metric type | Use when |
+|------------|----------|
+| `conversion_rate` | The outcome is binary per user (signed up / didn't) |
+| `sum` | You want total value (revenue) divided by users exposed |
+| `count` | You want event count per user (page views, items added) |
+
+## Set guardrails
+
+A guardrail is a metric that shouldn't get worse, even if the goal metric gets better. They catch the "we improved CTR but tanked revenue" problem.
+
+Pick 2–3:
+
+- For commerce: revenue, refund rate
+- For content: time on page, bounce rate
+- For SaaS: support ticket rate, churn rate, error rate
+- For mobile: crash rate, app size, time-to-interactive
+
+Set the guardrails up as metric definitions in the dashboard and review them alongside the goal metric. If a treatment wins on the goal but loses on a guardrail, you have a real product question — not an easy decision.
+
+## Choose the unit of randomization
+
+The unit of randomization is whoever should see one consistent variant. The most common choices:
+
+| Unit | When |
+|------|------|
+| `userId` | Most experiments. One user always sees the same variant. |
+| `companyId` | B2B / multi-tenant. Every user in the company should agree. |
+| `deviceId` / `stableId` | Pre-login experiences. Anonymous users on a single device. |
+| `sessionId` | Rare. When you want each session to be independent. |
+
+This is a project-level setting, so it's set once. If you need both user-keyed and company-keyed experiments, create two projects. See [Projects & environments](/concepts/projects-and-environments).
+
+## Target the right segment
+
+The default is "all users". But sometimes that's wrong:
+
+- **Compliance** — geographic restrictions, regulated industries, age gates.
+- **Risk** — start with internal users or low-revenue segments before high-value cohorts.
+- **Relevance** — you can't test "new pricing page" on users who never see pricing.
+
+Use [policy conditions](/concepts/policies#targeting-conditions) to scope. Be careful: a heavily-targeted experiment has a smaller population and will take longer to reach significance.
+
+## Size your experiment
+
+Two things matter:
+
+1. **Minimum detectable effect (MDE).** The smallest change you want to be able to confirm. If you only care about effects of 5% or larger, you can run a smaller experiment than if you want to detect 1%.
+2. **Population per variant.** Conversion-rate experiments need enough conversions per variant. Sum/count experiments need enough samples to overcome variance.
+
+The dashboard will tell you when an experiment has reached significance. If you want to plan ahead, a rough rule for conversion-rate tests:
+
+> sample per variant ≈ 16 × baseline rate × (1 − baseline rate) / (MDE × baseline rate)²
+
+So if your baseline conversion is 5% and you want to detect a 10% relative lift (`MDE = 0.10`):
+
+> 16 × 0.05 × 0.95 / (0.10 × 0.05)² ≈ 30,400 per variant ≈ 61,000 total
+
+Don't trust a back-of-envelope number for high-stakes decisions — use a proper power calculator. Use it to set expectations.
+
+## Run for at least one full cycle
+
+Run experiments for at least one full business cycle — usually one or two weeks. Day-of-week and time-of-day effects are real. A test that runs Monday to Wednesday will mis-weight weekend buyers.
+
+Don't peek. Or rather: don't make decisions while peeking. Significance tests assume you decide at a pre-committed point; "peeking" and stopping early inflates the false-positive rate. Use the dashboard to monitor for guardrail issues, not to decide the winner.
+
+## Watch for interaction effects
+
+If you run two experiments at once on the same user base, the assignments might interact — one experiment's effect depends on the other. Traffical defends against this with [layers](/concepts/layers): experiments in different layers are statistically independent by construction.
+
+If you must run interacting experiments in the same layer, you have to model them as one experiment with the cross-product of variants (treatment A × control B, treatment A × treatment B, etc.). Two booleans is four variants. Three is eight. This gets expensive fast — usually layers are the right answer.
+
+## Decide the success criterion upfront
+
+Before you start, write down:
+
+- The goal metric and the direction you expect it to move
+- The minimum effect size you'd act on (the MDE)
+- Your guardrails and acceptable degradation
+- What you'll do if treatment wins, loses, or is inconclusive
+
+If you can't write these down, the experiment can't really lose — every outcome will get rationalized. That's not learning, that's confirmation.
+
+## Read the result
+
+When the dashboard says you have a significant effect:
+
+- **Both the size and the direction matter.** A statistically significant 0.1% lift isn't the same as a 10% lift.
+- **Check the guardrails.** Did anything get worse?
+- **Check segments.** Did the effect concentrate in one segment (mobile-only, new users only)? Sometimes the average hides the story.
+- **Sanity check.** Does the result make sense? A 50% lift on a small change is suspicious. So is no effect at all on a change you expected to work.
+
+When the dashboard says you don't have a significant effect:
+
+- **You didn't prove there's no effect.** You proved you couldn't detect one with this sample.
+- **Was the test underpowered?** If you needed 30k per variant to detect your MDE and you only got 8k, you can't conclude much.
+- **Was the effect real but smaller than your MDE?** Sometimes "no effect detected" is the right product answer anyway — the change wasn't worth shipping.
+
+## Conclude the experiment
+
+When you've decided:
+
+1. **Pick the winner.** Update the parameter's default value.
+2. **Complete the policy.** Mark it `completed` in the dashboard.
+3. **Document what you learned.** Even null results are useful for your team's institutional memory.
+
+Then move on to the next hypothesis.
+
+## Common pitfalls
+
+- **Running too many tests at once on the same parameter without layers.** Use layers; concurrent experiments on different layers don't interact.
+- **Changing the experiment mid-flight.** Adding a variant, changing conditions, or changing the goal metric all reset the analysis. Pick carefully, then commit.
+- **Choosing a high-variance metric.** Total revenue per user, lifetime value — these need huge samples. Use a more direct outcome where you can.
+- **Ignoring novelty effects.** Users react to *change*. A "new" variant might do better in week 1 and worse in week 4. Run long enough to see past the novelty.
+- **Not committing to the success criterion.** Decide what "win" looks like before the data comes in.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="A/B testing" icon="flask" href="/experimentation/ab-testing">
+    Run your first experiment.
+  </Card>
+  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+    Pattern catalog by surface.
+  </Card>
+  <Card title="Rollouts" icon="forward" href="/experimentation/rollouts">
+    Ship the winner safely.
+  </Card>
+  <Card title="Optimization" icon="chart-line" href="/experimentation/optimization">
+    When to use adaptive policies instead.
+  </Card>
+</CardGroup>

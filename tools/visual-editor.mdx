@@ -1,0 +1,67 @@
+---
+title: "Visual editor"
+description: "Create A/B tests on live pages without writing code, using a browser bookmarklet."
+---
+
+The visual editor lets you create UI experiments directly on your live website without touching application code. It's a bookmarklet that overlays an editing UI on any page where the Traffical SDK is installed.
+
+## Setup
+
+1. Open **Visual editor** in your Traffical dashboard.
+2. Drag the bookmarklet to your browser's bookmarks bar.
+3. Navigate to the page you want to test.
+4. Click the bookmarklet — the editing UI overlays the page.
+
+## Creating a visual experiment
+
+1. **Select an element.** Click any element on the page. The editor highlights it and generates a stable CSS selector.
+2. **Edit it.** Change text, colors, images, visibility — anything you'd usually do by hand in code. Each edit creates a [parameter](/concepts/parameters) for the change.
+3. **Define variants.** Set the control (original) and treatment values.
+4. **Save.** The editor creates the parameter, a DOM binding, and a [policy](/concepts/policies) in Traffical. As soon as the bundle refreshes, the experiment is live.
+
+## How it works
+
+A visual experiment is just a normal policy on a normal parameter, plus a **DOM binding** that tells the SDK how to apply the value to the page.
+
+| Piece | Where it lives |
+|-------|---------------|
+| Parameter (e.g. `visual.hero-heading.textContent`) | In the bundle, like any other parameter |
+| Policy with control + treatment allocations | In the layer you select |
+| DOM binding (selector + property + URL pattern) | Attached to the parameter |
+
+The SDK's DOM-binding plugin reads the bundle on page load, finds matching elements, and applies the resolved value. The `@traffical/js-client`, `@traffical/react`, and `@traffical/svelte` SDKs include this plugin support — you just need to register it (or use the wrapper SDKs which register it by default).
+
+### Anatomy of a DOM binding
+
+| Field | Description |
+|-------|-------------|
+| `selector` | CSS selector for the target element |
+| `property` | What to modify: `textContent`, `innerHTML`, `src`, `href`, `style.*` |
+| `urlPattern` | Regex of URL paths where the binding applies |
+
+## Avoiding flash of original content
+
+Because DOM bindings are applied client-side after the SDK loads, there can be a brief flash of the original content (FOOC) on slow connections. Two mitigations:
+
+- **Embed `localConfig`** — bake the bundle into your app's initial HTML and pass it to the SDK as `localConfig`. The SDK has the bundle before first paint.
+- **Use SSR** — server-side resolve and render the treated variant directly. See [SSR patterns](/sdks/ssr).
+
+For SPAs and pure client-rendered apps, FOOC is usually acceptable for content edits but problematic for layout changes — those are better expressed in code.
+
+## Limitations
+
+- Requires a client SDK installed on the page (`@traffical/js-client`, `@traffical/react`, or `@traffical/svelte`).
+- One DOM binding per parameter.
+- Complex layout changes are usually better in code than in a binding.
+- Bindings are applied after hydration in SSR frameworks — for SSR'd content edits, write the variant in code and read the parameter normally.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="DevTools" icon="bug" href="/tools/devtools">
+    Inspect SDK state and override parameters live.
+  </Card>
+  <Card title="Web UI experiment pattern" icon="window" href="/guides/canonical-experiments#web-ui">
+    A full walkthrough including DOM bindings.
+  </Card>
+</CardGroup>

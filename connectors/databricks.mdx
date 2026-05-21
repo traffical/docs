@@ -1,0 +1,138 @@
+---
+title: "Databricks"
+description: "Connect Traffical to Databricks SQL warehouses (Unity Catalog) for warehouse-native metrics."
+---
+
+Traffical reads from Databricks SQL warehouses using the Databricks SQL API. Unity Catalog is the recommended setup. This page covers credentials, permissions, and warehouse sizing.
+
+## Connection fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `host` | yes | Workspace URL, e.g. `dbc-12345678-abcd.cloud.databricks.com` |
+| `httpPath` | yes | SQL warehouse HTTP path, e.g. `/sql/1.0/warehouses/abc123def456` |
+| `token` | yes | Personal access token or service principal token |
+| `catalog` | yes | Unity Catalog catalog name |
+| `schema` | no | Default schema |
+
+Configure these in **Settings → Warehouse → Databricks**.
+
+## Recommended: service principal
+
+For production use, create a **service principal** rather than using a personal access token tied to a human user:
+
+1. In your Databricks account console, open **User management → Service principals → Add service principal**.
+2. Name it (`traffical-reader`).
+3. In the workspace, **Workspace settings → Identity and access → Service principals → Add**. Add the service principal you just created.
+4. Generate an OAuth token for the service principal (Databricks docs cover the flow per cloud).
+5. Grant Unity Catalog permissions (next section).
+
+Service principals don't disappear when an employee leaves and can be rotated independently.
+
+## Unity Catalog grants
+
+The service principal needs read access to your source data and read + write access to a dedicated Traffical schema. Both live in a single Unity Catalog catalog (typically the catalog where your analytics data lives).
+
+```sql
+-- Catalog access (read)
+GRANT USE CATALOG ON CATALOG analytics TO `traffical`;
+
+-- Source schema — read only
+GRANT USE SCHEMA ON SCHEMA analytics.experiments TO `traffical`;
+GRANT SELECT ON SCHEMA analytics.experiments TO `traffical`;
+
+-- Traffical working schema — pre-create and grant DDL + DML
+CREATE SCHEMA IF NOT EXISTS analytics.traffical;
+GRANT USE SCHEMA           ON SCHEMA analytics.traffical TO `traffical`;
+GRANT CREATE TABLE         ON SCHEMA analytics.traffical TO `traffical`;
+GRANT SELECT, MODIFY       ON SCHEMA analytics.traffical TO `traffical`;
+
+-- Compute access — replace with your warehouse ID
+GRANT CAN USE ON WAREHOUSE `abc123def456` TO `traffical`;
+```
+
+`MODIFY` covers `INSERT`, `UPDATE`, and `DELETE`. Combined with `CREATE TABLE` and `USE SCHEMA`, that's everything the pipeline needs in the Traffical schema.
+
+When configuring the connection, set `catalog: analytics` and the Traffical working schema name (`traffical`) in the schema field.
+
+## SQL warehouse sizing
+
+The pipeline runs short queries. Recommendations:
+
+- A serverless SQL warehouse with `Small` cluster size handles most workloads. Auto-stop after 5–10 minutes idle is plenty.
+- For very large fact tables, consider `Medium` or `Large` — but watch the cost dashboard.
+- Use a dedicated warehouse for Traffical so the pipeline's queries don't compete with BI dashboards for compute.
+
+## Recommended table design
+
+Delta tables with `ZORDER` on user/entity columns make joins fast:
+
+```sql
+CREATE TABLE analytics.experiments.assignments (
+  user_id          STRING NOT NULL,
+  assigned_at      TIMESTAMP NOT NULL,
+  experiment_name  STRING NOT NULL,
+  variant          STRING NOT NULL
+)
+USING DELTA
+PARTITIONED BY (DATE(assigned_at));
+
+OPTIMIZE analytics.experiments.assignments
+ZORDER BY (user_id, experiment_name);
+
+CREATE TABLE analytics.experiments.orders (
+  order_id     STRING,
+  user_id      STRING NOT NULL,
+  order_total  DECIMAL(18, 2) NOT NULL,
+  currency     STRING,
+  event_time   TIMESTAMP NOT NULL
+)
+USING DELTA
+PARTITIONED BY (DATE(event_time));
+
+OPTIMIZE analytics.experiments.orders ZORDER BY (user_id);
+```
+
+`OPTIMIZE` jobs should be scheduled separately (Databricks docs explain). Without them, query performance degrades over time as small files accumulate.
+
+## Example definitions
+
+Assignment definition SQL:
+
+```sql
+SELECT
+  user_id,
+  assigned_at,
+  experiment_name AS policy_key,
+  variant         AS allocation_key
+FROM analytics.experiments.assignments
+WHERE assigned_at BETWEEN TIMESTAMP('{{start_date}}')
+                      AND TIMESTAMP('{{end_date}}')
+```
+
+Fact definition SQL:
+
+```sql
+SELECT
+  user_id,
+  event_time,
+  order_total
+FROM analytics.experiments.orders
+WHERE event_time BETWEEN TIMESTAMP('{{start_date}}')
+                     AND TIMESTAMP('{{end_date}}')
+```
+
+## Network access
+
+Databricks is HTTPS-only and Traffical connects via the SQL API. No firewall setup is needed by default.
+
+If your workspace has **IP access lists** configured, add Traffical's egress IPs (listed in **Settings → Warehouse**) to the allowed list.
+
+For **PrivateLink** setups, talk to us — that's a custom setup but feasible.
+
+## Gotchas
+
+- **Personal access tokens expire.** If you use a PAT instead of a service principal, the connection will fail when the token expires. Service principals are recommended for that reason.
+- **Hive Metastore vs Unity Catalog.** Traffical supports Unity Catalog. If your data lives in the legacy Hive Metastore (`hive_metastore` catalog), it works, but Unity Catalog is the recommended path going forward.
+- **Auto-stop too aggressive.** If your SQL warehouse is configured to stop after 1 minute idle, the pipeline pays a cold-start delay on every run. A 5–10 minute idle is a better tradeoff.
+- **DBR runtime.** SQL warehouses use Photon, which is what Traffical expects. All-purpose clusters work too but are slower and more expensive for ad-hoc queries.

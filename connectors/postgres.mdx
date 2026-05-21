@@ -1,0 +1,136 @@
+---
+title: "Postgres"
+description: "Connect Traffical to a Postgres database for warehouse-native metrics."
+---
+
+Traffical can read from Postgres (and Postgres-compatible databases — Aurora Postgres, Neon, Supabase Postgres, Crunchy Data, etc.) for warehouse-native metrics.
+
+This page covers what you need to know about credentials, permissions, and gotchas. For the bigger picture, see [warehouse-native](/concepts/warehouse-native).
+
+## Connection fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `host` | yes | Hostname or IP address of the Postgres instance |
+| `port` | no | Defaults to `5432` |
+| `database` | yes | Database name |
+| `username` | yes | Role used to connect — needs `SELECT` on source schemas plus full DML/DDL on a Traffical-owned schema (see below) |
+| `password` | yes | Password for the role |
+| `sslMode` | no | Defaults to `require`. Set to `disable` only for local development |
+
+You can alternatively provide a single `connectionString` in standard `postgresql://...` form. The pipeline uses whichever you provide.
+
+Configure these in **Settings → Warehouse → Postgres**.
+
+## Creating the role and the Traffical schema
+
+The pipeline needs read access to your data plus a Traffical-owned schema it can read and write. Run this in `psql` as a privileged user:
+
+```sql
+-- One role for everything Traffical does
+CREATE ROLE traffical LOGIN PASSWORD '<strong-random-password>';
+GRANT CONNECT ON DATABASE your_database TO traffical;
+
+-- Read access on your source data
+GRANT USAGE ON SCHEMA analytics TO traffical;
+GRANT SELECT ON ALL TABLES IN SCHEMA analytics TO traffical;
+ALTER DEFAULT PRIVILEGES IN SCHEMA analytics
+  GRANT SELECT ON TABLES TO traffical;
+
+-- A schema the pipeline owns. The pipeline issues CREATE SCHEMA IF NOT EXISTS
+-- on first run, so granting CREATE on the database is enough. If you'd rather
+-- pre-create the schema yourself, do that and grant USAGE + CREATE on it.
+GRANT CREATE ON DATABASE your_database TO traffical;
+```
+
+Replace `analytics` with whichever schema your assignment and fact tables live in. Grant `SELECT` on each source schema the pipeline needs to read.
+
+Once the pipeline runs once, it owns a `traffical` schema where it creates, reads, and drops materialization and staging tables. The role only needs default privileges in that schema since it's the schema's creator. If you prefer to lock things down further, pre-create the schema and grant explicitly:
+
+```sql
+CREATE SCHEMA traffical;
+GRANT USAGE, CREATE ON SCHEMA traffical TO traffical;
+```
+
+## Network access
+
+Traffical's pipeline egress IPs are listed in the dashboard under **Settings → Warehouse**. Allow these IPs through any firewall, security group, or VPC gateway:
+
+- Managed Postgres (RDS / Cloud SQL / Azure Database / Neon / Supabase) — usually a security group rule or IP allowlist setting.
+- Self-managed — `pg_hba.conf` plus your network ACLs.
+
+If your Postgres lives in a private network, talk to us about private connectivity (VPC peering, PrivateLink, Tailscale) — the answer is "we can do that" but the steps depend on your setup.
+
+## SSL
+
+`sslMode: require` is the default and recommended. The pipeline expects a TLS connection. Postgres clients also support `verify-ca` and `verify-full` — those are coming, but for now `require` is the supported setting.
+
+## Recommended schema layout
+
+Two tables typically anchor a Postgres warehouse-native setup:
+
+```sql
+-- Assignments: one row per (user, time, experiment, variant)
+CREATE TABLE analytics.experiment_assignments (
+  user_id          TEXT NOT NULL,
+  assigned_at      TIMESTAMPTZ NOT NULL,
+  experiment_name  TEXT NOT NULL,
+  variant          TEXT NOT NULL
+);
+CREATE INDEX ON analytics.experiment_assignments (assigned_at);
+CREATE INDEX ON analytics.experiment_assignments (user_id, experiment_name);
+
+-- Outcomes: any events you want to measure
+CREATE TABLE analytics.orders (
+  order_id      TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL,
+  order_total   NUMERIC NOT NULL,
+  currency      TEXT NOT NULL,
+  event_time    TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX ON analytics.orders (event_time);
+CREATE INDEX ON analytics.orders (user_id);
+```
+
+You don't need this exact schema — the assignment and fact definitions can shape the columns however you need. But the indexes on `assigned_at` and `event_time` are important if your tables are large, because the pipeline filters by time.
+
+## Example definitions
+
+Assignment definition SQL:
+
+```sql
+SELECT
+  user_id,
+  assigned_at,
+  experiment_name AS policy_key,
+  variant         AS allocation_key
+FROM analytics.experiment_assignments
+WHERE assigned_at BETWEEN '{{start_date}}'::timestamptz
+                      AND '{{end_date}}'::timestamptz
+```
+
+Fact definition SQL:
+
+```sql
+SELECT
+  user_id,
+  event_time,
+  order_total
+FROM analytics.orders
+WHERE event_time BETWEEN '{{start_date}}'::timestamptz
+                     AND '{{end_date}}'::timestamptz
+```
+
+The `{{start_date}}` / `{{end_date}}` template variables are replaced by the pipeline at run time with the window it's processing.
+
+## Performance tips
+
+- **Index on time columns.** The pipeline always filters by time; without an index it'll do a sequential scan.
+- **Compose your SQL to scan one date partition** if you're using `pg_partman` or another partitioning scheme. The template variables make this straightforward.
+- **Avoid `SELECT *`.** Project only the columns the pipeline needs — it doesn't use more than what your `SELECT` list provides.
+
+## Gotchas
+
+- **Timezones.** Make sure your time columns are `TIMESTAMPTZ`, not `TIMESTAMP` without timezone. Comparisons in the template variables are timezone-aware.
+- **Long-running transactions.** The pipeline opens a connection, runs a query, and disconnects. It won't hold a transaction open, so you don't need to worry about long-running PgBouncer sessions — but if you're behind PgBouncer in transaction mode, make sure your queries are simple enough to complete in one round trip.
+- **Read replicas.** Pointing Traffical at a read replica is fine and recommended for cost isolation. Replication lag means the pipeline sees slightly stale data — usually a non-issue for analytics.

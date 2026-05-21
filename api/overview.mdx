@@ -1,0 +1,80 @@
+---
+title: "API overview"
+description: "Authentication, base URL, and the endpoints SDKs use to fetch config and send events."
+---
+
+The Traffical SDK API is served from `sdk.traffical.io`. SDKs use it to fetch config bundles, send events, and (in `server` evaluation mode) request resolutions. You can also call it directly for server-to-server integrations.
+
+## Base URL
+
+```
+https://sdk.traffical.io
+```
+
+You can override this in any SDK with the `baseUrl` option — useful for testing.
+
+## Authentication
+
+All requests require an API key in the `Authorization` header:
+
+```
+Authorization: Bearer sk_live_your_api_key
+```
+
+### API key types
+
+| Prefix | Type | Scopes | Use case |
+|--------|------|--------|----------|
+| `sk_...` | Server key | `sdk:read`, `sdk:write` | Server-side SDKs and direct API calls |
+| `pk_...` | Public key | `sdk:read`, `sdk:write` (events only) | Browser SDKs — safe to ship in client code |
+
+- **`sdk:read`** — fetch bundles, request resolutions
+- **`sdk:write`** — send events
+
+Server keys can do everything. Public keys are safe to include in client-side JavaScript: they can fetch the project's bundle and send events, but cannot modify configuration in any way.
+
+### Managing keys
+
+Create and revoke keys under **Settings → API keys** in the dashboard. Keys can be scoped to a project and environment, given an expiry, or revoked at any time.
+
+## Endpoints
+
+| Method | Path | Description | Scope |
+|--------|------|-------------|-------|
+| `GET` | [`/v1/config/:projectId`](/api/get-config) | Fetch the config bundle | `sdk:read` |
+| `POST` | [`/v1/resolve`](/api/post-resolve) | Server-side resolution (for `evaluationMode: "server"`) | `sdk:read` |
+| `POST` | [`/v1/decide/:policyId`](/api/post-decide) | Per-entity adaptive decision | `sdk:read` |
+| `POST` | [`/v1/events`](/api/post-events) | Send exposure, decision, and track events | `sdk:write` |
+
+The `/v1/events/batch` endpoint is an alias for `POST /v1/events` for clients that prefer the explicit "batch" naming.
+
+## Caching
+
+`GET /v1/config/:projectId` is served with `Cache-Control: public, max-age=60, must-revalidate` and an `ETag` per bundle version. SDKs send `If-None-Match` on subsequent requests — unchanged bundles return `304 Not Modified` with no body. Use the same pattern in any custom client that polls the bundle.
+
+## Error responses
+
+All errors share a consistent shape:
+
+```json
+{
+  "error": "Unauthorized",
+  "message": "Invalid or expired API key"
+}
+```
+
+| Status | Description |
+|--------|-------------|
+| `400` | Bad request — invalid payload or missing required fields |
+| `401` | Unauthorized — missing or invalid API key |
+| `403` | Forbidden — API key lacks required scope |
+| `404` | Not found — resource does not exist |
+| `429` | Rate limited |
+| `500` | Internal server error |
+
+## Rate limits
+
+Limits are generous for SDK traffic and scale with your plan. Two things to know:
+
+- `GET /v1/config/:projectId` responses are heavily cached at the edge — most SDK refreshes never reach an origin.
+- `POST /v1/events` accepts batches of up to 1000 events per request. Always batch; never send one event per request from a server.

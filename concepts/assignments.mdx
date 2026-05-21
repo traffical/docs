@@ -1,0 +1,119 @@
+---
+title: "Decisions & attribution"
+description: "How a parameter resolution becomes a decision, how decision IDs flow through your application, and how track events get attributed to experiments."
+---
+
+A **decision** is the SDK's record of resolving parameters for a user. Every time you call `getParams` (or `decide`), the SDK produces a decision: which parameters were resolved, which allocations the user fell into, and a `decisionId` that links downstream events back to this point in time.
+
+Decisions are the backbone of attribution — they're how a `purchase` track event ends up tied to the `treatment` variant of the `pricing_test` policy that the user saw fifteen minutes earlier.
+
+## The decision record
+
+Conceptually:
+
+```
+Decision {
+  decisionId:    "dec_abc123"
+  unitKey:       "user_789"
+  timestamp:     "2026-05-21T10:30:00Z"
+  assignments:   { "checkout.button.color": "#22C55E", ... }
+  layers: [
+    { layerId: "layer_checkout", policyId: "policy_color_test", allocationName: "treatment", bucket: 7420 },
+    { layerId: "layer_pricing",  policyId: "policy_discount",   allocationName: "low",       bucket: 1280 }
+  ]
+}
+```
+
+The SDK returns the decision from `decide()`. `getParams()` returns just the resolved assignments map, but the decision is still produced and tracked internally.
+
+## What gets emitted
+
+A single resolution can emit three things:
+
+| Event | Emitted when | Purpose |
+|-------|--------------|---------|
+| **Decision event** | Always (unless `trackDecisions: false`) | Records that the SDK decided. Used for intent-to-treat. |
+| **Exposure event** | When parameter values are read | Records the user saw the variant. Used for treatment-on-treated metrics. |
+| **Track events** | When you call `track()` | Records outcomes. Causally linked via `decisionId`. |
+
+Exposure and decision events both fire automatically. Track events are explicit.
+
+<Accordion title="Decision vs exposure: when does it matter?">
+Suppose a user lands on a page where the SDK resolves a layout parameter — the SDK records a decision. But the user closes the tab before the layout renders.
+
+- A **decision-event-based** analysis counts this user in the variant they were assigned to. This is intent-to-treat: the experiment offered them the variant, regardless of whether they saw it.
+- An **exposure-event-based** analysis only counts users whose code paths actually read the variant. This is treatment-on-treated: only people who really saw the change.
+
+Most experiments are analysed on exposures, because that's what the user actually experienced. Decisions matter when you want to detect issues that prevent the variant from rendering (e.g. a JS error in the new variant) — a treatment-on-treated analysis would miss those.
+</Accordion>
+
+## The `decisionId`
+
+The `decisionId` is the link between a parameter resolution and the events that follow it.
+
+```typescript
+const decision = traffical.decide({
+  context: { userId: "user_789" },
+  defaults: { "pricing.discount_pct": 0 },
+});
+
+applyDiscount(decision.assignments["pricing.discount_pct"]);
+
+// later — explicitly tied to the same decision
+traffical.track("purchase", {
+  unitKey: "user_789",
+  decisionId: decision.decisionId,
+  properties: { order_total: 49.99 },
+});
+```
+
+For ordinary in-process usage, the SDK threads `decisionId` automatically — `track()` calls inherit the most recent decision for that unit key. You don't usually need to pass it explicitly.
+
+The places where you **do** need to pass `decisionId` explicitly are:
+
+- **Cross-process** — backend resolves, frontend tracks. Send `decisionId` in your API response and pass it to `track()` on the client.
+- **Batch / offline** — your batch job decides, the outcome event comes from an email provider or webhook days later. Thread `decisionId` through the external system.
+
+## Attribution modes
+
+The SDK supports two attribution modes:
+
+| Mode | What it does | Use when |
+|------|--------------|----------|
+| `cumulative` (default) | Attributes a track event to **all** the layers the user was exposed to during the session. | The outcome plausibly depends on more than one experiment — e.g. catalog → PDP → checkout funnels. |
+| `decision` | Attributes only to the specific decision named in the track event. | You need clean single-decision attribution, often for warehouse-native analyses. |
+
+Set the mode on the client:
+
+```typescript
+const traffical = await createTrafficalClient({
+  orgId, projectId, env, apiKey,
+  attributionMode: "decision",   // or "cumulative" (default)
+});
+```
+
+## Time-window fallback
+
+When a track event has no `decisionId` and no current decision is available, the platform falls back to time-window attribution: the event is matched to the most recent decision for the same unit key within the project's attribution window.
+
+This makes attribution work for events that come from outside the SDK (webhooks, third-party trackers). Explicit `decisionId` is always more accurate when you can thread it through.
+
+## External assignments
+
+Decisions don't have to come from a Traffical SDK at all. If your assignments live in your data warehouse — say, a `experiment_assignments` table maintained by another tool — you can use those as the source of truth and have Traffical compute metrics on top. This is the **warehouse-native** mode. The assignment table replaces the decision event stream; everything else (track events, metrics, significance) works the same way.
+
+See [warehouse-native](/concepts/warehouse-native) for the setup.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Events" icon="bolt" href="/concepts/events-and-metrics">
+    Exposure, decision, and track events in detail.
+  </Card>
+  <Card title="Warehouse-native" icon="database" href="/concepts/warehouse-native">
+    Use your warehouse as the source of truth for assignments and metrics.
+  </Card>
+  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+    See the patterns where `decisionId` matters.
+  </Card>
+</CardGroup>

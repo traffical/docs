@@ -1,0 +1,95 @@
+---
+title: "Why Traffical"
+description: "The parameter-first philosophy, the velocity-confidence gap, and how Traffical differs from feature flag tools."
+---
+
+## The velocity-confidence gap
+
+The way software gets built is changing. Agentic tools compress what took months into weeks, and what took weeks into days. Shipping is becoming cheap.
+
+But when shipping gets cheap, the hard part changes. It is no longer about building faster. It is about knowing what to keep, what to revert, and what to double down on. Execution velocity is increasing faster than decision confidence. That gap — between what teams _can_ ship and what they _should_ ship — is widening.
+
+Organizations need what we call **confidence infrastructure**: systems that govern exposure, preserve causal correctness, and produce reliable evidence at the speed you ship.
+
+Three rates have to stay in balance:
+
+- **Change rate** — how many user-facing changes you can ship
+- **Safety rate** — how quickly you can detect and contain harm
+- **Learning rate** — how quickly you can produce evidence you trust
+
+When tooling pushes the change rate up while the other two lag behind, you get chaos dressed up as productivity.
+
+## Parameters, not feature flags
+
+Most platforms in this space start from the feature flag — a boolean switch. On or off. That is useful, but it is a ceiling. Real products don't just toggle features. They tune pricing, adjust algorithm weights, personalize content, configure CRM rules, and optimize conversion funnels.
+
+Traffical starts from a different primitive: the **parameter**. A typed, versioned value with a default. Parameters are the foundation of everything — experiments, rollouts, feature flags, and adaptive optimization are all policies that control how parameter values are assigned to users.
+
+This is not a semantic distinction. It is an architectural one. When the parameter is your building block, you can run an A/B test on a color, a bandit on a price point, a gradual rollout of an algorithm change, and a personalized content selection — all through the same system, the same SDKs, the same dashboard.
+
+<Tabs>
+  <Tab title="Feature flag approach">
+    ```typescript
+    // Boolean — on or off
+    if (featureFlags.isEnabled("new-checkout")) {
+      showNewCheckout();
+    } else {
+      showOldCheckout();
+    }
+    ```
+
+    Limited to boolean toggles. Each new variation requires a new flag and more branching logic.
+  </Tab>
+  <Tab title="Traffical approach">
+    ```typescript
+    // Typed parameters — any value
+    const params = traffical.getParams({
+      context: { userId: "user_789" },
+      defaults: {
+        "checkout.button.color": "#1E6EFB",
+        "checkout.headline": "Complete your order",
+        "pricing.discount_pct": 0,
+      },
+    });
+
+    // Use values directly — no branching
+    button.style.color = params["checkout.button.color"];
+    ```
+
+    Any type. Any number of variants. Same SDK, same resolution path.
+  </Tab>
+</Tabs>
+
+## Local resolution
+
+Traditional experimentation platforms make decisions on the server and serve them over the network. Every request is a round trip. Every round trip is latency.
+
+Traffical resolves parameters locally, inside the SDK. The client fetches a pre-built configuration bundle from the edge, and all decisions happen in-process, in sub-milliseconds. No per-request API calls. Works offline. Works at the edge.
+
+## Layered isolation
+
+Running one experiment is straightforward. Running fifty at the same time, across the same user base, without them contaminating each other — that is the real challenge.
+
+Traffical organizes parameters into **layers**. Each layer provides mutual exclusivity: a user can only be in one policy per layer. Across layers, bucketing is orthogonal — statistically independent — so experiments in different layers don't interfere.
+
+This means teams can run concurrent experiments safely, at scale, without waiting for each other. No collisions. No interaction effects. Clean data.
+
+## From static tests to adaptive optimization
+
+A/B testing answers the question: "Which variant is better, on average?" That is valuable. But it is also slow, manual, and one-size-fits-all.
+
+Traffical includes an optimization engine that goes beyond static allocation: adaptive algorithms that adjust allocations based on observed behavior. Define your goals, set your constraints, and let the system find optimal configurations — automatically, continuously.
+
+Supported algorithms:
+
+- **Thompson Sampling** — Bayesian exploration-exploitation with Beta-Bernoulli model
+- **Epsilon-Greedy** — Simple exploration with configurable epsilon
+- **UCB1** — Upper Confidence Bound with optimistic exploration
+- **Linear contextual bandits** — Personalized optimization using context features
+
+## Developer-first
+
+- Type-safe SDKs in TypeScript, React, Svelte, and Node.js
+- CLI that treats configuration as code with `push`, `pull`, `sync`, and CI/CD integration
+- Visual editor for no-code experiment creation
+- Graceful degradation — if Traffical is unreachable, your app keeps working with the last known configuration

@@ -1,0 +1,274 @@
+---
+title: "Glossary"
+description: "Definitions of the terms used throughout the Traffical docs."
+---
+
+This is a quick reference. Each entry links to the page where the concept is explained in depth.
+
+## A
+
+### Adaptive policy
+A [policy](#policy) where the [optimization engine](#optimization-engine) adjusts allocations over time based on observed rewards. Contrast with a [static policy](#static-policy). Algorithms include Thompson Sampling, Epsilon-Greedy, UCB1, and Linear Contextual. → [Optimization](/experimentation/optimization)
+
+### Allocation
+A variant within a [policy](#policy), defined by a [bucket range](#bucket-range) and a set of parameter overrides. Users whose bucket falls in the range receive the overrides. → [Policies](/concepts/policies#allocations)
+
+### Assignment
+The pairing of a user (or other [unit](#unit-key)) with an [allocation](#allocation). Assignments are deterministic given a stable unit key and an unchanged bundle. → [Decisions & attribution](/concepts/assignments)
+
+### Assignment definition
+SQL plus column mappings describing where assignments live in your warehouse. Used in warehouse-native mode when assignments come from outside Traffical. → [Warehouse-native](/concepts/warehouse-native#assignment-definitions)
+
+### Attribution
+Connecting a [track event](#track-event) to the [decision](#decision) that preceded it. Done via `decisionId` (preferred) or time-window fallback. → [Decisions & attribution](/concepts/assignments)
+
+### Attribution mode
+Whether a track event attributes to *all* layers the user has been exposed to in the session (`cumulative`, the default) or only to the specific decision named in the event (`decision`). → [Decisions & attribution](/concepts/assignments#attribution-modes)
+
+## B
+
+### Base layer
+The default layer every project has. New parameters land here unless assigned elsewhere. Cannot be deleted. → [Layers](/concepts/layers)
+
+### Bucket
+A number in `[0, bucketCount - 1]` computed by hashing the [unit key](#unit-key) with the [layer](#layer) ID. Determines which allocation a user falls into. → [How it works](/how-it-works#local-resolution)
+
+### Bucket count
+The total number of buckets per layer (typically `10000`). A project-level setting that determines allocation granularity.
+
+### Bucket range
+A `[start, end]` pair within `[0, bucketCount - 1]` defining the users assigned to a given allocation. Ranges within a policy don't overlap.
+
+### Bundle
+See [config bundle](#config-bundle).
+
+## C
+
+### Config bundle
+A JSON document containing every parameter, layer, policy, allocation, and event definition needed for SDK resolution. SDKs fetch it once and cache it. → [How it works](/how-it-works#the-config-bundle)
+
+### Conditions
+Predicates on the resolution [context](#context) that restrict a policy's eligibility. → [Policies](/concepts/policies#targeting-conditions)
+
+### Context
+The object you pass to `getParams()` containing the unit key plus any fields used for targeting (locale, plan, device, etc.). → [Quickstart](/quickstart)
+
+### Contextual bandit
+An [adaptive policy](#adaptive-policy) where allocation selection depends on user context features via a trained linear model. The SDK scores allocations locally. → [Optimization](/experimentation/optimization#contextual-bandits)
+
+### Control plane
+Traffical's management layer (configuration, bundle building, optimization engine). Users interact via the dashboard and CLI; SDKs don't talk to it directly.
+
+## D
+
+### Decision
+The SDK's record of resolving parameters for a user — assignments, layer-by-layer allocation details, and a `decisionId`. Emitted as a decision event. → [Decisions & attribution](/concepts/assignments)
+
+### Decision event
+An event emitted by the SDK when it makes a decision. Used for intent-to-treat analysis. → [Events](/concepts/events-and-metrics)
+
+### Decision log
+The audit trail of every policy lifecycle change — state transitions, allocation overrides, rollout actions, guardrail breaches. → [Dashboard: Decisions](/dashboard/decisions)
+
+### `decisionId`
+A unique identifier the SDK generates for each decision. Threaded into track events to connect outcomes to assignments. → [Decisions & attribution](/concepts/assignments#the-decisionid)
+
+### Default value
+The value a parameter takes when no policy overrides it. Defined both in Traffical (canonical) and in code (safety net). → [Parameters](/concepts/parameters#default-values)
+
+### Definition
+Generic term for entity, assignment, fact, or metric definitions. → [Warehouse-native](/concepts/warehouse-native)
+
+### Dimension
+A property marked `dimension: true` on an event schema, usable for slicing metrics in the dashboard and the warehouse-native pipeline. → [Type-safe events](/guides/type-safe-events)
+
+### DevTools
+A bookmarklet that lets you inspect SDK state, current assignments, and override parameters live in any browser. → [DevTools](/tools/devtools)
+
+### DOM binding
+A link between a parameter and a DOM element (selector + property + URL pattern). Used by the [visual editor](#visual-editor) for no-code experiments. → [Visual editor](/tools/visual-editor)
+
+### Dynamic allocations
+For [per-entity adaptive policies](#per-entity-adaptive-policy), allocations whose count comes from a context field rather than being declared in advance. → [Policies](/concepts/policies#dynamic-allocations)
+
+## E
+
+### Edge API
+The SDK-facing API at `sdk.traffical.io`. Serves config bundles and ingests events. → [API overview](/api/overview)
+
+### Eligible bucket range
+An optional sub-range a policy is restricted to. Useful for non-overlapping experiments in the same layer. → [Policies](/concepts/policies#eligible-bucket-ranges)
+
+### Entity
+The unit of randomization or measurement (User, Company, Device). Has a `keyType` that matches the project's [unit key](#unit-key). → [Warehouse-native](/concepts/warehouse-native#entity-definitions)
+
+### Entity config
+Configuration on a per-entity adaptive policy that specifies entity keys, resolution mode, and optional dynamic allocations.
+
+### Environment
+A runtime instance of a project (`production`, `staging`, `development`, custom). Bundles and API keys are scoped per environment. → [Projects & environments](/concepts/projects-and-environments)
+
+### Evaluation mode
+How the SDK resolves parameters — `bundle` (local resolution from cached bundle, default) or `server` (request resolution per call, default for React Native). → [How it works](/how-it-works#evaluation-modes)
+
+### Event definition
+A declaration of a track event's value type, unit, description, and optional property schema. → [Events](/concepts/events-and-metrics#event-definitions)
+
+### Exposure event
+An event emitted by the SDK when a parameter value is read. Records the user's allocation. The denominator for conversion-rate metrics. → [Events](/concepts/events-and-metrics)
+
+## F
+
+### Fact definition
+SQL plus column mappings for an outcome data source in your warehouse. Powers warehouse-native metrics. → [Warehouse-native](/concepts/warehouse-native#fact-definitions)
+
+### Feature flag
+A boolean parameter controlled by a policy. Conceptually identical to any other parameter type but with conventional rollout patterns. → [Feature flags](/experimentation/feature-flags)
+
+### FOOC
+Flash of original content. Visible UI change when client-side resolution happens after first paint. Mitigated by SSR or by embedding a `localConfig` bundle. → [SSR patterns](/sdks/ssr)
+
+## G
+
+### Goal metric
+The metric an experiment is optimizing for. Drives adaptive allocation shifts; surfaces as the primary result. → [Dashboard: Metrics](/dashboard/metrics)
+
+### Guardrail metric
+A metric you don't want to get worse, even if the goal metric improves. Surfaced alongside results; doesn't drive allocations. → [Experiment design](/guides/experiment-design#set-guardrails)
+
+## H
+
+### Hashing
+The deterministic function that maps a unit key to a bucket per layer. The same unit key always produces the same bucket. → [How it works](/how-it-works#local-resolution)
+
+### Health check
+A metric condition evaluated during a rollout. Can pause, roll back, or alert based on threshold violations. → [Rollouts](/experimentation/rollouts#health-checks)
+
+### Holdout group
+A reserved fraction of users excluded from every experiment for a long stretch of time, to measure cumulative experiment impact. → [Canonical experiments](/guides/canonical-experiments#holdout-group)
+
+## I
+
+### `identify()`
+The SDK method that switches a browser session's unit key from the auto-generated stable ID to a real user ID after login. → [JavaScript SDK](/sdks/javascript#anonymous-users-and-identify)
+
+### Intent-to-treat
+Analysis approach that counts every user *assigned* to a variant, regardless of whether they actually saw it. Uses decision events. Contrast with [treatment-on-treated](#treatment-on-treated).
+
+## L
+
+### Layer
+A pool of mutually exclusive policies over a disjoint set of parameters. Concurrent experiments in different layers are statistically independent. → [Layers](/concepts/layers)
+
+### Linear contextual
+The contextual bandit algorithm. SDK scores allocations locally using a trained linear model. → [Optimization](/experimentation/optimization#contextual-bandits)
+
+### `localConfig`
+A bundle embedded in your application binary (typically built in CI). Used as a cold-start fallback when the SDK can't reach Traffical. → [React Native SDK](/sdks/react-native#cold-start-strategy)
+
+## M
+
+### Metric definition
+The combination of a fact (or event) and an aggregation rule (`conversion_rate`, `sum`, `count`). → [Dashboard: Metrics](/dashboard/metrics)
+
+## N
+
+### Namespace
+A dot-prefix convention for grouping related parameters (`checkout.button.color`, `checkout.headline`). Not enforced — just a naming convention used by the CLI and dashboard. → [Parameters](/concepts/parameters#namespaces)
+
+## O
+
+### Optimization engine
+Traffical's component that retrains adaptive policy state on a schedule. Reads events, updates allocation weights or model coefficients, republishes the bundle. → [Optimization](/experimentation/optimization)
+
+### Orthogonal bucketing
+The property that a user's bucket in one layer carries no information about its bucket in another. Comes from mixing the layer ID into the hash. → [Layers](/concepts/layers#orthogonal-bucketing)
+
+## P
+
+### Parameter
+A typed configuration value with a default — Traffical's atomic unit. → [Parameters](/concepts/parameters)
+
+### Per-entity adaptive policy
+An adaptive policy where one bandit is learned per entity (product, merchant, etc.) rather than one global bandit. → [Policies](/concepts/policies#per-entity-adaptive-policies)
+
+### Policy
+The rule that overrides parameter values for selected users within a layer. → [Policies](/concepts/policies)
+
+### Project
+The unit of experimentation — contains parameters, layers, policies, events, definitions, hashing configuration. → [Projects & environments](/concepts/projects-and-environments)
+
+### Property group
+A reusable bundle of typed event properties (e.g. `geo: {market, country, currency}`) referenced by many event definitions. → [Type-safe events](/guides/type-safe-events#property-groups-for-reuse)
+
+### Property schema
+Type declarations for a track event's payload properties. Drives codegen, edge validation, and dashboard dimension extraction. → [Type-safe events](/guides/type-safe-events)
+
+### Public key
+An API key prefixed `pk_...`, safe to ship in browser code. Read access plus event writes; cannot modify configuration.
+
+## R
+
+### Resolution
+The process of computing parameter values for a user — bucket → policy → allocation → overrides → result. → [How it works](/how-it-works#local-resolution)
+
+### Resolution mode
+For per-entity adaptive policies: `bundle` (entity weights ship in the bundle) or `edge` (SDK requests fresh weights per decision). → [Policies](/concepts/policies#per-entity-adaptive-policies)
+
+### Rollout
+A progressive ramp of a policy from a starting percentage to a target, optionally gated by health checks. → [Rollouts](/experimentation/rollouts)
+
+## S
+
+### Schema enforcement
+What the edge does with events that don't match their property schema — `off`, `warn` (default), or `reject`.
+
+### Server key
+An API key prefixed `sk_...`. Full access; must stay server-side. Never ship in client code.
+
+### Significance
+The statistical confidence that an observed difference between allocations isn't random noise. Surfaced per metric per policy in the dashboard.
+
+### Stable ID
+A UUID auto-generated by browser SDKs for users without a `userId`. Persisted in `localStorage` (with cookie fallback) for stability across sessions. → [JavaScript SDK](/sdks/javascript#anonymous-users-and-identify)
+
+### Static policy
+A policy with fixed allocations. Bucket ranges only change if you change them. Contrast with [adaptive policy](#adaptive-policy).
+
+### Switchback
+An experimental design where the randomization unit is (region, time window) rather than the user. Used in marketplaces and operational systems. → [Canonical experiments](/guides/canonical-experiments#switchback)
+
+### Synced parameter
+A parameter managed by the CLI from `traffical.yaml`. Its definition is read-only in the dashboard to prevent drift. Contrast with [dashboard-only parameter](#dashboard-only-parameter).
+
+### Dashboard-only parameter
+A parameter created in the dashboard, not present in code. Editable in both directions. Can be imported into code via `traffical import`.
+
+## T
+
+### Targeting
+Restricting a policy to users whose context matches a set of conditions. → [Policies](/concepts/policies#targeting-conditions)
+
+### Track event
+A custom event your code emits to record an outcome (purchase, signup, click). Reward signals for adaptive policies; numerators for metrics. → [Events](/concepts/events-and-metrics)
+
+### Traffical-native mode
+Metrics computed from track events sent via Traffical SDKs (as opposed to warehouse-native). → [Warehouse-native](/concepts/warehouse-native#when-to-use-warehouse-native)
+
+### Treatment-on-treated
+Analysis approach that only counts users who actually saw the variant. Uses exposure events. Contrast with [intent-to-treat](#intent-to-treat).
+
+## U
+
+### Unit key
+The context field that drives bucketing — `userId`, `companyId`, `deviceId`, or custom. Set per project. → [Projects & environments](/concepts/projects-and-environments#the-unit-key)
+
+## V
+
+### Visual editor
+A browser bookmarklet for creating no-code UI experiments via CSS selector-based DOM bindings. → [Visual editor](/tools/visual-editor)
+
+## W
+
+### Warehouse-native
+Metrics computed from SQL queries against your own data warehouse rather than from Traffical-native events. → [Warehouse-native](/concepts/warehouse-native)

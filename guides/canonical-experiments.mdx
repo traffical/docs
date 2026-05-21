@@ -1,0 +1,621 @@
+---
+title: "Canonical experiments"
+description: "Patterns by surface and shape — backend, web, mobile, SSR, cross-surface, per-entity, batch, rollout, contextual, warehouse-native, multi-tenant."
+---
+
+This is a pattern catalog. Each section describes a common shape an experiment takes, when to reach for it, and how to model it in Traffical. They're ordered from simplest to most complex — if you're new to the platform, work through them in order.
+
+## Backend algorithm
+
+**Use case.** Testing server-side logic the user never sees directly — search ranking, recommendation algorithms, pricing models, ML hyperparameters, cache TTLs, fraud thresholds.
+
+**Why it's the simplest case.** One surface, one repo, one SDK, no rendering concerns. The variant is invisible — only its downstream effects matter.
+
+**SDK.** `@traffical/node` in `bundle` mode (the default). The bundle is fetched at startup and cached in memory. Resolution is sub-millisecond.
+
+```typescript
+import { createTrafficalClient } from "@traffical/node";
+
+const traffical = await createTrafficalClient({
+  orgId: "org_acme",
+  projectId: "proj_marketplace",
+  env: "production",
+  apiKey: process.env.TRAFFICAL_API_KEY!,
+});
+
+app.get("/search", async (req, res) => {
+  const params = traffical.getParams({
+    context: { userId: req.user.id },
+    defaults: {
+      "search.ranking_algo": "bm25",
+      "search.results_per_page": 20,
+    },
+  });
+
+  const results = await search(req.query.q, {
+    algo: params["search.ranking_algo"],
+    limit: params["search.results_per_page"],
+  });
+
+  traffical.track("search", {
+    unitKey: req.user.id,
+    properties: { query: req.query.q, result_count: results.length },
+  });
+
+  res.json(results);
+});
+```
+
+**Shape.**
+
+```
+Project: Marketplace (unitKey: userId)
+
+Layer: Search Ranking
+└── Policy: Ranking Algorithm (static A/B, 50/50)
+    ├── control: search.ranking_algo = "bm25"
+    └── neural:  search.ranking_algo = "neural_v2"
+```
+
+**Metrics.** A `search_click` track event, aggregated as a conversion rate against `search` exposures. Or warehouse-native: a fact definition against your warehouse's click events table.
+
+## Web UI
+
+**Use case.** Visible UI changes — button colors, copy, layouts, feature visibility, urgency messaging.
+
+**SDK.** `@traffical/react`, `@traffical/svelte`, or `@traffical/js-client` in `bundle` mode. The browser SDK auto-generates a stable ID, stored in `localStorage` with a cookie fallback. When the user logs in, `identify()` switches to their real `userId`.
+
+```tsx
+import { TrafficalProvider, useTraffical } from "@traffical/react";
+
+function App() {
+  return (
+    <TrafficalProvider config={{
+      orgId: "org_acme",
+      projectId: "proj_marketplace",
+      env: "production",
+      apiKey: process.env.NEXT_PUBLIC_TRAFFICAL_API_KEY!,
+    }}>
+      <Checkout />
+    </TrafficalProvider>
+  );
+}
+
+function Checkout() {
+  const { params, track } = useTraffical({
+    defaults: {
+      "checkout.cta_text": "Buy Now",
+      "checkout.cta_color": "#3b82f6",
+    },
+  });
+
+  return (
+    <button
+      style={{ backgroundColor: params["checkout.cta_color"] }}
+      onClick={() => track("cta_click", { properties: { location: "checkout" } })}
+    >
+      {params["checkout.cta_text"]}
+    </button>
+  );
+}
+```
+
+**Things to know.**
+
+- **Anonymous users** get a stable ID until they log in; `identify(userId)` then takes over. Assignments may change at login — anonymous bucketing is ephemeral.
+- **Exposure deduplication** is automatic per session, so you don't double-count.
+- **Flash of original content (FOOC)** is a risk if the bundle isn't loaded before the first render. Use `localConfig` or SSR — see the SSR pattern below.
+
+## Mobile app
+
+**Use case.** Native mobile UI and flows — onboarding, navigation, paywalls, push notifications, in-app purchase layouts.
+
+**Why it's special.** Mobile has cold-start (no cached bundle on first launch), offline use, app-store latency (code changes take days; parameter changes are instant — that's the point), and background suspension.
+
+**SDK.** `@traffical/react-native` in `server` mode (the default for mobile), backed by `AsyncStorage`.
+
+```tsx
+import { TrafficalRNProvider, useTraffical } from "@traffical/react-native";
+
+function App() {
+  return (
+    <TrafficalRNProvider config={{
+      orgId: "org_acme",
+      projectId: "proj_marketplace",
+      env: "production",
+      apiKey: "pk_live_...",
+      localConfig: require("./traffical-bundle.json"),    // for cold start
+    }}>
+      <Navigator />
+    </TrafficalRNProvider>
+  );
+}
+
+function Onboarding() {
+  const { params } = useTraffical({
+    defaults: { "mobile.onboarding_steps": 3 },
+  });
+
+  return <OnboardingCarousel steps={params["mobile.onboarding_steps"]} />;
+}
+```
+
+**Cold-start strategy.**
+
+| Priority | Source | When available |
+|----------|--------|---------------|
+| 1 | Cached assignments (AsyncStorage) | After first successful resolve |
+| 2 | `localConfig` bundle (baked at build time) | Always |
+| 3 | Caller `defaults` | Always |
+
+For first-launch experiments (onboarding), embed a `localConfig` bundle built in CI. Otherwise the first session always sees defaults.
+
+**Context enrichment.** `defaultDeviceInfoProvider` adds `appVersion`, `osName`, `osVersion`, `locale`, `screenWidth`, `screenHeight`, `deviceModel` to every resolution. Use these in policy conditions for OS-specific or version-specific experiments.
+
+## SSR + client hydration
+
+**Use case.** Web apps using SvelteKit, Next.js, Nuxt, Remix — parameters must be resolved server-side to avoid FOOC, and the same assignments must apply on the client for interactive behaviour.
+
+**SDK.** `@traffical/svelte` or `@traffical/react`, fetching the bundle on the server and passing it through as `localConfig`.
+
+```typescript
+// SvelteKit: src/routes/+layout.server.ts
+import { loadTrafficalBundle } from "@traffical/svelte/sveltekit";
+import { TRAFFICAL_API_KEY } from "$env/static/private";
+
+export async function load({ fetch }) {
+  const { bundle } = await loadTrafficalBundle({
+    orgId: "org_acme",
+    projectId: "proj_marketplace",
+    env: "production",
+    apiKey: TRAFFICAL_API_KEY,
+    fetch,
+  });
+  return { traffical: { bundle } };
+}
+```
+
+```svelte
+<!-- src/routes/+layout.svelte -->
+<script lang="ts">
+  import { TrafficalProvider } from "@traffical/svelte";
+  let { data, children } = $props();
+</script>
+
+<TrafficalProvider config={{
+  orgId: "org_acme",
+  projectId: "proj_marketplace",
+  env: "production",
+  apiKey: import.meta.env.PUBLIC_TRAFFICAL_API_KEY,
+  localConfig: data.traffical.bundle,
+}}>
+  {@render children()}
+</TrafficalProvider>
+```
+
+The server resolves with the bundle. The client picks up the same bundle via `localConfig`. Both sides use the same hashing in `@traffical/core`, so the same userId hashes to the same allocation. No FOOC, no second fetch, no swap on hydration.
+
+See the [SSR patterns](/sdks/ssr) page for Next.js variants and pitfalls.
+
+## Cross-surface feature flag
+
+**Use case.** A single boolean controls a feature across web, mobile, and backend. All surfaces must agree — if the backend says "express checkout is off", the web and mobile UIs must not show it.
+
+**Why it works.** Same project, same bundle, same hash function, same unit key → same answer for the same user, regardless of which SDK resolves.
+
+```
+hash("user_123" + "layer_checkout") % 10000 → 4217
+```
+
+Web SDK, mobile SDK, and Node SDK all compute the same bucket. They all resolve to the same allocation.
+
+The only risk is using different unit-key values per surface (e.g. web uses anonymous ID before login while mobile uses device ID). Once the user is identified with the same `userId` on every surface, consistency is guaranteed.
+
+**Setup.** Each repo has its own `.traffical/config.yaml` declaring the boolean — all pointing at the same project:
+
+```yaml
+# backend/.traffical/config.yaml, web/.traffical/config.yaml, mobile/.traffical/config.yaml
+project: { id: proj_marketplace, orgId: org_acme }
+parameters:
+  checkout.express_enabled:
+    type: boolean
+    default: false
+```
+
+## Backend → frontends
+
+**Use case.** The backend makes the experiment decision, and the result affects how multiple frontends render — recommendations, prices, search results.
+
+**Why it's different from a cross-surface flag.** Here there's one decision, made server-side, communicated to clients via API responses. Frontends *don't* re-resolve — they attribute their events to the backend's decision.
+
+```typescript
+// Backend
+app.get("/api/recommendations", async (req, res) => {
+  const decision = traffical.decide({
+    context: { userId: req.user.id },
+    defaults: { "recommendations.algorithm": "collaborative" },
+  });
+
+  const recs = await getRecommendations(req.user.id, decision.assignments["recommendations.algorithm"]);
+
+  res.json({
+    recommendations: recs,
+    meta: { decisionId: decision.decisionId },
+  });
+});
+```
+
+```tsx
+// Frontend — attribute clicks to the backend decision
+function RecommendationWidget({ recommendations, decisionId }) {
+  const { track } = useTraffical({ defaults: {} });
+
+  return recommendations.map((rec) => (
+    <ProductCard
+      key={rec.id}
+      onClick={() => track("recommendation_click", {
+        decisionId,
+        properties: { productId: rec.id },
+      })}
+    />
+  ));
+}
+```
+
+The `decisionId` is the link. Without it, attribution falls back to a time-window match against recent decisions for the same unit key — usually fine, sometimes ambiguous.
+
+## Per-entity adaptive
+
+**Use case.** Each entity learns independently. Each product learns its best image order. Each merchant learns its best recommendation algorithm. Each user gets a CRM message style tuned for them.
+
+**Why it's special.** Standard A/B tests have one global answer. Per-entity policies have one bandit per entity — a product with 1000 views has its own learned weights; a product with 3 views uses the global prior.
+
+```tsx
+function ProductPage({ product }) {
+  const { params } = useTraffical({
+    defaults: { "pdp.image_order": "default" },
+    context: {
+      productId: product.id,
+      imageCount: product.images.length,
+    },
+  });
+
+  return <ImageGallery images={reorderImages(product.images, params["pdp.image_order"])} />;
+}
+```
+
+**Policy shape.**
+
+```
+Layer: Product Images
+└── Policy: Image Ordering (adaptive, thompson_bernoulli, per-entity)
+    ├── default
+    ├── alternate
+    └── hero-first
+    entityConfig:
+      entityKeys: ["productId"]
+      resolutionMode: "bundle"     # or "edge" for real-time freshness
+    goalEvent: "add_to_cart"
+    goalType: "conversion_rate"
+```
+
+**Dynamic allocations** — when each entity has a different number of options (e.g. each product has a different image count):
+
+```yaml
+entityConfig:
+  entityKeys: ["productId"]
+  dynamicAllocations:
+    countKey: "imageCount"
+```
+
+If `context.imageCount = 5`, the SDK creates allocations `["0", "1", "2", "3", "4"]` and selects via the learned weights.
+
+## Email and batch
+
+**Use case.** Experiments in offline/batch systems — email subject lines, push notification copy, scheduled report formats.
+
+**Why it's different.** No persistent SDK process. The outcome events come from external systems (email service, push service), not directly from a Traffical SDK. Attribution has to be threaded through the external system.
+
+```typescript
+import { createTrafficalClient } from "@traffical/node";
+
+async function sendWeeklyEmails() {
+  const traffical = await createTrafficalClient({
+    orgId: "org_acme",
+    projectId: "proj_marketplace",
+    env: "production",
+    apiKey: process.env.TRAFFICAL_API_KEY!,
+  });
+
+  for (const user of await db.getActiveUsers()) {
+    const decision = traffical.decide({
+      context: { userId: user.id },
+      defaults: { "email.subject_template": "default" },
+    });
+
+    await emailService.send({
+      to: user.email,
+      subject: renderSubject(decision.assignments["email.subject_template"]),
+      metadata: { trafficalDecisionId: decision.decisionId },   // thread it
+    });
+  }
+
+  await traffical.close();   // flush before exit
+}
+```
+
+When the user opens the email, your webhook handler tracks the event with the same `decisionId`:
+
+```typescript
+app.post("/email-webhook", (req) => {
+  traffical.track("email_open", {
+    unitKey: req.body.userId,
+    decisionId: req.body.metadata.trafficalDecisionId,
+  });
+});
+```
+
+If your email provider doesn't support metadata passthrough, fall back to time-window attribution — events match the most recent decision for the same `unitKey` within the project's attribution window.
+
+**Warehouse-native alternative.** For teams with the outcomes already in a warehouse (email sends, opens, clicks in tables), warehouse-native is often simpler — define assignment and fact SQL, and the pipeline joins them without threading IDs through anywhere.
+
+## Progressive rollout
+
+**Use case.** Releasing a feature gradually with health gates. Not exactly an A/B test — usually a single allocation ramping from 0% to 100% with rollback on degradation.
+
+See [Rollouts](/experimentation/rollouts) for the full mechanism. The shape:
+
+```
+Layer: Feature flags
+└── Policy: new_checkout (static, with rolloutConfig)
+    └── treatment: checkout.new_flow = true   (ramping 0% → 100%)
+    rolloutConfig:
+      rampRate: { incrementPercentage: 5, windowSizeMinutes: 60 }
+      healthChecks:
+        - metricId: error_rate
+          operator: lte
+          thresholdValue: 0.001
+      onHealthViolation: "pause"
+```
+
+Bucket ranges only grow, never shrink. A user at 5% stays in the new variant at 10%, 25%, and 100%.
+
+## Contextual bandit (personalized)
+
+**Use case.** The best variant depends on the user. High-engagement users see one homepage layout; new users see another.
+
+**How it works.** The training pipeline learns a linear model per allocation from historical exposures + outcomes. Coefficients ship in the bundle. The SDK scores each allocation for the current user's context and selects via softmax — locally, no network call.
+
+```tsx
+function Homepage() {
+  const { params } = useTraffical({
+    defaults: {
+      "homepage.layout": "standard",
+      "homepage.cta_text": "Get Started",
+    },
+    context: {
+      "user.engagement_score": user.engagementScore,
+      "user.device_type": device.type,
+      "user.days_since_signup": user.daysSinceSignup,
+      "session.referrer": document.referrer,
+    },
+  });
+
+  return <HomepageLayout variant={params["homepage.layout"]} />;
+}
+```
+
+**Policy shape.**
+
+```
+Layer: Homepage Personalization
+└── Policy: Personalized Layout (adaptive, linear_contextual)
+    ├── standard
+    ├── hero-focus
+    └── social-proof
+    contextLogging:
+      allowedFields:
+        - user.engagement_score
+        - user.device_type
+        - user.days_since_signup
+    linearContextualConfig:
+      gamma: 0.3
+      actionProbabilityFloor: 0.05
+    goalEvent: "signup"
+    goalType: "conversion_rate"
+```
+
+Only context fields in `allowedFields` are logged with exposure events. Everything else stays out of the training data. See [Optimization](/experimentation/optimization#contextual-bandits) for the scoring details.
+
+## Warehouse-native (external assignments)
+
+**Use case.** Assignments aren't managed by a Traffical SDK. They come from another experimentation tool, a custom service, or sit in your warehouse already. You want Traffical for metrics and significance, not assignment.
+
+**Setup.** No SDK involved for assignment. Define:
+
+1. **Entity** — what's being randomised (`User`, `Company`).
+2. **Assignment definition** — SQL returning one row per (entity, time, policy, allocation).
+3. **Fact definition** — SQL returning outcomes.
+4. **Metric** — fact + aggregation.
+
+```sql
+-- Assignment SQL
+SELECT
+  user_id,
+  assigned_at,
+  experiment_name AS policy_key,
+  variant         AS allocation_key
+FROM analytics.experiment_assignments
+WHERE assigned_at BETWEEN '{{start_date}}' AND '{{end_date}}'
+```
+
+```sql
+-- Fact SQL
+SELECT user_id, event_time, order_total
+FROM analytics.orders
+WHERE event_time BETWEEN '{{start_date}}' AND '{{end_date}}'
+```
+
+Policy keys must match Traffical policy keys; allocation keys must match allocation keys. The pipeline joins on those, computes the per-allocation stats, and runs significance.
+
+**Hybrid is the common shape.** SDK-managed for new experiments, warehouse-native for legacy. They coexist in the same project; the dashboard treats them identically.
+
+See [warehouse-native](/concepts/warehouse-native) for the full setup.
+
+## Multi-tenant SaaS
+
+**Use case.** SaaS products where the unit of randomization is the company, not the user. All users in a company see the same variant so the in-company experience is consistent.
+
+**What's different.**
+
+- **Unit key is `companyId`**, not `userId`. Set on the project: `hashing.unitKey: companyId`.
+- **Fewer units, longer experiments.** 10k companies vs 1M users means smaller samples; you'll need longer to reach significance.
+- **Clustered analysis.** Outcomes are often measured per user (support tickets per user, sessions per user) while randomization is per company. Cluster-robust standard errors are needed for valid inference.
+
+```typescript
+const params = traffical.getParams({
+  context: {
+    companyId: req.org.id,
+    userId: req.user.id,    // still useful for targeting/metrics
+    plan: req.org.plan,
+  },
+  defaults: {
+    "billing.layout": "cards",
+    "admin.dashboard_version": "v1",
+  },
+});
+```
+
+**Policy shape.**
+
+```
+Project: SaaS Platform (unitKey: companyId, bucketCount: 1000)
+
+Layer: Billing
+└── Policy: Billing Redesign (static, 50/50)
+    ├── control:   billing.layout = "cards"
+    └── treatment: billing.layout = "table"
+    conditions: [{ field: "plan", op: "in", values: ["pro", "enterprise"] }]
+```
+
+For mixed-level experiments (randomize per company, measure per user), keep the analysis cluster-robust. The dashboard surfaces this when the experiment is configured that way.
+
+## Holdout group
+
+**Use case.** Reserve a fraction of users from *every* experiment for some long stretch of time. The holdout never sees any treatment. By comparing the holdout to everyone else, you measure the *cumulative* impact of all the experiments you ran.
+
+**Why it matters.** Individually, experiments often show small effects that are hard to assemble into "did we move the needle this quarter?" A holdout is the cleanest way to answer that question.
+
+**How to model it.** Use the **eligible bucket range** on every policy in a layer. Say you want a 5% holdout — every policy in that layer gets `eligibleBucketRange: [500, 9999]` (95% of traffic). Buckets 0–499 never match any policy → those users always get parameter defaults.
+
+```
+Layer: Marketing experiments  (bucketCount: 10000)
+                 [0]───[499] [500]──────────────[9999]
+                  └─ holdout ─┘ └─── all experiments ───┘
+
+Policy A:  eligibleBucketRange [500, 9999] → its allocations within this range
+Policy B:  eligibleBucketRange [500, 9999] → ditto
+Policy C:  eligibleBucketRange [500, 9999] → ditto
+```
+
+Then define a metric that compares users with bucket `< 500` against users with bucket `>= 500`. Conversion, revenue per user, whatever the bottom-line outcome is.
+
+**Tip.** Rotate the holdout periodically (every 6 or 12 months) — if you keep the same users in the holdout forever, they may behave systematically differently for unrelated reasons (e.g. they never see new features and their engagement drifts).
+
+## Switchback
+
+**Use case.** Marketplaces and operational systems where the variant affects *the whole system*, not just one user. You can't run a per-user A/B test because a treatment for user A also affects user B (a different pricing model in a region affects everyone in that region; a new dispatch algorithm affects every rider and driver).
+
+**Examples.**
+
+- Pricing tests in a ride-sharing market — surge multipliers affect everyone in the region
+- Search ranking experiments where the ranking depends on inventory state shared across users
+- Operational policies that change supply allocation
+
+**Why it's different.** The randomization unit isn't the user — it's *time and place*. Each (region, time window) tuple is randomly assigned to control or treatment, and you compare windows.
+
+**How to model it in Traffical.** This isn't a per-user policy resolution. The backend is the decision point — it asks Traffical for the current variant at the start of each time window per region, applies the variant globally, and observes outcomes.
+
+```typescript
+// Cron job every 30 minutes, per region
+async function rotateSwitchback(region: string) {
+  const windowId = `${region}:${Math.floor(Date.now() / (30 * 60 * 1000))}`;
+
+  const decision = traffical.decide({
+    context: { userId: windowId },    // unit key = window, not user
+    defaults: { "pricing.surge_algo": "v1" },
+  });
+
+  await applySurgeAlgorithm(region, decision.assignments["pricing.surge_algo"]);
+
+  // Log the assignment so it's queryable for analysis
+  traffical.track("switchback_window_started", {
+    unitKey: windowId,
+    properties: { region, window_start: new Date().toISOString() },
+  });
+}
+```
+
+The `unitKey` here is the *window identifier*, not a user. Each window gets a random assignment, and the experiment hashing makes sure adjacent windows aren't always the same variant.
+
+**Analysis.** Outcomes (rides taken, prices accepted, latency P50) are joined back to the window via the timestamp. The warehouse-native pipeline is usually the right fit — assignments live as window records, facts are the operational events, and the metric is per-window.
+
+**Watch out for carryover.** If the system has state that persists across windows (riders deciding whether to take a ride based on the *previous* surge price), the windows aren't independent. Carryover bias is the main hazard in switchback designs. Longer windows reduce it; staggered randomization with a wash-out period eliminates most of it.
+
+## Geo-randomized
+
+**Use case.** When per-user randomization would leak (your "treatment" users tell their "control" friends about the new feature) or when interventions are inherently regional (a TV ad, a new payment method available in a country, a regulatory change you have to test).
+
+**Examples.**
+
+- Brand marketing experiments (a TV campaign in city A vs city B)
+- Pricing tests where users in the same region must see the same price
+- Regulatory or compliance tests (a new disclosure required in some jurisdictions)
+
+**How to model it.** Randomize on the geographic unit (city, region, country, ZIP code) rather than on the user.
+
+Create a project keyed on the geographic unit:
+
+```yaml
+project:
+  hashing:
+    unitKey: city_code
+    bucketCount: 10000
+```
+
+Or — more commonly — keep the user-keyed project and pass the geo unit as the unit key for *this specific experiment*. The SDK supports custom unit-key fields when the policy declares it.
+
+Even simpler: use a normal user-keyed project, but add a condition on the policy that restricts it to specific regions:
+
+```
+Layer: Pricing experiments
+└── Policy: Treatment regions only (static, 100% to treatment)
+    └── treatment: pricing.discount_pct = 10
+    └── conditions: [{ field: "city", op: "in", values: ["NYC", "SF", "BOS"] }]
+```
+
+The "control" group is then "everyone in matched comparison cities" — chosen using a synthetic-control or difference-in-differences design.
+
+**Analysis.** Geo-randomized experiments almost always end up in the warehouse for analysis. Significance is tricky — you have *N = 10 cities*, not *N = 10,000 users*. Per-city outcomes are aggregated; you compare aggregate-level treated vs aggregate-level untreated. Synthetic control methods are standard here.
+
+**Tip.** Pair cities by pre-experiment characteristics (population, traffic, conversion rate) and randomize within pairs. Pairs reduce variance, and Traffical's targeting conditions make pair-aware assignment straightforward.
+
+## Summary
+
+| Pattern | Surface | Unit key | SDK | Mode |
+|---------|---------|----------|-----|------|
+| Backend algorithm | Backend | `userId` | Node | bundle |
+| Web UI | Web | `userId` / stable ID | React / Svelte / JS | bundle |
+| Mobile app | Mobile | `userId` / device ID | React Native | server |
+| SSR + hydration | Web (SSR) | `userId` | Svelte / React | bundle (SSR) |
+| Cross-surface flag | All | `userId` | All | bundle |
+| Backend → frontends | Backend + Web/Mobile | `userId` | Node + React/RN | bundle + API |
+| Per-entity adaptive | Any | `userId` + entity keys | Any | bundle or edge |
+| Email / batch | Backend (batch) | `userId` | Node | bundle |
+| Progressive rollout | Any | `userId` | Any | bundle |
+| Contextual bandit | Any | `userId` + context | Any | bundle |
+| Warehouse-native | None | varies | None | pipeline only |
+| Multi-tenant SaaS | Any | `companyId` | Any | bundle |
+| Holdout group | Any | `userId` | Any | bundle |
+| Switchback | Backend | window id | Node | bundle |
+| Geo-randomized | Any | `cityCode` / region | Any | bundle |

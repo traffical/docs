@@ -1,0 +1,128 @@
+---
+title: "How it works"
+description: "Local resolution from a config bundle, evaluation modes, and how SDKs talk to Traffical."
+---
+
+Traffical splits responsibilities cleanly:
+
+- **Your SDK** resolves parameter values in your application. No per-request API call is needed.
+- **The Traffical service** stores configuration, builds the config bundle that SDKs consume, ingests events from your application, and runs the optimization engine that learns from those events.
+
+Most of the interesting behaviour lives in the SDK. The service exists to publish configuration and to collect signal.
+
+## The config bundle
+
+The config bundle is the contract between Traffical and your application. It is a single JSON document that contains everything an SDK needs to resolve parameters for any user:
+
+- Every parameter, its type, and its default value
+- Every layer, and the policies running in each layer
+- Each policy's allocations, bucket ranges, parameter overrides, and targeting conditions
+- Per-entity weights for adaptive policies, and coefficients for contextual bandits
+- Event definitions
+- The project's hashing configuration (unit key, bucket count)
+
+<Accordion title="Example bundle shape">
+  ```json
+  {
+    "version": "2026-05-21T10:30:00Z",
+    "hashing": { "unitKey": "userId", "bucketCount": 10000 },
+    "parameters": [
+      { "key": "checkout.button.color", "type": "string", "default": "#1E6EFB" },
+      { "key": "checkout.show_trust_badges", "type": "boolean", "default": false }
+    ],
+    "layers": [
+      {
+        "id": "layer_checkout",
+        "policies": [
+          {
+            "id": "policy_color_test",
+            "state": "running",
+            "kind": "static",
+            "allocations": [
+              { "name": "control",   "bucketRange": [0, 4999],   "overrides": { "checkout.button.color": "#1E6EFB" } },
+              { "name": "treatment", "bucketRange": [5000, 9999], "overrides": { "checkout.button.color": "#22C55E" } }
+            ],
+            "conditions": []
+          }
+        ]
+      }
+    ]
+  }
+  ```
+</Accordion>
+
+When configuration changes — through the dashboard or via `traffical push` — Traffical rebuilds the bundle and publishes the new version. SDKs pick it up on their next refresh.
+
+## Local resolution
+
+Every SDK resolves the same way:
+
+1. **Compute a bucket per layer.** For each layer the user could be in, hash the unit key with the layer ID:
+
+   ```
+   bucket = hash(unitKey + layerId) % bucketCount
+   ```
+
+2. **Pick the first matching policy.** Walk the policies in the layer in priority order. Skip any whose targeting conditions don't match the context.
+3. **Find the matching allocation.** The bucket falls into exactly one allocation's range.
+4. **Apply overrides.** Merge that allocation's parameter overrides over the parameter defaults.
+
+Parameters not touched by any active policy keep their default value. Resolution is in-process, deterministic, and sub-millisecond.
+
+<Accordion title="Why bucketing works this way">
+**Deterministic.** The same unit key always lands in the same bucket for a given layer, so a user sees a consistent assignment across sessions and surfaces — without storing per-user assignments anywhere.
+
+**Independent across layers.** Each layer mixes its own ID into the hash, so a user's bucket in one layer carries no information about its bucket in another. This is what lets concurrent experiments coexist without contaminating each other.
+
+**Configurable granularity.** `bucketCount` (typically 10000) controls how finely traffic can be sliced. A higher count enables finer-grained allocation ranges and smoother ramps.
+</Accordion>
+
+## Evaluation modes
+
+SDKs support two evaluation modes:
+
+| Mode | Behaviour | Latency | Use it when |
+|------|-----------|---------|-------------|
+| `bundle` (default) | SDK fetches the config bundle once, caches it, refreshes in the background. Resolution is fully local. | Sub-millisecond | Server-side Node, web (browser + SSR), most cases |
+| `server` | Each resolution is a request to Traffical's edge. Useful when the SDK can't reasonably cache a full bundle. | Network round-trip | Mobile (React Native default), embedded environments, occasional server-side per-entity decisions |
+
+In `bundle` mode the SDK still talks to the service for two things: refreshing the bundle (via ETag, so unchanged bundles return `304 Not Modified`) and sending events. Both happen in the background and never block the application.
+
+## Resolution always works
+
+The SDK is designed so that resolution can never fail in a way that breaks your application:
+
+- If the bundle hasn't loaded yet, the SDK returns the defaults you passed to `getParams`.
+- If Traffical is unreachable, the SDK keeps using the last bundle it has.
+- If a parameter is in the bundle but no policy applies to the current user, the SDK returns the parameter's default value.
+- If a parameter isn't in the bundle at all, the SDK returns the default you passed in code.
+
+The defaults you specify in code are the floor. Traffical can only raise the ceiling.
+
+## Events
+
+When a parameter is resolved, the SDK emits an **exposure event** that records the user's assignment for each layer they were exposed to. When your code calls `track()`, the SDK emits a **track event** that records a user outcome (a purchase, a click, a signup).
+
+Both kinds are batched in memory and shipped in the background. The Traffical service uses them for two things:
+
+- **Metrics** — dashboards and significance calculations
+- **Learning** — the optimization engine uses track events as reward signals for adaptive policies
+
+You can also compute metrics from your own data warehouse — see [warehouse-native](/concepts/warehouse-native).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Parameters" icon="sliders" href="/concepts/parameters">
+    Typed values with defaults — the atomic unit.
+  </Card>
+  <Card title="Layers" icon="layer-group" href="/concepts/layers">
+    Mutual exclusivity and orthogonal bucketing.
+  </Card>
+  <Card title="Policies" icon="route" href="/concepts/policies">
+    How allocations and conditions assign users to variants.
+  </Card>
+  <Card title="Projects & environments" icon="folder-tree" href="/concepts/projects-and-environments">
+    The hierarchy your SDK keys point at.
+  </Card>
+</CardGroup>

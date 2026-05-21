@@ -1,0 +1,131 @@
+---
+title: "BigQuery"
+description: "Connect Traffical to Google BigQuery for warehouse-native metrics."
+---
+
+Traffical reads from BigQuery using a Google service account. This page covers credentials, IAM, and cost.
+
+## Connection fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `projectId` | yes | The Google Cloud project ID that holds your BigQuery datasets |
+| `datasetId` | yes | The default dataset for the connection (definitions can override this in SQL) |
+| `serviceAccountJson` | yes | A service-account key JSON, pasted in full |
+
+Configure these in **Settings → Warehouse → BigQuery**.
+
+## Creating a service account
+
+1. In the Google Cloud console, open **IAM & Admin → Service Accounts** for the project that holds your data.
+2. **Create service account.** Name it something descriptive — `traffical-reader` works.
+3. Grant the roles below.
+4. Open the new service account, go to **Keys → Add key → JSON**. Download the file.
+5. Paste the entire JSON into the Traffical connection form.
+
+### IAM roles
+
+The pipeline needs read access to your source data plus read + write access to a Traffical-owned dataset where it creates intermediate tables.
+
+| Scope | Role | Why |
+|-------|------|-----|
+| Project | `roles/bigquery.jobUser` | Run query jobs |
+| Source datasets | `roles/bigquery.dataViewer` | Read your assignment / fact tables |
+| Traffical dataset | `roles/bigquery.dataEditor` | Create, write, delete, and drop tables inside the Traffical dataset |
+
+For least-privilege, grant `dataViewer` only on the specific source datasets, and `dataEditor` only on the Traffical dataset:
+
+```bash
+# Source datasets — read only
+bq add-iam-policy-binding \
+  --member="serviceAccount:traffical-reader@your-project.iam.gserviceaccount.com" \
+  --role="roles/bigquery.dataViewer" \
+  your-project:analytics
+
+# Traffical dataset — read and write
+bq mk --dataset your-project:traffical
+bq add-iam-policy-binding \
+  --member="serviceAccount:traffical-reader@your-project.iam.gserviceaccount.com" \
+  --role="roles/bigquery.dataEditor" \
+  your-project:traffical
+```
+
+The Traffical dataset must exist before you save the connection — BigQuery doesn't auto-create datasets, and the pipeline expects it to be there.
+
+## Cost
+
+BigQuery charges per byte scanned. The pipeline reports `bytesScanned` for every query — visible in **Pipeline → Runs** in the dashboard. Some practical guidance:
+
+- **Always scope by date** in your fact/assignment definitions. Use `{{start_date}}` and `{{end_date}}` to restrict scans to the pipeline's window. A `WHERE event_time BETWEEN '{{start_date}}' AND '{{end_date}}'` on a partitioned table scans only the relevant partitions.
+- **Partition on time.** A partitioned table is dramatically cheaper to scan when the pipeline filters by `event_time` or `assigned_at`.
+- **Cluster on user/entity columns.** Clustering on `user_id` makes joins between assignments and facts cheaper.
+- **Avoid `SELECT *`.** BigQuery is columnar — project only the columns you need.
+
+## Recommended schema layout
+
+A typical assignment table:
+
+```sql
+CREATE TABLE `your-project.analytics.experiment_assignments` (
+  user_id          STRING NOT NULL,
+  assigned_at      TIMESTAMP NOT NULL,
+  experiment_name  STRING NOT NULL,
+  variant          STRING NOT NULL
+)
+PARTITION BY DATE(assigned_at)
+CLUSTER BY user_id, experiment_name;
+```
+
+A typical fact table:
+
+```sql
+CREATE TABLE `your-project.analytics.orders` (
+  order_id     STRING NOT NULL,
+  user_id      STRING NOT NULL,
+  order_total  NUMERIC NOT NULL,
+  currency     STRING,
+  event_time   TIMESTAMP NOT NULL
+)
+PARTITION BY DATE(event_time)
+CLUSTER BY user_id;
+```
+
+## Example definitions
+
+Assignment definition SQL:
+
+```sql
+SELECT
+  user_id,
+  assigned_at,
+  experiment_name AS policy_key,
+  variant         AS allocation_key
+FROM `your-project.analytics.experiment_assignments`
+WHERE assigned_at BETWEEN TIMESTAMP('{{start_date}}')
+                      AND TIMESTAMP('{{end_date}}')
+```
+
+Fact definition SQL:
+
+```sql
+SELECT
+  user_id,
+  event_time,
+  order_total
+FROM `your-project.analytics.orders`
+WHERE event_time BETWEEN TIMESTAMP('{{start_date}}')
+                     AND TIMESTAMP('{{end_date}}')
+```
+
+## Network access
+
+BigQuery is HTTPS-only and Traffical reaches it directly via the BigQuery REST API. No firewall or peering setup is needed for the standard configuration.
+
+If your BigQuery is restricted via **VPC Service Controls**, you'll need to add Traffical's egress IPs to the perimeter ingress policy. The IPs are listed in **Settings → Warehouse**.
+
+## Gotchas
+
+- **Service account expiry.** Service account JSON keys don't expire automatically, but rotating them periodically is a good practice. After rotation, paste the new JSON into the connection and re-save.
+- **Multi-region datasets.** If your dataset is multi-region (`EU`, `US`), the pipeline still works — queries run in the dataset's region.
+- **Slot reservations.** If you use BigQuery slot reservations rather than on-demand billing, Traffical's queries consume slots from whatever reservation the service account inherits.
+- **Streaming buffer.** Recently-inserted streaming rows may take a few minutes to appear in queries. If your application writes events to BigQuery and the pipeline runs immediately afterwards, those events might be missed in the first run. The next run picks them up.
