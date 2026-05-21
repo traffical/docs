@@ -66,6 +66,7 @@
               "dashboard/events",
               "dashboard/definitions",
               "dashboard/metrics",
+              "dashboard/policy-health",
               "dashboard/pipeline",
               "dashboard/decisions",
               "dashboard/settings"

@@ -1,0 +1,93 @@
+---
+title: "Policy health"
+description: "Diagnostics for running policies: exposures flowing, sample ratio, per-allocation floors, freshness, guardrails, and optimizer eligibility."
+---
+
+The **Policy health** view tracks the runtime behaviour of every running policy
+and flags the failure modes that quietly invalidate experiments — missing
+exposures, sample-ratio mismatches, freshness gaps, breached guardrails,
+and stuck optimizers.
+
+It's the runtime sibling of the [launch readiness check](/concepts/policies#readiness)
+that gates draft policies before they start.
+
+<Frame caption="Policy health hero">
+  <img src="/images/placeholders/policy-health-hero.png" alt="Policy health hero placeholder" />
+</Frame>
+
+## Where you see it
+
+Open any policy detail page:
+
+- The **Overview** tab shows a compact health hero that auto-collapses when
+  everything is green. Click any pill to see per-check detail.
+- The **Diagnostics** tab (between **Results** and **Decisions**) shows the
+  full assignments time-series, optional SRM history chart, and the
+  transition log.
+- The **Allocations** list footer shows the last exposure per allocation so
+  you can spot dropouts at a glance.
+
+The hero is hidden in `draft` state — the readiness checklist covers that
+phase.
+
+## The six checks (v1)
+
+| Check                       | Sources                                                                        | Pass / Warn / Fail                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| **Exposures flowing**       | Hourly per-allocation counts from the pipeline rollup                          | Pass: any in last 15 min. Warn: none in 1 h but some in 24 h. Fail: none in 24 h.           |
+| **Sample ratio mismatch**   | Chi-squared on observed vs expected ratios                                     | Pass: p ≥ 0.01. Warn: 0.001 ≤ p < 0.01. Fail: p < 0.001 **and** > 0.1 pp absolute deviation. |
+| **Per-allocation floor**    | Lifetime totals per allocation                                                 | Pass: all ≥ floor. Warn: some below floor. Fail: any at zero while others are healthy.      |
+| **Data freshness**          | Pipeline rollup `computedAt` + watermarks                                      | Pass: < 30 min. Warn: < 6 h. Fail: > 24 h.                                                  |
+| **Guardrail breach**        | Latest `MetricSnapshot.allocations[].guardrailStatus`                          | Pass: all passing. Warn: insufficient data. Fail: any failing.                              |
+| **Optimization eligible**   | Last optimization run + `learningState.lastUpdated` (adaptive policies only)   | Pass: last run updated / `no_change`. Warn: `insufficient_exposures` / `too_soon`. Fail: errored, or no run in last 24 h. |
+
+### Adaptive SRM semantics
+
+For adaptive policies, the SRM baseline is the **current** optimizer weighting
+(the latest `allocationHistory` entry). The check re-baselines on every
+rebalance — a rebalance that legitimately changes the split will not trip the
+check on its own. The side sheet shows which baseline was used for the
+current evaluation.
+
+## Transition events
+
+Every rollup compares the new health JSON against the previous JSON. Any
+check whose status changed (including pass → warn) writes a
+`PolicyHealthEvent` row.
+
+Today these power the per-check **Transitions** list in the side sheet and
+the timeline at the bottom of the Diagnostics tab. The same rows will drive
+Slack / email / webhook fanout when notification channels ship — the schema
+is in place and the events table already records who needs to be told what.
+
+## Endpoints
+
+The dashboard reads three endpoints; the same endpoints are available via
+the API:
+
+- `GET /v1/policies/:policyId/health` — derived report (six checks + overall)
+- `GET /v1/policies/:policyId/health/timeseries?window=24h|7d|30d|lifetime` —
+  per-allocation series + SRM snapshot for the chart
+- `GET /v1/policies/:policyId/health/events?since=...&limit=...` — transition
+  history
+
+All three return `pending` / empty payloads when the pipeline hasn't run
+yet, so the UI never errors during a policy's first few minutes.
+
+## How it's computed
+
+1. The warehouse-native pipeline emits a `PolicyHealthJson` per running
+   policy as the last phase of every run (`policy-health-rollup`). The
+   rollup runs three queries against `_p_{policyId}_assignments` (hourly
+   24 h, daily 30 d, lifetime) and computes chi-squared in process.
+2. The control-plane orchestrator persists the JSON to R2 at
+   `${orgId}/${projectId}/policy-health/${policyId}.json` and compares it
+   to the previous JSON to detect transitions, which are written to the
+   `policy_health_events` D1 table in the same step.
+3. On request, the control plane reads R2 + D1 and calls
+   `computePolicyHealth` — a pure function that maps the raw data into the
+   six checks + an overall rollup. Identical inputs produce identical
+   outputs, so the function is fully unit-testable.
+
+For more on the underlying data model, see
+[Warehouse-native](/concepts/warehouse-native).
