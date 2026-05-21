@@ -87,7 +87,11 @@ The unit key choice is hard to change later. If you start with `userId` and swit
 
 ### Anonymous users
 
-For browser SDKs, you often don't have a `userId` yet — the user hasn't logged in. The browser SDK auto-generates a stable ID (a UUID) on first visit, stores it in `localStorage` with a cookie fallback, and uses it as the unit key. When the user logs in, call `identify(userId)` and the SDK switches over. Assignments may change at that point — anonymous bucketing is ephemeral, logged-in bucketing is the real experiment assignment.
+For browser SDKs, you often don't have a `userId` yet — the user hasn't logged in. The browser SDK auto-generates a UUID on first visit (the "stable ID"), stores it in `localStorage` with a cookie fallback, and uses it as the value of the project's unit-key field. So a project keyed on `userId` ends up with the UUID standing in for `userId` until you call `identify(realUserId)`.
+
+Calling `identify()` overwrites the stable ID with the real user ID. From that point on, bucketing uses the real value — which produces different buckets from the anonymous phase. **A user who saw the treatment variant while anonymous may see control after login**, and there's no built-in way to preserve the anonymous assignment across the login boundary (different unit-key value → different hash → different bucket).
+
+For experiments where this matters, target logged-in users only (a policy condition on a context field your SDK sends, or simply running the experiment server-side after the user has been identified).
 
 ## Bundle scope
 

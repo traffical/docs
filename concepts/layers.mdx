@@ -88,7 +88,7 @@ Layer: Checkout experiments  (bucketCount: 10000)
 └── (remaining parameters get default values)
 ```
 
-For static A/B tests the ranges are fixed. For adaptive policies the optimization engine adjusts the ranges over time, shifting traffic toward better-performing allocations. For [rollouts](/experimentation/rollouts) the ranges expand outward in increments.
+For static A/B tests the ranges are fixed. For adaptive policies the optimization engine adjusts the ranges over time, shifting traffic toward better-performing allocations. For [rollouts](/experimentation/rollouts) the ranges expand in increments during forward ramping, and can shrink again on rollback or a manual percentage decrease.
 
 ## Organising parameters into layers
 

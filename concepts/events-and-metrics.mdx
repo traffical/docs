@@ -173,7 +173,9 @@ The SDK supports two attribution modes:
 
 For batch and offline systems (email sends, push notifications) you can pass `decisionId` through your external system and back in when the outcome event arrives. See the [email / batch pattern](/guides/canonical-experiments#email-and-batch).
 
-When a track event has no `decisionId`, the platform falls back to time-window attribution: events are linked to the most recent decision for the same unit key, within a configurable attribution window.
+If a track event has no `decisionId` and no SDK-built `attribution` array, the pipeline still attributes it: metrics join track events to assignments on `unit_key` with a temporal constraint (any track event after the user's first exposure to an allocation counts toward that allocation). This is what makes events from webhooks and batch processes work without any explicit threading.
+
+For finer-grained attribution — e.g. strictly tying a click to the *specific* decision that preceded it, ignoring other decisions in the same session — pass `decisionId` and set `attributionMode: "decision"` on the client. See [decisions & attribution](/concepts/assignments).
 
 ## Type-safe events
 

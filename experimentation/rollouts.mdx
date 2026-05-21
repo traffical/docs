@@ -20,7 +20,9 @@ Target state:  control [0, 4999]   treatment [5000, 9999]   (50/50 final)
 100% rollout:  control [0, 4999]   treatment [5000, 9999]   (full target state)
 ```
 
-The ratio between allocations is preserved at every step. Bucket ranges only grow, never shrink — so users who land in `treatment` at 5% stay there at 10%, 50%, 100%. Stability is built in.
+The ratio between allocations is preserved at every step. During forward auto-ramp, the bucket ranges grow monotonically toward the target state — users who land in `treatment` at 5% stay there at 10%, 50%, 100%. Stability holds as long as the rollout only moves forward.
+
+When the rollout moves *backward* — via `rollback_one_step`, `full_rollback`, a manual `set-percentage` to a lower value, or any other shrinking action — bucket ranges shrink and users near the edge fall *out* of the new range, reverting to the fallback policy or to the parameter default. That's the intended behavior: a rollback should pull users back, not strand them in a variant the rollout has decided to retreat from.
 
 A lower-priority fallback policy in the same layer catches traffic outside the rollout's current ranges. For single-allocation rollouts, this is just "everyone not yet in the new variant gets the old behaviour".
 
@@ -93,7 +95,7 @@ After each step, the rollout waits `warmupWindows` evaluation cycles (default 2)
 ## Safety limits
 
 - **`maxStepsPerRun`** caps how many advances the scheduler will do in a single evaluation (default 3). This prevents "catch-up" jumps after an outage where the scheduler missed many windows.
-- **Stable buckets** — because ranges only grow, no user is ever moved between allocations during a rollout.
+- **Stable while ramping forward** — when the rollout advances monotonically, ranges only grow, so no user is reassigned. When the rollout shrinks (manual lower percentage, rollback action), users near the new range edge fall back to the fallback policy or defaults.
 
 ## When a rollout completes
 

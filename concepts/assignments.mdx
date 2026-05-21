@@ -92,11 +92,19 @@ const traffical = await createTrafficalClient({
 });
 ```
 
-## Time-window fallback
+## How attribution actually runs
 
-When a track event has no `decisionId` and no current decision is available, the platform falls back to time-window attribution: the event is matched to the most recent decision for the same unit key within the project's attribution window.
+There are two layers of attribution worth understanding:
 
-This makes attribution work for events that come from outside the SDK (webhooks, third-party trackers). Explicit `decisionId` is always more accurate when you can thread it through.
+**1. In the SDK (per track event).** When you call `track()`, the SDK builds an `attribution` array and embeds it on the event payload. In `cumulative` mode (default), that array contains every layer/policy/allocation the user has been exposed to in this session — deduplicated, last-write-wins per layer. In `decision` mode, it contains only the layers from the decision named by `decisionId`. This array is the SDK's contribution to attribution.
+
+**2. In the pipeline (per metric).** When the warehouse-native pipeline computes a metric, it joins track events to assignments on `unit_key` with a temporal constraint: a track event counts toward an allocation if it happened *after* the user's first exposure to that allocation. The join key is `unit_key`, not `decisionId`. The temporal ordering replaces what a "time window" would do — but it's open-ended, not capped.
+
+The practical implications:
+
+- **For events sent through the SDK** (the normal case), the SDK's `attribution` array drives dashboard breakdowns, and the pipeline's temporal join drives metric numerators. Both are populated automatically — you don't have to think about it.
+- **For events sent from outside the SDK** (a webhook hitting `/v1/events` directly), the pipeline's temporal join still works as long as the event carries the `unit_key` of an already-exposed user. No `decisionId` required.
+- **Pass `decisionId` explicitly when you need it**: in `decision` mode (where attribution is restricted to a single named decision), or across processes where the cumulative session cache lives on a different machine. The SDK's per-event `attribution` array picks it up.
 
 ## External assignments
 

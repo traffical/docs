@@ -20,7 +20,7 @@ The pairing of a user (or other [unit](#unit-key)) with an [allocation](#allocat
 SQL plus column mappings describing where assignments live in your warehouse. Used in warehouse-native mode when assignments come from outside Traffical. → [Warehouse-native](/concepts/warehouse-native#assignment-definitions)
 
 ### Attribution
-Connecting a [track event](#track-event) to the [decision](#decision) that preceded it. Done via `decisionId` (preferred) or time-window fallback. → [Decisions & attribution](/concepts/assignments)
+Connecting a [track event](#track-event) to the [decision](#decision) that preceded it. Done in two places: the SDK embeds an `attribution` array on each track event (cumulative session view, or a single named `decisionId`); the pipeline joins events to assignments on `unit_key` + first-exposure timestamp. → [Decisions & attribution](/concepts/assignments)
 
 ### Attribution mode
 Whether a track event attributes to *all* layers the user has been exposed to in the session (`cumulative`, the default) or only to the specific decision named in the event (`decision`). → [Decisions & attribution](/concepts/assignments#attribution-modes)

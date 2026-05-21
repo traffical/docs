@@ -402,6 +402,60 @@ I shipped both claims in iteration 1 without verifying against the code, and the
 
 For iteration 3: add a "claims-to-verify" pass that grep-hunts patterns like "you can X in Y without Z" and pairs each with a source-of-truth file reference before publishing.
 
+### Fix-up — second fact-check pass (2026-05-21)
+
+Three more claims the user flagged, all wrong against the code.
+
+#### 1. "Without `decisionId`, attribution falls back to a time-window match" — false
+
+**What I wrote:** in five places, that track events without a `decisionId` get attributed by a time-window match against recent decisions for the same unit key, gated by an `attributionWindowHours` setting.
+
+**The truth:** that field exists on `OptimizationConfig` (`ng/control-plane/src/types/domain.ts:476`) but is never consumed anywhere outside type declarations. The actual attribution model has two layers:
+
+1. **SDK-side, per track event.** `_buildAttribution` in `sdk/js-sdk/packages/js-client/src/client.ts:1104-1132` builds an `attribution` array and embeds it on each track event. Two modes:
+   - `cumulative` (default) — includes every layer/policy/allocation the unit has been exposed to during the session, deduplicated by `layerId:policyId` last-write-wins. This is what the dashboard rollup reads from `attribution.$[0]` columns.
+   - `decision` — only includes layers from the named `decisionId` (looked up in the SDK's `_decisionCache`).
+2. **Pipeline-side, per metric.** `event-aggregator/src/steps/build-assignments.ts` builds an `assignments` table per (unit_key, allocation_name) ordered by `assignment_at`, with `first_exposure_at` per allocation. `temporal-join.ts` then joins track events to that table: `JOIN tracks e ON a.unit_key = e.unit_key WHERE e.event_name = '...' AND e.timestamp >= a.first_exposure_at`. The join key is `unit_key`, not `decisionId`. There's no time-window cap.
+
+So:
+- Events from outside the SDK still attribute via `unit_key` + first-exposure ordering — no `decisionId` needed for pipeline-computed metrics.
+- `decisionId` is the SDK's mechanism for tying a track event to a specific decision when the SDK builds the `attribution` array — important for dashboard-side breakdowns and the `decision` attribution mode.
+
+**Pages updated:**
+- `concepts/assignments.mdx` — replaced the "Time-window fallback" section with an accurate "How attribution actually runs" explainer.
+- `concepts/events-and-metrics.mdx` — fixed the paragraph about events without `decisionId`.
+- `guides/canonical-experiments.mdx` — fixed two paragraphs in the Backend → frontends and Email/batch sections.
+- `reference/glossary.mdx` — rewrote the `Attribution` entry.
+
+#### 2. The stableId / `identify()` framing was misleading for single-unit-of-randomization projects
+
+**What the user pointed out:** if a project has one unit of randomization (e.g. `userId`), the "browser SDK auto-generates a stable ID, stored in localStorage" framing implies there's a separate identity dimension. There isn't. And the diversion-types design doc (which adds *layer-level entity overrides* — different entity types per layer, like `customerId` vs `merchantId`) doesn't address the anonymous-to-identified transition either.
+
+**The truth:** `_enrichContext` in `sdk/js-sdk/packages/js-client/src/client.ts:868-881` reads `bundle.hashing.unitKey` (typically `userId`) and, if `context[unitKey]` is missing, fills it with `this._stableId.getId()`. So the stable ID *is* the unit-key value — there's no separate identity slot. `identify(value)` (line 742) sets the stable ID directly to `value`. After login, the unit-key field carries the real `userId`, the bucket hash changes, and the user almost always lands in a different allocation. There's no continuity mechanism — the SDK doesn't remember the anonymous bucket and reapply it under the new identity.
+
+The diversion-types design (`ng/docs/design/diversion-types.md`) is about supporting *different entity types* per layer (a customer-keyed layer next to a merchant-keyed layer in the same project). It doesn't change how the anonymous-to-identified transition works for any one entity.
+
+**Pages updated:**
+- `sdks/javascript.mdx` — rewrote "Anonymous users and `identify`" to make explicit that the stable ID *is* the unit-key value, and added a `<Warning>` block calling out that bucketing changes at login with no continuity.
+- `concepts/projects-and-environments.mdx` — fixed the "Anonymous users" subsection with the same clarification.
+
+#### 3. "Bucket ranges only grow, never shrink" — false
+
+**What I wrote:** in three places, that rollouts only grow bucket ranges and users in the variant at 5% stay in it at 10%, 25%, 100%.
+
+**The truth:** rollouts support both forward ramps and rollbacks. `ng/control-plane/src/scheduled/tasks/rollout-ramps.ts:79-90` shows that on a health violation the scheduler can run `rollback_one_step` (decrement by `incrementPercentage`) or `full_rollback` (set to 0%). Manual `set-percentage` to a lower value is also supported. When the percentage decreases, allocation bucket ranges shrink proportionally — and users near the edge of the new smaller range fall *out* of the variant and revert to the fallback policy or parameter defaults. The user pointed out that's intentional and correct: a rollback should actually pull users back.
+
+So "only grow, never shrink" is true only for monotonic forward auto-ramps. It's wrong as a general property of rollouts.
+
+**Pages updated:**
+- `experimentation/rollouts.mdx` — fixed the proportional-scaling paragraph and the "Stable buckets" bullet.
+- `guides/canonical-experiments.mdx` — fixed the Progressive rollout section.
+- `concepts/layers.mdx` — softened "ranges expand outward in increments" to acknowledge shrinking on rollback.
+
+#### Why these slipped past two earlier audits
+
+All three are paraphrases of `ng/docs/design/canonical-experiment-types.md`, which I treated as the spec when it's actually aspirational design. Lesson for iteration 3: design docs in `ng/docs/design/` describe intent, not necessarily what shipped. When a claim in a design doc is operationally consequential ("can shrink", "falls back to X", "preserves Y"), verify it against the consumer in code — not just the type declaration. I've been over-trusting type declarations as evidence the behavior is wired up. The lesson is: a type without a consumer is a TODO, not a feature.
+
 ### Open questions before iteration 3
 - Is there a separate audit/compliance story (SOC 2, GDPR, data residency) worth its own page? The landing-page features section mentions "data residency options"; if there's a real story there, docs should reflect it.
 - The rollout endpoint documentation (`POST /v1/policies/:id/rollout/*`) was scrubbed in iteration 1 because they're control-plane endpoints. If teams want to script rollouts via CI, they'll need *some* documented API surface for it. Worth deciding what the supported automation story is.

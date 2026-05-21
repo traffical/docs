@@ -262,7 +262,7 @@ function RecommendationWidget({ recommendations, decisionId }) {
 }
 ```
 
-The `decisionId` is the link. Without it, attribution falls back to a time-window match against recent decisions for the same unit key — usually fine, sometimes ambiguous.
+The `decisionId` is the link the SDK uses to include the backend's layer assignment in the frontend's per-event `attribution` array. Pass it from the backend response through to `track()` on the client. If you skip it, the frontend's cumulative attribution covers only the *frontend's* decisions — the backend's experiment won't show up in dashboard breakdowns. (Pipeline-level metrics still work via the temporal `unit_key` join, but the dashboard's per-layer split loses the backend layer.)
 
 ## Per-entity adaptive
 
@@ -355,7 +355,7 @@ app.post("/email-webhook", (req) => {
 });
 ```
 
-If your email provider doesn't support metadata passthrough, fall back to time-window attribution — events match the most recent decision for the same `unitKey` within the project's attribution window.
+If your email provider doesn't support metadata passthrough, you can still attribute via the unit key alone — the pipeline joins track events to assignments on `unit_key` + first-exposure ordering, so any post-exposure event counts. You lose the strict link to *this specific* batch decision (subsequent decisions for the same user can compete), but the aggregate metric still moves.
 
 **Warehouse-native alternative.** For teams with the outcomes already in a warehouse (email sends, opens, clicks in tables), warehouse-native is often simpler — define assignment and fact SQL, and the pipeline joins them without threading IDs through anywhere.
 
@@ -378,7 +378,7 @@ Layer: Feature flags
       onHealthViolation: "pause"
 ```
 
-Bucket ranges only grow, never shrink. A user at 5% stays in the new variant at 10%, 25%, and 100%.
+During forward auto-ramp, bucket ranges grow monotonically — a user at 5% stays in the new variant at 10%, 25%, 100%. If the rollout shrinks (manual rollback, health-violation rollback, or a manual `set-percentage` to a lower value), the range shrinks too and users near its edge fall out of the variant. That's intentional — a rollback should actually pull users back.
 
 ## Contextual bandit (personalized)
 
