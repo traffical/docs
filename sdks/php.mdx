@@ -5,7 +5,7 @@ description: "Server-side SDK for PHP 8.1+ — install, initialize, resolve para
 
 `traffical/sdk` is the official server-side SDK for PHP (`^8.1`). It fetches the config bundle, caches it (shared across PHP-FPM workers via a PSR-16 store), resolves parameters locally per request, and flushes events **after** the response is returned so experimentation never adds latency to the user-visible request.
 
-It shares the language-agnostic [Traffical SDK spec](/sdks/overview#source-code) with the TypeScript and Swift SDKs — same FNV-1a (UTF-8 byte) bucketing, same layered resolution engine, same contextual-bandit scoring — so a given unit buckets identically on every platform.
+It shares the language-agnostic [Traffical SDK spec](/sdks/overview#source-code) with the TypeScript and Swift SDKs — same SHA-256 v2 (UTF-8 byte) bucketing, same layered resolution engine, same contextual-bandit scoring — so a given unit buckets identically on every platform.
 
 ## Installation
 
