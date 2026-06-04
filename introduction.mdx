@@ -34,13 +34,14 @@ Engineering teams who want to:
 | Package | Environment |
 |---------|-------------|
 | [`@traffical/node`](/sdks/node) | Server-side Node.js / Bun |
+| [`traffical/sdk`](/sdks/php) | Server-side PHP 8.1+ |
 | [`@traffical/js-client`](/sdks/javascript) | Browser, framework-free |
 | [`@traffical/react`](/sdks/react) | React (browser, RSC, Next.js) |
 | [`@traffical/svelte`](/sdks/svelte) | Svelte 5 and SvelteKit |
 | [`@traffical/react-native`](/sdks/react-native) | iOS / Android via React Native |
 | [`@traffical/cli`](/tools/cli) | Config-as-code CLI |
 
-All TypeScript SDKs share a common [`@traffical/core`](https://github.com/traffical/js-sdk) package that implements bucketing, condition evaluation, and resolution. Whichever SDK you use, the same user always resolves to the same allocation.
+Every SDK shares the same bucketing, condition evaluation, and resolution logic — the TypeScript SDKs via [`@traffical/core`](https://github.com/traffical/js-sdk), with the [PHP SDK](/sdks/php) mirroring it against a shared, language-agnostic conformance spec. Whichever SDK you use, the same user always resolves to the same allocation.
 
 ## Next steps
 

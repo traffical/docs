@@ -1,0 +1,237 @@
+---
+title: "PHP SDK"
+description: "Server-side SDK for PHP 8.1+ — install, initialize, resolve parameters, track events, and flush PHP-FPM-aware."
+---
+
+`traffical/sdk` is the official server-side SDK for PHP (`^8.1`). It fetches the config bundle, caches it (shared across PHP-FPM workers via a PSR-16 store), resolves parameters locally per request, and flushes events **after** the response is returned so experimentation never adds latency to the user-visible request.
+
+It shares the language-agnostic [Traffical SDK spec](/sdks/overview#source-code) with the TypeScript and Swift SDKs — same FNV-1a (UTF-8 byte) bucketing, same layered resolution engine, same contextual-bandit scoring — so a given unit buckets identically on every platform.
+
+## Installation
+
+```bash
+composer require traffical/sdk
+```
+
+You also need a PSR-18 HTTP client and PSR-17 factories. Any compliant implementation works; the SDK auto-discovers them via [php-http/discovery](https://docs.php-http.org/en/latest/discovery.html):
+
+```bash
+composer require guzzlehttp/guzzle nyholm/psr7
+# or: composer require symfony/http-client nyholm/psr7
+```
+
+## Initialization
+
+```php
+use Traffical\Client;
+use Traffical\ClientOptions;
+
+$client = new Client(new ClientOptions(
+    orgId: 'org_acme',
+    projectId: 'prj_marketplace',
+    env: 'production',
+    apiKey: getenv('TRAFFICAL_API_KEY'),
+));
+```
+
+`ClientOptions` is an immutable value object. Construct it with named arguments, or refine an existing instance with the fluent `with*()` methods (each returns a new instance).
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `orgId` | `string` | required | Organization ID |
+| `projectId` | `string` | required | Project ID |
+| `env` | `string` | required | Environment name (`"production"`, `"staging"`, etc.) |
+| `apiKey` | `string` | required | Server API key (`sk_...`) |
+| `baseUrl` | `string` | `https://sdk.traffical.io` | SDK API base URL |
+| `localConfig` | `ConfigBundle` | `null` | Bootstrap/offline bundle for instant cold-start |
+| `refreshIntervalMs` | `int` | `60000` | Cached bundle TTL |
+| `evaluationMode` | `string` | `"bundle"` | `"bundle"` (local) or `"server"` (delegate to the edge) |
+| `assignmentLogger` | `callable\|AssignmentLogger` | `null` | BYO warehouse-native assignment logger |
+| `disableCloudEvents` | `bool` | `false` | Stop sending events to Traffical |
+| `deduplicateAssignmentLogger` | `bool` | `true` | Dedup logger calls per request |
+| `eventBatchSize` | `int` | `10` | Events per batch before auto-flushing |
+| `httpClient`, `requestFactory`, `streamFactory` | PSR-18/17 | discovered | HTTP seams |
+| `cache` | `CacheInterface` | `null` | PSR-16 shared store (FPM workers share one bundle) |
+| `logger` | `LoggerInterface` | `NullLogger` | PSR-3 logger |
+| `clock` | `ClockInterface` | system | PSR-20 clock |
+| `plugins` | `Plugin[]` | `[]` | Plugin list |
+
+## Resolving parameters
+
+```php
+$params = $client->getParams(
+    context: ['userId' => 'user_789', 'locale' => 'en-US', 'plan' => 'pro'],
+    defaults: [
+        'checkout_button_color'    => '#1E6EFB',
+        'checkout_headline'        => 'Complete your order',
+        'checkout_show_badges'     => false,
+        'pricing_discount_pct'     => 0,
+    ],
+);
+
+$params['checkout_button_color'];   // '#22C55E' if assigned to treatment
+$params['checkout_show_badges'];    // true if a policy overrides it
+$params['pricing_discount_pct'];    // 0 (no policy → default)
+```
+
+### Context
+
+The `context` array is used for:
+
+- **Bucketing** — the unit key (typically `userId`, as configured on the [project](/concepts/projects-and-environments)) drives which allocation the user gets.
+- **Targeting** — every field is available for policy condition evaluation. A policy with the condition `plan in ["pro", "enterprise"]` only applies when `context['plan']` is one of those values.
+
+### Defaults
+
+Always pass defaults for every parameter you read. They're the fallback when no policy matches, when the bundle isn't loaded yet, or when Traffical is unreachable — and they make your code's intent explicit even when there's no active experiment.
+
+## Decisions vs `getParams`
+
+`getParams` returns just the resolved values. `decide` returns a `DecisionResult` (assignments + a `decisionId` + metadata) — useful when you want to record an exposure only when the user actually sees the treatment, or pass the decision ID downstream.
+
+```php
+$decision = $client->decide(
+    context: ['userId' => 'user_789'],
+    defaults: ['recommendations_algorithm' => 'collaborative'],
+);
+
+$algorithm = $decision->assignments['recommendations_algorithm'];
+
+// ...render the variant, then record that the user actually saw it:
+$client->trackExposure($decision);
+```
+
+See [decisions & attribution](/concepts/assignments) for when this matters.
+
+## Tracking events
+
+```php
+// Conversion with a value, attributed to a decision
+$client->track('checkout_completed', ['revenue' => 49.0, 'currency' => 'USD'], $decision->decisionId);
+
+// Action without a decision context
+$client->track('add_to_cart', ['sku' => 'ABC-123']);
+```
+
+If you're running an adaptive policy, the optimization engine uses these events as reward signals to learn which variants perform best.
+
+## Server mode
+
+Delegate resolution to the edge worker instead of evaluating a local bundle. Each `getParams()`/`decide()` performs (and caches per request) a `POST /v1/resolve`. Use it when caching a full bundle isn't reasonable or you want zero client-side evaluation logic.
+
+```php
+$client = new Client(new ClientOptions(
+    orgId: 'org_acme',
+    projectId: 'prj_marketplace',
+    env: 'production',
+    apiKey: getenv('TRAFFICAL_API_KEY'),
+    evaluationMode: 'server',
+));
+```
+
+## PHP lifecycle & event flushing
+
+PHP's request/response model differs from a long-lived Node process. On construction the `Client` registers a shutdown handler that:
+
+1. Calls `fastcgi_finish_request()` **if available**, returning the buffered HTTP response to the client immediately.
+2. Flushes queued decision/exposure/track events over PSR-18 HTTP — fire-and-forget, so transport errors are caught and logged via PSR-3 and never surface to the user.
+
+Events also flush automatically once the in-memory queue reaches `eventBatchSize` (default `10`).
+
+### CLI, queue workers, and long-running processes
+
+`fastcgi_finish_request()` doesn't exist under the CLI SAPI or in long-lived workers. Flush explicitly at safe checkpoints:
+
+```php
+foreach ($jobs as $job) {
+    $decision = $client->decide($job->context, $defaults);
+    // ...handle job...
+    $client->trackExposure($decision);
+    $client->flushEvents(); // don't accumulate across the whole worker lifetime
+}
+```
+
+Or call `$client->destroy()` at shutdown, which runs plugin `onDestroy` hooks and flushes.
+
+### Sharing config across FPM workers
+
+Each FPM worker is a separate process. Inject a **PSR-16 shared cache** (e.g. `symfony/cache` with APCu/Redis) so workers share one bundle rather than each refetching on its first request:
+
+```php
+$options = new ClientOptions(/* ... */, cache: $psr16Cache);
+```
+
+The cached config source keys the bundle by `projectId:env` and refreshes lazily on `refreshIntervalMs`. The same shared cache can back cross-request assignment-logger deduplication.
+
+## BYO warehouse-native assignment logging
+
+Route structured assignment rows through your own pipeline (Segment, RudderStack, a DB, a queue) so assignment data never leaves your infrastructure. The `WarehouseNativeLogger` helper maps each entry to a `snake_case` row, including the stable `policy_key`/`allocation_key` used for warehouse joins:
+
+```php
+use Traffical\Client;
+use Traffical\ClientOptions;
+use Traffical\Warehouse\WarehouseNativeLogger;
+
+$logger = new WarehouseNativeLogger(function (array $row): void {
+    // INSERT $row into your warehouse / CDP / queue.
+});
+
+$client = new Client(new ClientOptions(
+    orgId: 'org_acme',
+    projectId: 'prj_marketplace',
+    env: 'production',
+    apiKey: getenv('TRAFFICAL_API_KEY'),
+    assignmentLogger: $logger,
+    disableCloudEvents: true, // keep assignment data on your own infra
+));
+```
+
+See [warehouse-native metrics](/concepts/warehouse-native) for how assignment rows join to your metrics.
+
+## Plugins
+
+Hook into the SDK lifecycle (`onBeforeDecision`, `onDecision`, `onExposure`, `onTrack`, `onDestroy`). Built-ins: `DebugPlugin`, `DecisionTrackingPlugin`, `WarehouseNativeLoggerPlugin`.
+
+```php
+use Traffical\ClientOptions;
+use Traffical\Plugins\DebugPlugin;
+
+$options = new ClientOptions(/* ... */, plugins: [new DebugPlugin()]);
+```
+
+## Framework integrations
+
+<CardGroup cols={3}>
+  <Card title="Laravel" icon="laravel">
+    Auto-discovered `TrafficalServiceProvider` + `Traffical` facade.
+  </Card>
+  <Card title="Symfony" icon="s">
+    `TrafficalBundle` with a `traffical` config tree.
+  </Card>
+  <Card title="OpenFeature" icon="flag">
+    Optional `TrafficalProvider` (requires `open-feature/sdk`).
+  </Card>
+</CardGroup>
+
+## Error handling
+
+The SDK never throws during resolution. If the bundle isn't loaded yet — or never loaded successfully — `getParams` returns your defaults and `decide` returns the default assignments. Transport and refresh errors are caught and logged via the injected PSR-3 logger.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="A/B testing" icon="flask" href="/experimentation/ab-testing">
+    Run a static experiment.
+  </Card>
+  <Card title="Warehouse-native" icon="warehouse" href="/concepts/warehouse-native">
+    Compute metrics from your own data.
+  </Card>
+  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+    Patterns for backend, batch, and cross-surface tests.
+  </Card>
+  <Card title="API reference" icon="code" href="/api/overview">
+    The endpoints the SDK calls.
+  </Card>
+</CardGroup>
