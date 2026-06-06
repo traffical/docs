@@ -211,11 +211,18 @@ Web SDK, mobile SDK, and Node SDK all compute the same bucket. They all resolve 
 
 The only risk is using different unit-key values per surface (e.g. web uses anonymous ID before login while mobile uses device ID). Once the user is identified with the same `userId` on every surface, consistency is guaranteed.
 
-**Setup.** Each repo has its own `.traffical/config.yaml` declaring the boolean — all pointing at the same project:
+**Setup.** Each repo links to the same project via its own `.traffical/project.yaml`, and declares the boolean in `.traffical/config.yaml`:
 
 ```yaml
-# backend/.traffical/config.yaml, web/.traffical/config.yaml, mobile/.traffical/config.yaml
-project: { id: proj_marketplace, orgId: org_acme }
+# backend/.traffical/project.yaml, web/.traffical/project.yaml, mobile/.traffical/project.yaml
+version: "1.0"
+org: { id: org_acme }
+project: { id: proj_marketplace }
+```
+
+```yaml
+# .traffical/config.yaml (in each repo)
+version: "1.0"
 parameters:
   checkout.express_enabled:
     type: boolean

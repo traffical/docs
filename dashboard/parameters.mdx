@@ -26,7 +26,7 @@ Filter by layer, type, status, or name. The status filter is useful when you're 
 
 Synced parameters are defined in `.traffical/config.yaml` and pushed via the CLI. Their definitions are read-only in the dashboard — the default, type, description, and constraints are managed in code. The dashboard lets you create policies on top of them but won't let you edit their definitions.
 
-Dashboard-only parameters are created in the UI. They're editable in both directions. To bring one into code, run `traffical import <key>` — the CLI pulls the definition into your `traffical.yaml` and marks it as synced going forward.
+Dashboard-only parameters are created in the UI. They're editable in both directions. To bring one into code, run `traffical import param <key>` — the CLI pulls the definition into your `.traffical/config.yaml` and marks it as synced going forward.
 
 ## Parameter detail
 
@@ -44,7 +44,7 @@ You'll see:
 - All policies that override this parameter, with their current state and allocations
 - Recent exposure volume per allocation (if there are any active policies)
 
-If the parameter is dashboard-only, you can edit the default, change the description, add or update constraints, and move it to a different layer. If it's synced, you can do those things via `traffical.yaml` and `traffical push`.
+If the parameter is dashboard-only, you can edit the default, change the description, add or update constraints, and move it to a different layer. If it's synced, you can do those things via `.traffical/config.yaml` and `traffical push`.
 
 ## Moving a parameter to a different layer
 
@@ -52,7 +52,7 @@ Open the parameter detail page → **Move to layer** → pick the destination. M
 
 ## Archiving and deleting
 
-A synced parameter that gets removed from `traffical.yaml` stays in the platform unless you `traffical push --prune`, which archives it. Archived parameters don't appear in the default list — filter by `Archived` to see them.
+A synced parameter that gets removed from `.traffical/config.yaml` stays in the platform unless you `traffical push --prune`, which archives it. Archived parameters don't appear in the default list — filter by `Archived` to see them.
 
 Dashboard-only parameters can be archived from the detail page. Archived parameters can be restored within 30 days; after that they're permanently deleted.
 

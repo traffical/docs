@@ -9,7 +9,7 @@ An A/B test in Traffical is a static [policy](/concepts/policies) within a [laye
 
 ### 1. Define the parameter
 
-Create the parameter you want to test — in the dashboard or in `traffical.yaml`:
+Create the parameter you want to test — in the dashboard or in `.traffical/config.yaml`:
 
 ```yaml
 namespaces:
@@ -72,7 +72,7 @@ traffical.track("purchase", {
 });
 ```
 
-If `purchase` isn't already an event definition, the platform creates one on the fly (or you can declare it in `traffical.yaml` ahead of time).
+If `purchase` isn't already an event definition, the platform creates one on the fly (or you can declare it in `.traffical/config.yaml` ahead of time).
 
 ### 5. Read the results
 

@@ -239,7 +239,7 @@ A policy with fixed allocations. Bucket ranges only change if you change them. C
 An experimental design where the randomization unit is (region, time window) rather than the user. Used in marketplaces and operational systems. → [Canonical experiments](/guides/canonical-experiments#switchback)
 
 ### Synced parameter
-A parameter managed by the CLI from `traffical.yaml`. Its definition is read-only in the dashboard to prevent drift. Contrast with [dashboard-only parameter](#dashboard-only-parameter).
+A parameter managed by the CLI from [`.traffical/config.yaml`](/tools/config-file). Its definition is read-only in the dashboard to prevent drift. Contrast with [dashboard-only parameter](#dashboard-only-parameter).
 
 ### Dashboard-only parameter
 A parameter created in the dashboard, not present in code. Editable in both directions. Can be imported into code via `traffical import`.

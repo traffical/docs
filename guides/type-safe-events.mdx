@@ -3,7 +3,7 @@ title: "Type-safe events end-to-end"
 description: "Property schemas, property groups, generated TypeScript types, dev-mode warnings, and reject-on-violation enforcement."
 ---
 
-Traffical events are typed end-to-end. You declare property schemas in `traffical.yaml`, the CLI generates TypeScript types from those schemas, the SDK type-checks your `track()` calls, the edge validates events on the way in, and the dashboard surfaces violations.
+Traffical events are typed end-to-end. You declare property schemas in [`.traffical/config.yaml`](/tools/config-file#events), the CLI generates TypeScript types from those schemas, the SDK type-checks your `track()` calls, the edge validates events on the way in, and the dashboard surfaces violations.
 
 The full chain is opt-in — you can ignore everything on this page and `track()` still works. But once you have a few events, types catch a lot of bugs before they hit production.
 
@@ -14,7 +14,7 @@ The full chain is opt-in — you can ignore everything on this page and `track()
 - **Edge validation.** The Traffical edge validates incoming events against the schema. In `warn` mode you get a `schemaWarnings` field in the response; in `reject` mode invalid events are dropped before reaching the pipeline.
 - **Dev-mode console warnings.** The SDK can surface violations to the console at development time so you see them while building, not after deploy.
 
-## 1. Declare schemas in `traffical.yaml`
+## 1. Declare schemas in `.traffical/config.yaml`
 
 Event property schemas live alongside the event definition:
 
@@ -320,7 +320,7 @@ Property groups are versioned independently. When you change a group, every even
 
 ```
                  ┌─────────────────────┐
-1. Author        │ traffical.yaml      │
+1. Author        │ config.yaml         │
                  │ (events + groups)   │
                  └────────┬────────────┘
                           │ traffical push

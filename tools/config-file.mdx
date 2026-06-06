@@ -1,0 +1,385 @@
+---
+title: "Configuration file"
+description: "The .traffical/ directory and the config.yaml, project.yaml, and metrics.yaml file formats — every field and option."
+---
+
+Traffical's [config-as-code](/tools/cli) lives in a `.traffical/` directory at the root of your repository. The [CLI](/tools/cli) reads and writes these files and syncs them with the platform. This page is the reference for the file formats; see the [CLI page](/tools/cli) for the commands that act on them.
+
+## The `.traffical/` directory
+
+```
+.traffical/
+├── config.yaml             # Parameters, events, property groups
+├── project.yaml            # Which Traffical project this repo syncs with
+├── metrics.yaml            # Metrics-as-code (optional)
+├── traffical.generated.ts  # Generated types (optional, from generate-types)
+└── .gitignore              # Auto-created — ignores .env
+```
+
+| File | Purpose | Commit to git? |
+|------|---------|----------------|
+| `config.yaml` | Parameter, event, and property-group definitions | Yes |
+| `project.yaml` | Repo → project link (org + project IDs), written by `traffical link` | Yes |
+| `metrics.yaml` | Metric and fact-source definitions | Yes |
+| `traffical.generated.ts` | TypeScript types from `traffical generate-types` | Usually |
+| `.gitignore` | Created automatically to keep `.env` out of git | Yes |
+
+The CLI searches for the config starting in the current directory and walking up the tree, so commands work from any subfolder of your repo. Point at a non-default path with `traffical --config <path>`.
+
+<Note>
+**Legacy layout.** A single `traffical.yaml` at the repo root is still parsed for backwards compatibility, as is a `project:` block inside `config.yaml`. Both are deprecated in favour of the `.traffical/` directory and a dedicated `project.yaml`. New projects scaffolded by `traffical init` use the layout above.
+</Note>
+
+## `config.yaml`
+
+The main file. It declares parameters, events, and reusable property groups. Everything declared here becomes **synced** when you `traffical push` — its definition turns read-only in the dashboard to prevent drift between your repo and the platform.
+
+```yaml
+version: "1.0"
+
+# Parameters with no namespace prefix
+parameters:
+  feature_enabled:
+    type: boolean
+    default: false
+    description: Master toggle for the new feature
+
+# Namespace-grouped parameters (the format the CLI writes)
+namespaces:
+  checkout:
+    description: Checkout flow configuration
+    parameters:
+      button.color:                 # full key: checkout.button.color
+        type: string
+        default: "#1E6EFB"
+        description: Primary button color on checkout
+      show_trust_badges:
+        type: boolean
+        default: false
+
+  pricing:
+    parameters:
+      discount_pct:                 # full key: pricing.discount_pct
+        type: number
+        default: 0
+        constraints:
+          min: 0
+          max: 50
+
+events:
+  purchase:
+    valueType: currency
+    unit: USD
+    description: Completed purchase
+
+propertyGroups:
+  geo:
+    description: Geographic context
+    properties:
+      country: { type: string, dimension: true }
+```
+
+### Top-level fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `version` | Yes | Config schema version. Currently always `"1.0"`. |
+| `parameters` | Yes | Map of parameters with no namespace (may be empty `{}`). |
+| `namespaces` | No | Namespace-grouped parameters — an alternative to flat `parameters`. |
+| `events` | No | Event definitions. |
+| `propertyGroups` | No | Reusable property schemas shared across events. |
+
+<Info>
+**Flat vs. grouped.** You can declare a parameter either as a fully-qualified key under `parameters` (`checkout.button.color`) or as a local key inside a `namespaces:` block. They're equivalent — `traffical pull` writes the grouped form, but both are accepted on read.
+</Info>
+
+## Parameters
+
+A [parameter](/concepts/parameters) is a typed value with a default. See the concept page for how parameters relate to layers and policies.
+
+```yaml
+catalog.ranking_algo:
+  type: string
+  default: default
+  description: Which ranking algorithm to use
+  constraints:
+    allowedValues: [default, popularity, random]
+```
+
+### Parameter fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `type` | Yes | `string`, `number`, `boolean`, or `json`. |
+| `default` | Yes | Default value. Must match `type` (a `json` default must be an object or array). |
+| `description` | No | Free-form text shown in the dashboard. |
+| `namespace` | No | Organizational grouping. Implicit when declared inside a `namespaces:` block. |
+| `constraints` | No | Optional validation — see below. |
+
+### Constraints
+
+Constraints are enforced at edit time (in the dashboard and on `traffical push`), not at SDK resolution.
+
+| Constraint | Applies to | Description |
+|------------|-----------|-------------|
+| `min` | number | Minimum allowed value. |
+| `max` | number | Maximum allowed value. |
+| `pattern` | string | Regex that values must match. |
+| `allowedValues` | string, number | Enum of permitted values. |
+
+<Tabs>
+  <Tab title="String">
+    ```yaml
+    ui.accent_color:
+      type: string
+      default: "#E8451C"
+      description: Brand accent color used throughout the UI
+    ```
+  </Tab>
+  <Tab title="Number">
+    ```yaml
+    catalog.grid_columns:
+      type: number
+      default: 3
+      constraints:
+        min: 2
+        max: 4
+    ```
+  </Tab>
+  <Tab title="Boolean">
+    ```yaml
+    hero.show_banner:
+      type: boolean
+      default: true
+    ```
+  </Tab>
+  <Tab title="JSON">
+    ```yaml
+    hero.config:
+      type: json
+      default:
+        headline: Welcome back
+        showBanner: true
+        maxItems: 5
+    ```
+  </Tab>
+</Tabs>
+
+## Events
+
+[Event](/concepts/events-and-metrics) definitions describe the track events your application emits. They generate TypeScript types, let the edge validate incoming payloads, and mark which properties become warehouse dimensions and measures.
+
+```yaml
+events:
+  add_to_cart:
+    valueType: count
+    description: User adds an item to cart
+    schemaVersion: "1-0-0"
+    schemaEnforcement: warn
+    propertyGroups: [geo]
+    properties:
+      product_id:
+        type: string
+        required: true
+        description: Unique product identifier
+      price:
+        type: number
+        minimum: 0
+        measure: true
+        measureDisplayName: Unit Price
+        desiredDirection: increase
+      category:
+        type: string
+        enum: [gaming, fashion, beauty, coffee, electronics, home]
+        dimension: true
+```
+
+### Event fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `valueType` | Yes | `currency`, `count`, `rate`, or `boolean`. |
+| `unit` | No | Free-form unit (`USD`, `items`, `percent`, …). |
+| `description` | No | Free-form text. |
+| `properties` | No | Property schema for the event payload — see below. |
+| `propertyGroups` | No | Names of [property groups](#property-groups) to merge into this event's schema. |
+| `schemaVersion` | No | SchemaVer string (`MODEL-REVISION-ADDITION`, e.g. `1-0-0`). |
+| `schemaEnforcement` | No | `off`, `warn`, or `reject`. How the edge handles payloads that violate the schema. |
+
+`schemaEnforcement` controls validation: `off` skips it, `warn` accepts the event but returns warnings, `reject` drops invalid events before they reach the pipeline.
+
+### Property fields
+
+Each entry under `properties:` is a field in Traffical's YAML DSL, which compiles to JSON Schema internally. The same shape is used inside `propertyGroups` and for nested `object`/`array` fields.
+
+| Field | Applies to | Description |
+|-------|-----------|-------------|
+| `type` | all | `string`, `number`, `integer`, `boolean`, `array`, or `object`. **Required.** |
+| `required` | all | Whether the property must be present on the event. |
+| `description` | all | Free-form text. |
+| `enum` | scalar | Allowed values. |
+| `pattern` | string | Regex the value must match. |
+| `format` | string | `date-time`, `email`, `uri`, or `uuid`. |
+| `minimum` / `maximum` | number | Numeric bounds. |
+| `minLength` / `maxLength` | string | String length bounds. |
+| `default` | all | Default value for documentation/codegen. |
+| `examples` | all | Example values for documentation. |
+| `dimension` | all | Extract as a warehouse **dimension** for slicing metrics. |
+| `measure` | number | Extract as an additional fact **measure** for metric creation. |
+| `measureDisplayName` | number | Display name for the measure in the dashboard. |
+| `desiredDirection` | number | `increase` or `decrease` — which way is "good" for this measure. |
+| `warehouseType` | all | Override the auto-inferred warehouse column type. |
+| `items` | array | Schema for array items (a nested property field). |
+| `minItems` / `maxItems` | array | Array length bounds. |
+| `properties` | object | Nested property fields. |
+| `additionalProperties` | object | Whether extra keys are allowed on nested objects. |
+
+<Tip>
+Mark properties you'll want to break experiment results down by with `dimension: true`, and numeric properties you'll want to build metrics on with `measure: true`. Both feed the [warehouse-native](/concepts/warehouse-native) pipeline.
+</Tip>
+
+## Property groups
+
+Property groups are reusable schemas you can attach to many events with `propertyGroups: [name]`. They keep shared context (geo, device, session) defined once.
+
+```yaml
+propertyGroups:
+  geo:
+    description: Geographic context for commerce events
+    schemaVersion: "1-0-0"
+    properties:
+      market:
+        type: string
+        required: true
+        enum: [US, EU, APAC]
+        dimension: true
+      country:
+        type: string
+        dimension: true
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `properties` | Yes | Property fields (same DSL as event properties). |
+| `description` | No | Free-form text. |
+| `schemaVersion` | No | SchemaVer string. |
+
+## `project.yaml`
+
+The repo → project link, written by `traffical link` (or `traffical init`). It records which Traffical project and organization this repository syncs with. Safe to commit — edit it via the CLI rather than by hand.
+
+```yaml
+# Traffical project link — managed by `traffical link`.
+version: "1.0"
+org:
+  id: org_DqQZGfRs
+  key: acme
+project:
+  id: proj_ST6qGDbR
+  key: mahally
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `version` | Yes | Always `"1.0"`. |
+| `org.id` | Yes | Organization ID (`org_…`). |
+| `org.key` | No | Human-readable org key. |
+| `project.id` | Yes | Project ID (`proj_…`). |
+| `project.key` | No | Human-readable project key. |
+
+## `metrics.yaml`
+
+Optional. Defines [metrics](/concepts/events-and-metrics) and warehouse fact sources as code. Synced with `traffical push` and imported with `traffical import metrics`.
+
+```yaml
+version: "1.0"
+
+fact_sources:
+  orders:
+    sql: SELECT user_id, order_total, created_at FROM analytics.orders
+    timestamp_column: created_at
+    measures:
+      - column: order_total
+        type: float64
+        displayName: Order Total
+        desiredDirection: increase
+
+metrics:
+  add_to_cart_rate:
+    display_name: Add-to-Cart Rate
+    metricType: conversion_rate
+    event: add_to_cart
+    desiredDirection: increase
+
+  avg_order_value:
+    metricType: sum
+    fact: orders
+    measure: order_total
+    unit: USD
+    winsorizeAt: 0.99
+```
+
+### Top-level fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `version` | Yes | Always `"1.0"`. |
+| `metrics` | Yes | Map of metric definitions (at least one). |
+| `fact_sources` | No | Warehouse-native fact sources referenced by metrics. |
+
+### Fact source fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `sql` | Yes | Query that produces the fact rows. |
+| `timestamp_column` | Yes | Column used as the event timestamp. |
+| `description` | No | Free-form text. |
+| `measures` | No | Numeric columns (`column`, `type`, `displayName`, `desiredDirection`). |
+| `dimensions` | No | Sliceable columns (`column`, `type`). |
+
+### Metric fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `metricType` | Yes | `conversion_rate`, `sum`, `count`, `ratio`, `funnel`, or `percentile`. |
+| `display_name` / `description` | No | Human-readable labels. |
+| `event` | No | Event this metric is built on (event-based metrics). |
+| `fact` / `measure` | No | Fact source and measure column (warehouse-native metrics). |
+| `desiredDirection` | No | `increase` or `decrease`. |
+| `unit` | No | Display unit. |
+| `winsorizeAt` | No | Winsorization quantile (0–1) to clip outliers. |
+| `certified` | No | Mark as a certified metric. |
+| `filters` | No | `dimension` / `operator` (`equals`, `not_equals`, `in`, `not_in`) / `values`. |
+| `timeframe` | No | `startDays` / `endDays` attribution window. |
+| `numerator` / `denominator` | No | `{ fact, measure }` pairs for `ratio` metrics. |
+| `percentile` | No | Quantile (0–1) for `percentile` metrics. |
+| `funnelSteps` | No | Ordered `{ event }` or `{ fact }` steps for `funnel` metrics. |
+
+## Validation
+
+Both `config.yaml` and `metrics.yaml` are validated against a JSON Schema on every read. Invalid files fail fast with the offending path and reason, e.g.:
+
+```
+Error: Invalid traffical.yaml at .traffical/config.yaml
+Errors:
+  - parameters.discount_pct.default: must be number
+```
+
+`traffical push --dry-run` validates and prints the diff without writing anything to the platform.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="CLI" icon="terminal" href="/tools/cli">
+    The commands that sync these files with Traffical.
+  </Card>
+  <Card title="Parameters" icon="sliders" href="/concepts/parameters">
+    Typed values with defaults.
+  </Card>
+  <Card title="Events" icon="bolt" href="/concepts/events-and-metrics">
+    Event definitions, schemas, and property groups.
+  </Card>
+  <Card title="Type-safe events" icon="code" href="/guides/type-safe-events">
+    Generate types from your event definitions.
+  </Card>
+</CardGroup>

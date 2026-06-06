@@ -44,10 +44,6 @@ You'll end up with something like:
 # .traffical/config.yaml
 version: "1.0"
 
-project:
-  id: proj_marketplace
-  orgId: org_acme
-
 parameters:
   example_enabled:
     type: boolean
@@ -197,7 +193,7 @@ After enough traffic accumulates, the policy detail page will show:
 
 When you have a winner:
 
-1. **Update the parameter default.** In the dashboard or in `traffical.yaml`, set `checkout.button.color` to the winning value. Push.
+1. **Update the parameter default.** In the dashboard or in `.traffical/config.yaml`, set `checkout.button.color` to the winning value. Push.
 2. **Complete the policy.** In the dashboard, mark the policy `completed`. It stops being evaluated.
 3. **Done.** Every user now gets the winning value via the new default. Your application code doesn't change.
 

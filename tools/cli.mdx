@@ -1,9 +1,18 @@
 ---
 title: "CLI"
-description: "Install the Traffical CLI, define parameters and events as code, and integrate with CI/CD."
+description: "Log in, link a project, and sync parameters, events, and metrics between your repo and Traffical — config-as-code from the command line."
 ---
 
-`@traffical/cli` is the developer CLI for config-as-code workflows. Define parameters and events in `traffical.yaml`, version-control them alongside your code, and sync with Traffical via push and pull.
+`@traffical/cli` manages your Traffical configuration as code. You define parameters, events, and metrics in a [`.traffical/` directory](/tools/config-file), version-control them alongside your application, and sync with the platform with `push`, `pull`, and `status`.
+
+## Why config-as-code
+
+- **Single source of truth** — parameter and event definitions live in your repo, reviewed in pull requests like any other code.
+- **No drift** — definitions you push become **synced**: read-only in the dashboard, so the repo and the platform can't disagree.
+- **Typed events** — generate TypeScript types from your event schemas so invalid `track()` calls fail at compile time.
+- **CI-enforceable** — `traffical status` exits non-zero on drift, so you can gate merges on the repo and platform being in sync.
+
+Policies, allocations, and experiment decisions still live in the [dashboard](/dashboard/overview) — the CLI owns the *definitions*, not the rollout state.
 
 ## Installation
 
@@ -13,217 +22,172 @@ npm install -g @traffical/cli
 bunx @traffical/cli init
 ```
 
+Requires Node.js 18+.
+
 ## Quickstart
 
-```bash
-# In your project root
-traffical init
+<Steps>
+  <Step title="Initialize">
+    From your project root, scaffold the `.traffical/` directory and link a project:
 
-# Edit .traffical/config.yaml — add or change parameters and events
-# Then push to Traffical
-traffical push
+    ```bash
+    traffical init
+    ```
 
-# Pull dashboard changes back
-traffical pull
-
-# Check for drift
-traffical status
-```
+    `init` logs you in, lets you pick an org and project, writes [`config.yaml`](/tools/config-file#config-yaml) and [`project.yaml`](/tools/config-file#project-yaml), creates a public SDK key, and drops example code for your framework.
+  </Step>
+  <Step title="Edit your config">
+    Add or change parameters and events in `.traffical/config.yaml`. See the [configuration file reference](/tools/config-file) for every field.
+  </Step>
+  <Step title="Push to Traffical">
+    ```bash
+    traffical push
+    ```
+  </Step>
+  <Step title="Check for drift">
+    ```bash
+    traffical status
+    ```
+  </Step>
+</Steps>
 
 ## Authentication
 
-The CLI authenticates with a server API key. Provide it in one of three ways (in order of precedence):
-
-1. `--api-key sk_...` on the command line
-2. `TRAFFICAL_API_KEY=sk_...` environment variable
-3. A named profile in `~/.trafficalrc` referenced via `--profile <name>`
-
-For CI use the environment variable. For local development, profiles let you switch between organizations and projects quickly.
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| [`init`](#init) | Scaffold `.traffical/` and link to a project |
-| [`push`](#push) | Send local config to Traffical |
-| [`pull`](#pull) | Pull synced config back into the repo |
-| [`sync`](#sync) | Bidirectional sync (local wins on conflict) |
-| [`status`](#status) | Show drift between local and remote |
-| [`import`](#import) | Add a dashboard-created parameter to local config |
-| [`generate-types`](#generate-types) | Generate TypeScript types from event definitions |
-| [`integrate-ai-tools`](#integrate-ai-tools) | Add Traffical context to AI tool configs (CLAUDE.md, .cursorrules, etc.) |
-
-### `init`
+For interactive use, log in once with the browser-based device flow:
 
 ```bash
-traffical init [--framework react|nextjs|svelte|sveltekit|vue|nuxt|node]
-               [--project <id>] [--yes] [--no-sdk-key]
+traffical login
 ```
 
-Detects your framework from `package.json`, scaffolds `.traffical/config.yaml`, creates a public SDK key, and writes example code for the detected framework. Pass `--framework` to override detection. `--yes` runs non-interactively (useful for `bunx` flows). `--no-sdk-key` skips key creation if you already have one.
-
-### `push`
+This opens your browser, asks you to confirm a code, and stores a session at `~/.config/traffical/auth.json` (mode `0600`). The session holds a refresh token and renews access tokens automatically, so you rarely log in again.
 
 ```bash
-traffical push [--dry-run] [--prune]
+traffical whoami            # show the active identity and linked project
+traffical whoami --verify   # live-check the session against the server
+traffical logout            # remove the local session
 ```
 
-Uploads parameter and event definitions from `.traffical/config.yaml`. New parameters are created; existing synced parameters are updated.
+<Note>
+`whoami` without `--verify` reports the *cached* session. A cached session can still be reported as authenticated after it has ended server-side — use `--verify` when you need a definitive answer.
+</Note>
 
-- `--dry-run` — validate and print the diff without applying.
-- `--prune` — archive synced parameters that have been removed from the file. Without this, removed parameters stay in Traffical.
+### Credential precedence
 
-Parameters managed by the CLI become **synced** in the dashboard — their definitions are read-only in the UI to prevent drift.
+The CLI resolves a bearer token in this order:
 
-### `pull`
+1. `--api-key <key>` on the command line
+2. `TRAFFICAL_API_KEY` environment variable (org-scoped key — the **CI path**)
+3. `TRAFFICAL_API_TOKEN` environment variable (pre-minted JWT, for agents)
+4. The device-flow session from `traffical login`
+5. A legacy `~/.trafficalrc` profile (`--profile <name>`) — deprecated
+
+For CI, set `TRAFFICAL_API_KEY` and skip `login` entirely.
 
 ```bash
-traffical pull [--include-types] [--types-output <path>]
+# Headless / agent login with a pre-minted token
+traffical login --token "$JWT"
+# Print the URL + code instead of opening a browser
+traffical login --no-browser
 ```
 
-Downloads synced parameters and events from Traffical into `.traffical/config.yaml`. Only synced parameters are pulled — dashboard-only parameters stay in the dashboard unless you `import` them first.
+## Selecting a project
 
-`--include-types` runs `generate-types` afterwards.
-
-### `sync`
+A repo is linked to exactly one Traffical project, recorded in [`.traffical/project.yaml`](/tools/config-file#project-yaml).
 
 ```bash
-traffical sync [--all] [--dry-run] [--prune]
+traffical link                      # interactive org + project picker
+traffical link --org acme --project mahally
+traffical unlink                    # remove the link (leaves config.yaml)
 ```
 
-Bidirectional. New local parameters are pushed; new remote parameters are pulled. On conflict (both sides changed the same parameter), the local version wins. `--all` syncs every config file in the repository.
+When a flag is omitted, the CLI prompts: a select list for ≤10 options, a search box beyond that. Pass `--force` to re-link a repo that's already linked.
 
-### `status`
+Manage orgs and projects directly:
 
 ```bash
-traffical status
+traffical org list                  # orgs you belong to
+traffical org use <key>             # default org for commands that need one
+
+traffical project list              # projects in the active org
+traffical project create <name> --link
+traffical project use <key>         # alias of `link --project <key>`
 ```
 
-Lists three categories:
+## Syncing configuration
 
-- Synced parameters that are in sync
-- Synced parameters with local changes (need push)
-- Dashboard-only parameters that don't exist locally (can be imported)
+<Steps>
+  <Step title="status — see the difference">
+    ```bash
+    traffical status
+    ```
 
-Exits with code `10` if drift is detected. Use this in CI:
+    Shows what's synced, what has local changes to push, and what exists only in the dashboard. Exits with code `10` when there's drift, so it doubles as a CI check.
 
-```yaml
-- name: Check Traffical drift
-  run: traffical status
-  env:
-    TRAFFICAL_API_KEY: ${{ secrets.TRAFFICAL_API_KEY }}
-```
+    ```
+    Connected to: Salla PoC/Mahally (proj_ST6qGDbR)
 
-### `import`
+    Parameters
+      Synced: 7 parameters
+      Dashboard-only: 2 parameters
+        ui.sees-feature-y (created 5/20/2026)
+
+    Events
+      Synced: 4 events
+
+    Metrics
+      Dashboard-only: 4 metrics
+    ```
+  </Step>
+  <Step title="push — repo → Traffical">
+    ```bash
+    traffical push [--dry-run] [--prune]
+    ```
+
+    Creates new definitions and updates existing synced ones. Pushed definitions become read-only in the dashboard.
+
+    - `--dry-run` — validate and print the diff without applying.
+    - `--prune` — archive synced definitions that have been removed from the file. Without it, removals stay on the platform.
+  </Step>
+  <Step title="pull — Traffical → repo">
+    ```bash
+    traffical pull [--include-types]
+    ```
+
+    Downloads synced parameters, events, and property groups into `config.yaml`. Dashboard-only definitions stay in the dashboard until you `import` them. `--include-types` runs `generate-types` afterwards.
+  </Step>
+  <Step title="sync — both directions">
+    ```bash
+    traffical sync [--all] [--dry-run] [--prune]
+    ```
+
+    Pushes local changes and pulls new remote definitions in one pass. On conflict, **local wins**. `--all` syncs every config file in the repo.
+  </Step>
+</Steps>
+
+### Importing dashboard definitions
+
+Definitions created in the dashboard are *dashboard-only* until you adopt them into code:
 
 ```bash
-traffical import <key>
-traffical import "ui.*"     # wildcards supported
+traffical import param ui.accent_color   # one parameter
+traffical import param 'ui.*'            # wildcard
+traffical import metrics --all           # all metrics → metrics.yaml
+traffical import metrics add_to_cart_rate
 ```
-
-Adds a dashboard-created parameter (or pattern of them) into the local config so they're managed as code from now on.
-
-### `generate-types`
-
-```bash
-traffical generate-types [-o <path>] [-l typescript]
-```
-
-Emits TypeScript interfaces for your event definitions. Default output is `.traffical/traffical.generated.ts`. See [Type-safe events](#type-safe-events).
-
-### `integrate-ai-tools`
-
-```bash
-traffical integrate-ai-tools
-```
-
-Adds a Traffical context block to AI tool configs in the repo: `CLAUDE.md`, `.cursor/rules`, `.github/copilot-instructions.md`, `.windsurfrules`. Useful so coding assistants know what parameters exist and how to use them.
-
-## `traffical.yaml` schema
-
-The config file lives at `.traffical/config.yaml`.
-
-```yaml
-version: "1.0"
-
-project:
-  id: proj_marketplace
-  orgId: org_acme
-
-parameters:
-  # Main namespace — no prefix
-  feature_enabled:
-    type: boolean
-    default: false
-    description: Master toggle for the new feature
-
-namespaces:
-  checkout:
-    parameters:
-      button.color:                      # full key: checkout.button.color
-        type: string
-        default: "#1E6EFB"
-        description: Primary button color on checkout
-      show_trust_badges:
-        type: boolean
-        default: false
-
-  pricing:
-    parameters:
-      discount_pct:
-        type: number
-        default: 0
-        constraints:
-          min: 0
-          max: 50
-
-events:
-  purchase:
-    valueType: currency
-    unit: USD
-    description: Completed purchase
-
-  add_to_cart:
-    valueType: count
-
-  signup:
-    valueType: boolean
-```
-
-### Parameter fields
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `type` | yes | `boolean`, `string`, `number`, or `json` |
-| `default` | yes | Default value (typed to match `type`) |
-| `description` | no | Free-form text shown in the dashboard |
-| `constraints` | no | `min`, `max`, `pattern`, `allowedValues` |
-
-### Event fields
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `valueType` | yes | `currency`, `count`, `rate`, or `boolean` |
-| `unit` | no | Free-form unit (`USD`, `items`, `percent`, …) |
-| `description` | no | Free-form text |
 
 ## Type-safe events
 
-The CLI can generate TypeScript types from your event definitions. Use them to wrap your SDK's `track()` and catch invalid event names and properties at compile time.
+Generate TypeScript types from your event definitions so invalid event names and properties become compile errors:
 
 ```bash
-bunx @traffical/cli generate-types
+traffical generate-types          # writes .traffical/traffical.generated.ts
+traffical generate-types -o src/traffical.generated.ts
 ```
 
-This writes `.traffical/traffical.generated.ts` exporting `TrafficalEventProperties` — a map from event name to the typed property shape.
-
-Wrap your client's `track`:
+This emits a `TrafficalEventProperties` map — event name → typed property shape. Wrap your client's `track`:
 
 ```typescript
 import type { TrafficalEventProperties } from "./traffical.generated";
-import { createTrafficalClient } from "@traffical/node";
-
-const traffical = await createTrafficalClient({ orgId, projectId, env, apiKey });
 
 type TypedTrack = <E extends keyof TrafficalEventProperties>(
   event: E,
@@ -234,24 +198,16 @@ export const track = traffical.track.bind(traffical) as TypedTrack;
 ```
 
 ```typescript
-track("purchase", {
-  unitKey: "user_789",
-  properties: { order_total: 99.99, payment_method: "visa" },     // ✅
-});
-
-track("purchase", {
-  unitKey: "user_789",
-  properties: { unknown_field: true },                             // ❌ compile error
-});
+track("add_to_cart", { unitKey: "user_789", properties: { product_id: "p_1" } }); // ✅
+track("add_to_cart", { unitKey: "user_789", properties: { unknown: true } });      // ❌ compile error
 ```
 
-Run `generate-types` after every `pull` (or in CI as part of your build) to keep the types in sync with the dashboard.
+Run it after every `pull` (or in CI) to keep types in sync. See [Type-safe events](/guides/type-safe-events) for the full flow.
 
 ## CI/CD integration
 
-### Validate on pull requests
-
-```yaml
+<CodeGroup>
+```yaml Validate on PRs
 # .github/workflows/traffical.yml
 name: Traffical
 on: [pull_request]
@@ -261,16 +217,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
-      - run: bunx @traffical/cli status
+      - run: bunx @traffical/cli status   # exits 10 on drift
         env:
           TRAFFICAL_API_KEY: ${{ secrets.TRAFFICAL_API_KEY }}
 ```
 
-Exits with code `10` if local and remote are out of sync.
-
-### Sync on merge
-
-```yaml
+```yaml Sync on merge
 # .github/workflows/traffical-sync.yml
 name: Traffical sync
 on:
@@ -287,31 +239,63 @@ jobs:
         env:
           TRAFFICAL_API_KEY: ${{ secrets.TRAFFICAL_API_KEY }}
 ```
+</CodeGroup>
 
-## Exit codes
+## Command reference
 
-| Code | Meaning |
-|------|---------|
-| `0` | Success |
-| `1` | Validation error in config |
-| `2` | Authentication error |
-| `3` | Network or API error |
-| `10` | Drift detected (`status`) |
-| `11` | Experiment needs attention |
+| Command | Description |
+|---------|-------------|
+| `login` | Authenticate via browser (OAuth device flow). |
+| `logout` | Remove the local session. |
+| `whoami` | Show the active identity and linked project. |
+| `init` | Log in, link a project, and scaffold `.traffical/`. |
+| `link` / `unlink` | Link the repo to a project / remove the link. |
+| `org list` / `org use` | List orgs / set the default org. |
+| `project list` / `create` / `use` | Manage projects in the active org. |
+| `status` | Show drift between local and remote. |
+| `push` | Send local definitions to Traffical. |
+| `pull` | Pull synced definitions into the repo. |
+| `sync` | Bidirectional sync (local wins on conflict). |
+| `import param` / `import metrics` | Adopt dashboard definitions into code. |
+| `generate-types` | Generate TypeScript types from event definitions. |
 
 ## Global options
 
 | Option | Description |
 |--------|-------------|
-| `-p, --profile <name>` | Named profile from `~/.trafficalrc` |
-| `-c, --config <path>` | Custom config file path |
-| `-b, --api-base <url>` | Override API endpoint (for testing) |
-| `-j, --format <fmt>` | `human` (default) or `json` |
-| `-n, --dry-run` | Preview without applying (push/sync) |
+| `-c, --config <path>` | Path to the config file (default `.traffical/config.yaml`). |
+| `-b, --api-base <url>` | Override the API endpoint. |
+| `-j, --format <fmt>` | `human` (default) or `json`. |
+| `-q, --quiet` | Suppress non-essential output. |
+| `-p, --profile <name>` | Legacy `~/.trafficalrc` profile (deprecated). |
 
-## Environment variables
+Environment variables: `TRAFFICAL_API_KEY`, `TRAFFICAL_API_TOKEN`, `TRAFFICAL_API_BASE`.
 
-| Variable | Description |
-|----------|-------------|
-| `TRAFFICAL_API_KEY` | API key |
-| `TRAFFICAL_API_BASE` | API endpoint override |
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success. |
+| `1` | Validation error in config. |
+| `2` | Authentication error (not logged in / token invalid). |
+| `3` | Network or API error. |
+| `4` | Not linked (no `project.yaml`). |
+| `10` | Drift detected (`status`). |
+| `11` | Experiment needs attention. |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration file" icon="file-code" href="/tools/config-file">
+    Every field in config.yaml, project.yaml, and metrics.yaml.
+  </Card>
+  <Card title="Parameters" icon="sliders" href="/concepts/parameters">
+    Typed values with defaults.
+  </Card>
+  <Card title="Type-safe events" icon="code" href="/guides/type-safe-events">
+    Codegen, SDK typing, and dev-mode validation.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Resolve a parameter and track an event.
+  </Card>
+</CardGroup>

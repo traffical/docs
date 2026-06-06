@@ -67,7 +67,7 @@ pricing.discount_pct
 homepage.hero_config
 ```
 
-Namespaces are a convention — they have no runtime semantics — but they map directly onto how the [CLI](/tools/cli) organizes parameters in `traffical.yaml` and onto how the dashboard displays them. Group related parameters under a shared prefix so they stay together.
+Namespaces are a convention — they have no runtime semantics — but they map directly onto how the [CLI](/tools/cli) organizes parameters in [`.traffical/config.yaml`](/tools/config-file) and onto how the dashboard displays them. Group related parameters under a shared prefix so they stay together.
 
 ## Default values
 
@@ -102,13 +102,10 @@ Parameters can declare optional constraints. They're enforced at edit time (in t
 
 ## Config-as-code
 
-Parameters can live in a `traffical.yaml` file alongside your application code and sync with Traffical via the [CLI](/tools/cli):
+Parameters can live in [`.traffical/config.yaml`](/tools/config-file) alongside your application code and sync with Traffical via the [CLI](/tools/cli):
 
 ```yaml
 version: "1.0"
-project:
-  id: proj_marketplace
-  orgId: org_acme
 
 parameters:
   feature_enabled:
