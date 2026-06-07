@@ -163,7 +163,7 @@ export async function getServerSideProps() {
 ## Pitfalls
 
 - **Mismatched user IDs.** If the server reads `userId` from a session cookie but the client reads it from a different source, the two will resolve to different buckets and you'll see a swap on hydration. Make sure both sides use the same value.
-- **Server-only secrets in the client.** Keep your `sk_...` server key out of the client bundle. Use a public `pk_...` key in the `TrafficalProvider` and the `sk_...` key only in the server-side `fetchBundle`/`loadTrafficalBundle` call.
+- **Use the SDK key on both sides.** The same `traffical_sk_...` SDK key (scopes `sdk:read`+`sdk:write`) is browser-safe and is used both client-side in the `TrafficalProvider` and server-side in the `fetchBundle`/`loadTrafficalBundle` call. There is no separate server secret for the SDK path — keep management-scoped keys out of all rendering code.
 - **Stale bundle on long-lived pages.** The client refreshes the bundle every 60s by default. SPAs running for hours will pick up new policies automatically. For static pages, a hard reload is enough.
 
 ## Next steps

@@ -44,6 +44,10 @@ Then pick an aggregation:
 
 For `sum`, you also pick the value column (e.g. `order_total`). For `count`, no column is needed.
 
+<Note>
+Metric **definitions** can also live as config-as-code in `.traffical/metrics.yaml` and be pushed via the CLI — see the [config file](/tools/config-file) and [CLI](/tools/cli) reference. Attaching a metric as a policy's goal or guardrail is done in the dashboard ([below](#attaching-to-policies)).
+</Note>
+
 ## Filters and dimensions
 
 A metric can be filtered (e.g. "only completed orders") or grouped by a dimension (e.g. by `country`).

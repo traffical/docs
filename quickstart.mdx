@@ -8,7 +8,7 @@ This guide walks you through integrating Traffical into a Node.js application. B
 ## Prerequisites
 
 - A Traffical account with a [project](/concepts/projects-and-environments) created in the [dashboard](https://app.traffical.io)
-- A **server API key** (`sk_...`) from your project settings
+- An **SDK key** (`traffical_sk_...`, scopes `sdk:read`+`sdk:write`) from your project settings
 - Node.js 18+
 
 <Steps>
@@ -33,7 +33,7 @@ This guide walks you through integrating Traffical into a Node.js application. B
   </Step>
 
   <Step title="Initialize the client">
-    Create a client with your organization, project, environment, and a server API key. The client fetches the config bundle from Traffical and caches it in memory.
+    Create a client with your organization, project, environment, and an SDK key. The client fetches the config bundle from Traffical and caches it in memory.
 
     ```typescript
     import { createTrafficalClient } from "@traffical/node";

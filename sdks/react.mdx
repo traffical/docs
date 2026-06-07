@@ -44,7 +44,7 @@ function App() {
 }
 ```
 
-Use a **public API key** (`pk_...`) in browser code.
+Use an **SDK key** (`traffical_sk_...`, scopes `sdk:read`+`sdk:write`) in browser code — it is browser-safe.
 
 ## The `useTraffical` hook
 
@@ -113,18 +113,18 @@ Pass user context through the provider; it flows to all hooks:
     projectId: "proj_marketplace",
     env: "production",
     apiKey: process.env.NEXT_PUBLIC_TRAFFICAL_API_KEY!,
-  }}
-  context={{
-    userId: currentUser.id,
-    locale: navigator.language,
-    plan: currentUser.plan,
+    contextFn: () => ({
+      userId: currentUser.id,
+      locale: navigator.language,
+      plan: currentUser.plan,
+    }),
   }}
 >
   <MyApp />
 </TrafficalProvider>
 ```
 
-When the context changes (e.g. after login), hooks re-resolve with the new values. For very dynamic context, pass `contextFn` instead — a function called on each resolution.
+Context is supplied via `contextFn` inside `config` — a function called on each resolution. When the values it returns change (e.g. after login), hooks re-resolve with the new values. To customize the unit key, pass `unitKeyFn` inside `config` as well.
 
 ## Anonymous users and `identify`
 
@@ -202,15 +202,23 @@ function DebugPanel() {
 
 ## Provider options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `config` | `TrafficalClientOptions` | required | Client config — same shape as `@traffical/js-client` |
-| `context` | `Context` | `{}` | Initial context (static) |
-| `contextFn` | `() => Context` | — | Dynamic context — called on every resolution |
-| `unitKeyFn` | `() => string` | — | Custom unit-key resolution |
-| `initialParams` | `Record<string, ParameterValue>` | — | Pre-resolved params for first render (SSR) |
+`TrafficalProvider` takes exactly two props: `config` and `children`. Everything else is a field of `config` (`TrafficalProviderConfig`):
 
-The full set of `TrafficalClientOptions` (refresh interval, plugins, attribution mode, evaluation mode, etc.) is available — same as the [browser SDK](/sdks/javascript#options).
+| `config` field | Type | Default | Description |
+|----------------|------|---------|-------------|
+| `orgId` | `string` | required | Organization ID |
+| `projectId` | `string` | required | Project ID |
+| `env` | `string` | required | Environment name |
+| `apiKey` | `string` | required | SDK key (`traffical_sk_...`, scopes `sdk:read`+`sdk:write`) — browser-safe |
+| `baseUrl` | `string` | `https://sdk.traffical.io` | SDK API base URL |
+| `localConfig` | `ConfigBundle` | — | Embedded bundle for cold-start / SSR hydration |
+| `refreshIntervalMs` | `number` | `60000` | Bundle refresh interval |
+| `unitKeyFn` | `() => string` | — | Custom unit-key resolution |
+| `contextFn` | `() => Context` | — | Dynamic context — called on every resolution |
+| `trackDecisions` | `boolean` | `true` | Emit decision events alongside exposures |
+| `plugins` | `Plugin[]` | — | SDK plugins |
+
+These are the same options as the [browser SDK](/sdks/javascript#options); pass them all inside `config`.
 
 ## Next steps
 

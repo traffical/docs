@@ -168,6 +168,9 @@ A bundle embedded in your application binary (typically built in CI). Used as a 
 
 ## M
 
+### Management key
+A `traffical_sk_...` API key with `mgmt:read`/`mgmt:write` or `admin` scope. Can create and modify projects, layers, and policies. Must stay secret — never ship in client code. (The CLI normally uses device login instead.)
+
 ### Metric definition
 The combination of a fact (or event) and an aggregation rule (`conversion_rate`, `sum`, `count`). → [Dashboard: Metrics](/dashboard/metrics)
 
@@ -204,9 +207,6 @@ A reusable bundle of typed event properties (e.g. `geo: {market, country, curren
 ### Property schema
 Type declarations for a track event's payload properties. Drives codegen, edge validation, and dashboard dimension extraction. → [Type-safe events](/guides/type-safe-events)
 
-### Public key
-An API key prefixed `pk_...`, safe to ship in browser code. Read access plus event writes; cannot modify configuration.
-
 ## R
 
 ### Resolution
@@ -223,8 +223,8 @@ A progressive ramp of a policy from a starting percentage to a target, optionall
 ### Schema enforcement
 What the edge does with events that don't match their property schema — `off`, `warn` (default), or `reject`.
 
-### Server key
-An API key prefixed `sk_...`. Full access; must stay server-side. Never ship in client code.
+### SDK key
+A `traffical_sk_...` API key with scopes `sdk:read`+`sdk:write`. Browser-safe — fetches the bundle and sends events but cannot modify configuration. This is the key used in all SDKs and client code.
 
 ### Significance
 The statistical confidence that an observed difference between allocations isn't random noise. Surfaced per metric per policy in the dashboard.

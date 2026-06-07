@@ -52,14 +52,14 @@ Every project comes with `production`, `staging`, and `development` out of the b
 
 ## API keys
 
-API keys are scoped to a project and environment. Two kinds:
+API keys are scoped to a project and environment. Every key has the same `traffical_sk_...` prefix — what differs is the key's **scopes**, which determine what it can do and whether it is browser-safe:
 
-| Prefix | Type | Where to use |
+| Scopes | Type | Where to use |
 |--------|------|-------------|
-| `sk_...` | **Server key** | Server-side SDKs (`@traffical/node`), CLI, server-to-server API calls. Keep secret. |
-| `pk_...` | **Public key** | Browser SDKs (`@traffical/js-client`, `@traffical/react`, `@traffical/svelte`) and React Native. Safe to expose in client code. |
+| `sdk:read`, `sdk:write` | **SDK key** | All SDKs (`@traffical/node`, `@traffical/js-client`, `@traffical/react`, `@traffical/svelte`, React Native) and direct SDK API calls. Browser-safe — fetches the bundle and sends events but cannot modify configuration. |
+| `mgmt:read`, `mgmt:write`, or `admin` | **Management key** | Creating and modifying projects, layers, and policies. Must stay secret — never ship in client code. (The CLI normally uses device login instead.) |
 
-Server keys can fetch the bundle and send events. Public keys can fetch the bundle and send events but cannot modify configuration. Create and manage keys in **Settings → API keys** in the dashboard.
+Create and manage keys in **Settings → API keys** in the dashboard.
 
 ## The unit key
 

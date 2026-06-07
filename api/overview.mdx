@@ -18,20 +18,23 @@ You can override this in any SDK with the `baseUrl` option — useful for testin
 All requests require an API key in the `Authorization` header:
 
 ```
-Authorization: Bearer sk_live_your_api_key
+Authorization: Bearer traffical_sk_...
 ```
 
 ### API key types
 
-| Prefix | Type | Scopes | Use case |
-|--------|------|--------|----------|
-| `sk_...` | Server key | `sdk:read`, `sdk:write` | Server-side SDKs and direct API calls |
-| `pk_...` | Public key | `sdk:read`, `sdk:write` (events only) | Browser SDKs — safe to ship in client code |
+Every key has the same `traffical_sk_...` prefix. What a key can do — and whether it is browser-safe — depends on its **scopes**, not its prefix:
+
+| Scopes | Type | Capabilities | Browser-safe? |
+|--------|------|--------------|---------------|
+| `sdk:read`, `sdk:write` | SDK key | Fetch bundles, request resolutions, send events | Yes — ship in client code |
+| `mgmt:read`, `mgmt:write`, or `admin` | Management key | Create and modify projects, layers, policies | No — must stay secret |
 
 - **`sdk:read`** — fetch bundles, request resolutions
 - **`sdk:write`** — send events
+- **`mgmt:read` / `mgmt:write` / `admin`** — read and modify configuration
 
-Server keys can do everything. Public keys are safe to include in client-side JavaScript: they can fetch the project's bundle and send events, but cannot modify configuration in any way.
+SDK keys are safe to include in client-side JavaScript: they can fetch the project's bundle and send events, but cannot modify configuration in any way. Management keys can change configuration and must never ship in client code.
 
 ### Managing keys
 

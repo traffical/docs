@@ -21,7 +21,7 @@ GET /v1/config/:projectId
 
 | Header | Required | Description |
 |--------|----------|-------------|
-| `Authorization` | Yes | `Bearer sk_...` or `Bearer pk_...` |
+| `Authorization` | Yes | `Bearer traffical_sk_...` (requires `sdk:read` scope) |
 | `If-None-Match` | No | ETag from a previous response. Returns `304 Not Modified` if the bundle hasn't changed. |
 
 ### Query parameters

@@ -19,12 +19,12 @@ Org-level (in `/{orgKey}/api-keys`). Create and revoke keys scoped to a project 
 
 | Field | Description |
 |-------|-------------|
-| **Type** | `Server` (`sk_...`) or `Public` (`pk_...`) — see [Projects & environments](/concepts/projects-and-environments#api-keys) |
+| **Scope** | Determines what the key can do, not its prefix — every key is `traffical_sk_...`. `sdk:read`+`sdk:write` keys (SDK keys) can fetch the bundle and send events and are **browser-safe**; `mgmt:read`/`mgmt:write`/`admin` keys (management keys) can modify configuration and **must stay secret**. See [Projects & environments](/concepts/projects-and-environments#api-keys) |
 | **Project** | Which project the key can read/write |
 | **Environment** | `production`, `staging`, or custom |
 | **Expires** | Optional expiry — recommended for keys handed to CI |
 
-Server keys are shown once at creation. Copy them then — they can't be retrieved later. If you lose one, revoke it and create a new one.
+Keys are shown once at creation. Copy them then — they can't be retrieved later. If you lose one, revoke it and create a new one.
 
 ## Warehouse connection
 
