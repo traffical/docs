@@ -1,0 +1,148 @@
+---
+title: "Agent Skill"
+description: "Install the Traffical Agent Skill so your AI coding agent sets up Traffical, parametrizes your code, wires the SDK, and places events correctly — across Claude Code, Cursor, and 40+ other agents."
+---
+
+The **Traffical Agent Skill** teaches AI coding agents how to use Traffical in your codebase. Instead of reading the docs and wiring everything by hand, your agent does the work the right way: it installs and drives the [CLI](/tools/cli), links a project, authors [config-as-code](/tools/config-file), installs the matching [SDK](/sdks/overview), parametrizes your code, and places [events](/concepts/events-and-metrics) where conversions actually happen.
+
+It's open source ([github.com/traffical/skills](https://github.com/traffical/skills)), validated against the real SDK so it doesn't drift, and works with **40+ coding agents** — Claude Code, Cursor, Codex, Windsurf, Cline, and more.
+
+## Install
+
+```bash
+npx skills add traffical/skills
+```
+
+The installer auto-detects the agents you have and adds the skill to each. Common options:
+
+```bash
+npx skills add traffical/skills -a claude-code   # one specific agent
+npx skills add traffical/skills -g               # globally (all projects)
+npx skills add traffical/skills --list           # preview without installing
+```
+
+Once it's installed, just talk to your agent normally — it pulls the skill in whenever you do something Traffical can help with: adding a feature, changing UI, pricing, or copy, auditing a repo, wiring event tracking, or any time it sees a `.traffical/` directory.
+
+## What it does
+
+<CardGroup cols={2}>
+  <Card title="Set up from zero" icon="rocket">
+    Installs the CLI, logs in (device flow), finds or creates a project, and scaffolds `.traffical/` — including a browser-safe SDK key.
+  </Card>
+  <Card title="Wire the SDK" icon="plug">
+    Installs the right `@traffical/*` package and wires the provider/client for your framework — React, Next.js, Svelte, Node, React Native, and more.
+  </Card>
+  <Card title="Parametrize code" icon="sliders">
+    Lifts hardcoded values — prices, copy, thresholds, colors — into typed parameters you can control without a deploy.
+  </Card>
+  <Card title="Author config-as-code" icon="file-code">
+    Edits `.traffical/config.yaml`, runs `push`, and keeps generated types in sync — without inventing CLI commands or keys.
+  </Card>
+  <Card title="Place events correctly" icon="bolt">
+    Adds `track()` at the real conversion point (not on click or render), with the right signature for each SDK.
+  </Card>
+  <Card title="Audit a codebase" icon="magnifying-glass">
+    Scans for hardcoded values and hand-rolled flags (env toggles, `if (FLAG)`, LaunchDarkly/Split/Unleash) and proposes a prioritized migration.
+  </Card>
+</CardGroup>
+
+## Parametrize, don't flag
+
+The skill is built around one core habit, and it's the one that pays off the most: **parametrize the real values — don't just wrap them in on/off flags.**
+
+A boolean feature flag only buys you on/off. A typed [parameter](/concepts/parameters) buys you on/off **and every value in between** — controllable and experimentable forever, from the [dashboard](/dashboard/parameters) or via the API, without another code change. This is the "parametrize once, control forever" idea: the moment a value lives in Traffical, anyone — an engineer, a PM in the dashboard, or an automated optimizer — can change it, ramp it, or test it.
+
+| | Boolean flag | Typed parameter |
+|--|--------------|-----------------|
+| What it controls | on / off | on/off **and any value** |
+| Change without a deploy | toggle only | every value (copy, price, threshold, color…) |
+| Experiment | A/B the flag | A/B/n, gradual [rollouts](/experimentation/rollouts), bandit [optimization](/experimentation/optimization) on the value |
+| Who can change it | an engineer + a deploy | anyone, from the dashboard or API |
+
+**Example — a "free shipping this weekend" banner:**
+
+<Tabs>
+  <Tab title="Flag-first (weak)">
+    ```yaml
+    parameters:
+      feature.promo_banner:
+        type: boolean
+        default: false
+    ```
+    You can show or hide the banner. The copy, the threshold, and the CTA are all still frozen in code — every tweak is a code change and a deploy.
+  </Tab>
+  <Tab title="Parametrize the substance (what the skill does)">
+    ```yaml
+    parameters:
+      ui.promo_banner.visible:
+        type: boolean
+        default: false
+      copy.promo_banner.headline:
+        type: string
+        default: "Free shipping all weekend!"
+      copy.promo_banner.cta_text:
+        type: string
+        default: "Shop now"
+      ui.promo_banner.background_color:
+        type: string
+        default: "#1E6EFB"
+    ```
+    The same surface now supports a kill switch, a copy test, a threshold sweep, and bandit optimization — all from outside the code.
+  </Tab>
+</Tabs>
+
+The skill reserves `feature.*` booleans for things that are *genuinely* binary — a true kill switch, or a feature that's simply present or absent — and reaches for a typed value parameter everywhere else. When it sees a boolean about to gate a block of hardcoded values, it lifts those values into parameters instead. See [Feature flags](/experimentation/feature-flags) for where booleans still fit.
+
+## How it helps with the work
+
+### New features, built experiment-ready
+
+When you ask the agent to build something new, the skill makes it build it **parametrized and rollout-ready by default** — typed parameters with in-code defaults, read through the SDK, with a conversion event wired in. You can ship it dark, ramp it, or A/B test it later without revisiting the code.
+
+### Existing codebases
+
+Point the agent at code you already have:
+
+- **Audit** — it produces a prioritized list of what to move into Traffical (hardcoded values, magic numbers, hand-rolled flags), with a ready-to-paste `config.yaml` sketch and a rollout order — without changing your code until you ask.
+- **Parametrize** — it turns a specific hardcoded value into a parameter: defines it in config with the default equal to the *current* value (so behavior is unchanged on day one), runs `push`, then replaces the literal with an SDK read.
+- **Migrate flags** — it converts env-var toggles or third-party flags into Traffical parameters, usually *richer* than a 1:1 boolean (e.g. a `NEXT_PUBLIC_NEW_HERO` env flag becomes a `ui.hero.variant` enum plus `copy.hero.headline`, so you can test layouts and copy, not just on/off).
+
+### Wiring and correctness
+
+The skill knows the per-framework provider setup, the exact `track()` signature for each SDK, identity binding (`unitKeyFn` / `identify()` for logged-in users), [SSR hydration](/sdks/ssr), and how to keep config-as-code in sync. Because it's checked against the real SDK, it doesn't drift into wrong package names, exports, or key formats.
+
+## Example prompts
+
+The skill triggers on natural requests — you don't name it. A few examples:
+
+| You say | The agent does |
+|---------|----------------|
+| "Set us up with Traffical and put the checkout button color behind it." | Logs in, inits the project, installs `@traffical/react`, defines `checkout.button.color`, wires the provider, reads it via the SDK, and pushes. |
+| "Go through this repo and tell me what we should move into Traffical." | Writes a prioritized `TRAFFICAL_AUDIT.md` — hand-rolled flags, revenue levers, untracked conversions — with a config sketch and rollout order. No code changed. |
+| "Make the pricing card's discount, CTA, and highlight color controllable without a redeploy." | Lifts each value into a typed parameter (number with constraints, strings), reads them via the SDK with in-code defaults, and pushes. |
+| "We're flying blind on checkout — nothing fires when an order completes." | Defines a `purchase` currency event and fires `track()` at the success point (with `flushEvents()` before navigation, where relevant). |
+
+## Benefits
+
+- **Right the first time** — convention-following parameter names, correct event placement, correct SDK wiring.
+- **Parametrize-first** — your code becomes controllable and experimentable without redeploys, by design.
+- **Faster** — setup, SDK wiring, and config authoring that would take several docs pages happen in one pass.
+- **Safe** — config-as-code stays the source of truth; the skill never fabricates keys or commands and respects the boundary (it parametrizes and tracks; experiments and policies stay in the dashboard).
+- **Consistent** — every parameter and event follows the same conventions across your team.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="CLI" icon="terminal" href="/tools/cli">
+    The config-as-code commands the skill drives.
+  </Card>
+  <Card title="Configuration file" icon="file-code" href="/tools/config-file">
+    Every field in `config.yaml`, `project.yaml`, and `metrics.yaml`.
+  </Card>
+  <Card title="Parameters" icon="sliders" href="/concepts/parameters">
+    Typed values with defaults — what the skill parametrizes into.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Resolve a parameter and track an event by hand.
+  </Card>
+</CardGroup>

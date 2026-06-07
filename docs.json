@@ -87,7 +87,7 @@
           {
             "group": "Developer tools",
             "icon": "terminal",
-            "pages": ["tools/cli", "tools/config-file", "tools/visual-editor", "tools/devtools"]
+            "pages": ["tools/agent-skill", "tools/cli", "tools/config-file", "tools/visual-editor", "tools/devtools"]
           },
           {
             "group": "Reference",
