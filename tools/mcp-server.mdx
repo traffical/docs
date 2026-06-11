@@ -1,0 +1,104 @@
+---
+title: "MCP server"
+description: "Connect AI agents to Traffical's read-only MCP server — check change status, read evidence and decision logs, preview transitions, and draft recommendations for humans to act on."
+---
+
+Traffical exposes a **read-only [MCP](https://modelcontextprotocol.io) server** at `https://api.traffical.io/mcp`. Connect an AI agent and it can answer operate-time questions about your **changes** — product initiatives moving through a measured lifecycle (canary → experiment → rollout): where a change is, what the evidence says, what was decided and why, and what should happen next.
+
+The server is read-only by construction. Agents can read everything; they cannot start, advance, promote, complete, or revert anything. When action is warranted, the agent summarizes the evidence and points you at the transition console on the change's page in the [dashboard](https://app.traffical.io) — that's where humans act.
+
+## Connect
+
+### Claude Code
+
+```bash
+claude mcp add --transport http traffical-changes https://api.traffical.io/mcp
+```
+
+That's it — no key to paste. Claude Code discovers the authorization server via OAuth discovery and opens a browser sign-in (Traffical uses WorkOS AuthKit). Run `/mcp` inside Claude Code to authenticate or check connection status.
+
+### Other MCP clients
+
+Any MCP client that supports **streamable HTTP with OAuth discovery** works zero-config. Point it at `https://api.traffical.io/mcp`; the first 401 response carries a `WWW-Authenticate` header pointing at `https://api.traffical.io/.well-known/oauth-protected-resource`, which names the authorization server, and the client runs the standard OAuth flow from there.
+
+Two transport details for client authors:
+
+- The server speaks plain JSON-RPC 2.0 over `POST /mcp` — no sessions, no SSE streams (`GET /mcp` returns `405`).
+- OAuth tokens are audience-bound (RFC 8707): the token must be minted for the MCP resource. Clients that follow the discovery flow get this right automatically.
+
+### API key (headless agents, CI)
+
+For agents that can't run a browser flow, use a **management API key with the `mgmt:read` scope** as a plain bearer token:
+
+```
+Authorization: Bearer traffical_sk_...
+```
+
+Create one in the dashboard under **Settings → API keys** — a read-only management key is exactly the `mgmt:read` scope. See [API key types](/api/overview#api-key-types) for how scopes work.
+
+<Warning>
+SDK keys (scopes `sdk:read`/`sdk:write`) — including the key the CLI provisions into `.traffical/.env` — cannot read changes and will get a `403`. You need a management key with `mgmt:read`.
+</Warning>
+
+## Tools
+
+The server exposes seven read-only tools:
+
+| Tool | Inputs | Returns |
+|------|--------|---------|
+| `list_changes` | `projectId`, `state?` (`draft`, `active`, `paused`, `completed`, `archived`) | Changes in the project — key, name, state, intent, lifecycle template, current phase |
+| `get_change` | `changeId` | One change in full: its phases, parameters, and executing policies — "where is this change and what is running" |
+| `get_change_evidence` | `changeId` | Evidence records (newest first): durable analysis artifacts with a recommendation (e.g. advance/hold/revert), rationale, and provenance |
+| `get_change_decisions` | `changeId`, `limit?` (default 50) | The decision log: who or what decided each transition or annotation, why, and which evidence it cites |
+| `get_measurement_plan` | `changeId` | The resolved measurement plan: primary metric(s), guardrails, diagnostics, per-phase rules, and source protocols |
+| `preview_transition` | `changeId`, `kind?` (`start`, `advance`, `promote`, `complete`, `revert`) | The next lifecycle transition: availability, blockers and what unblocks them, readiness checks, ranked plan options with runtime estimates |
+| `get_change_stats` | `projectId`, `windowDays?` (default 90, max 365) | The project's "four numbers": time to exposure, clean activation rate, guardrail catch rate, decision-log completeness |
+
+`preview_transition` is advisory only — it shows what a transition *would* do (including the decision record it would write), but agents cannot execute it. Omit `kind` to preview the natural next step.
+
+## Read-only guarantees
+
+Read-only isn't a policy setting you could misconfigure — it's structural:
+
+- The seven tools above are the complete tool set, and every tool maps onto a read path. There is no mutating tool to call.
+- Every tool enforces the same per-project access checks as the management API's GET endpoints.
+- All access requires the `mgmt:read` scope. OAuth tokens minted for the MCP server are treated as read-only credentials across the rest of the management API too — they can't be replayed against write endpoints.
+
+Transitions, approvals, and annotations stay with humans in the dashboard's transition console.
+
+## What agents typically do
+
+A typical operate-time loop:
+
+1. **Check status** — `get_change` for the state and current phase, then `get_change_evidence` for the latest recommendation and rationale.
+2. **Summarize the evidence** — lead with the recommendation, pass the rationale through (which gate, which guardrail, which threshold), and flag any data-quality evidence.
+3. **Draft a recommendation for the human** — "the canary is healthy and gates are met; advancing is unblocked, estimated N more days at current traffic" — and link to the change in the dashboard so a person can act in the transition console.
+
+Plus the standing questions: "what changed while I was asleep?" (`get_change_decisions`), "how much longer does this experiment need?" (`preview_transition`), and "how healthy is our change process?" (`get_change_stats`).
+
+## Companion agent skill
+
+For Claude-family agents, the open-source **`traffical-changes`** skill ([github.com/traffical/skills](https://github.com/traffical/skills)) teaches the agent how to use these tools well — how to read evidence kinds and recommendation semantics, quote runtime estimates with their basis, and respect the read-only boundary:
+
+```bash
+npx skills add traffical/skills
+```
+
+It's the operate-time sibling of the build-time [Agent Skill](/tools/agent-skill), which covers parameters, SDK wiring, and config-as-code.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Agent Skill" icon="robot" href="/tools/agent-skill">
+    The build-time skill: setup, parametrizing code, SDK wiring, events.
+  </Card>
+  <Card title="API overview" icon="book-open" href="/api/overview">
+    API key scopes and how authentication works.
+  </Card>
+  <Card title="Decision log" icon="list-check" href="/dashboard/decisions">
+    The audit trail agents read through `get_change_decisions`.
+  </Card>
+  <Card title="Rollouts" icon="forward" href="/experimentation/rollouts">
+    The lifecycle machinery behind phases and health checks.
+  </Card>
+</CardGroup>

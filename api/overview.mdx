@@ -36,6 +36,8 @@ Every key has the same `traffical_sk_...` prefix. What a key can do — and whet
 
 SDK keys are safe to include in client-side JavaScript: they can fetch the project's bundle and send events, but cannot modify configuration in any way. Management keys can change configuration and must never ship in client code.
 
+A `mgmt:read` key also authenticates AI agents against the read-only [MCP server](/tools/mcp-server).
+
 ### Managing keys
 
 Create and revoke keys under **Settings → API keys** in the dashboard. Keys can be scoped to a project and environment, given an expiry, or revoked at any time.
