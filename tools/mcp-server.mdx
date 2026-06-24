@@ -3,7 +3,7 @@ title: "MCP server"
 description: "Connect AI agents to Traffical's MCP server — check change status, read evidence and decision logs, preview transitions, and (under governance) propose or execute lifecycle transitions. Least-privilege by scope; humans own approvals."
 ---
 
-Traffical exposes an **[MCP](https://modelcontextprotocol.io) server** at `https://api.traffical.io/mcp`. Connect an AI agent and it can answer operate-time questions about your **changes** — product initiatives moving through a measured lifecycle (canary → experiment → rollout): where a change is, what the evidence says, what was decided and why, and what should happen next — and, where governance permits, **act**: propose or execute transitions, record assessments and annotations, and request approval.
+Traffical exposes an **[MCP](https://modelcontextprotocol.io) server** at `https://api.traffical.io/mcp`. Connect an AI agent and it can answer operate-time questions about your **changes** — product initiatives moving through a measured lifecycle (canary → experiment → rollout): where a change is, what the evidence says, what was decided and why, and what should happen next — and, where governance permits, **act**: author draft changes, propose or execute transitions, record assessments and annotations, and request approval.
 
 The server is **least-privilege by scope**, not read-only. What an agent can do is bounded by its token's scope, then narrowed again at runtime by an **autonomy resolver**, then by a global/per-org **write mode**. A read-only token sees and does exactly what it did before. Crucially, **approvals stay with humans**: there is no `approve` tool, so when an action needs a checkpoint the agent creates a *proposal* and points you at the transition console on the change's page in the [dashboard](https://app.traffical.io) — that's where humans act.
 
@@ -47,7 +47,7 @@ The MCP surface is governed by three write scopes on top of the read scopes. `to
 | Scope | Grants | Notes |
 |-------|--------|-------|
 | `mgmt:read` (and the `:read` scopes) | every read tool below | a read-only connection — unchanged from before |
-| `changes:propose` | write **proposals**, **assessments**, **annotations**, request-approval | the conservative ceiling — can suggest but never touch prod |
+| `changes:propose` | **author** draft changes, write **proposals**, **assessments**, **annotations**, request-approval | the conservative ceiling — can draft and suggest, but never starts traffic |
 | `changes:operate` | execute transitions (resolver-gated); refresh evidence | reused existing scope |
 | `defaults:promote` | promote-to-default / complete-with-default | the highest-risk action keeps its own scope |
 
@@ -84,6 +84,7 @@ These appear in `tools/list` only when the token carries the scope.
 
 | Tool | Required scope | Effect |
 |------|----------------|--------|
+| `create_change` | `changes:propose` (start needs `changes:operate`) | Author a **new change as a draft** from **existing** parameters/layers — declare parameters by id, override them by key in variants. It cannot create new parameters, layers, or policies (config-as-code stays with humans/CLI). A draft serves no traffic. Pass `start:true` to also begin the canary: that runs the resolver, which executes only a green low-risk start and otherwise raises a proposal. Returns the new `changeId`, a console link, and (when `start:true`) the start outcome. |
 | `request_transition` | `changes:operate` (`defaults:promote` for promote / complete-with-default) | The single transition tool. The resolver decides `execute` vs `propose`; pass `mode:'propose'` to force a checkpoint. Returns `outcome` (`executed`/`proposed`/`blocked`), the decision id, the full resolver reasoning, and (when proposed) a console deep link. Idempotent on retry. |
 | `submit_assessment` | `changes:propose` | Records an `agent_assessment` evidence record (advisory; cites the measured evidence it interprets) |
 | `annotate_change` | `changes:propose` | Writes an `annotation` decision record |
@@ -99,10 +100,12 @@ Even with `changes:operate`, no transition is executed unconditionally. A pure *
 - **Direction** — *safe* actions (revert, pause, rollback, reduce-%) are auto-eligible so you can always stop fast; *risk-increasing* actions (start, advance, increase-%) and the highest-risk *promote / complete-with-default* are gated.
 - **Risk class** — read from the change's measurement plan. At `low` risk an expand may auto-execute; at `medium`+ it becomes a proposal. Promote / complete-with-default are **always** a proposal.
 - **Guardrail veto** — an unresolved blocking breach downgrades all risk-increasing actions to `propose`. Safety actions are never vetoed.
-- **Evidence sufficiency** — an auto risk-increasing action fires only when *measured* evidence meets the plan's minimums (runtime / sample / freshness). Agent-authored assessments never satisfy this gate.
-- **Fail-closed** — no measurement plan ⇒ no risk class ⇒ safety stays auto, everything risk-increasing degrades to propose-only.
+- **Evidence sufficiency** — an auto risk-increasing action fires only when *measured* evidence meets the plan's minimums (runtime / sample / freshness). Agent-authored assessments never satisfy this gate. The **initial `start`** is exempt: a brand-new canary has no measured evidence by definition, so a `low`-risk start auto-executes on the strength of its risk class, an empty guardrail state, and a clean placement — the gate guards evidence-driven `advance`/`promote`, not first exposure.
+- **Fail-closed** — no measurement plan ⇒ no risk class ⇒ safety stays auto, everything risk-increasing (including `start`) degrades to propose-only.
 
 `request_transition` returns this whole chain in its `autonomy` block so the agent can explain the decision; `get_autonomy` exposes it as a read.
+
+An agent never picks a placement that **masks** another running policy: a `start` only auto-resolves a clean (non-overlapping) bucket placement. When the only way in would mask lower-priority policies, the start is unavailable to the agent and that choice stays a human one in the console.
 
 ## Approval is dashboard-only
 
@@ -129,6 +132,8 @@ A typical operate-time loop:
 1. **Check status** — `get_change` for the state and current phase, then `get_change_evidence` for the latest recommendation and rationale.
 2. **Summarize the evidence** — lead with the recommendation, pass the rationale through (which gate, which guardrail, which threshold), and flag any data-quality evidence.
 3. **Act under governance** — with a write scope, check `get_autonomy`, then call `request_transition`: if the resolver returns `execute` (and write mode allows) the transition fires; otherwise it becomes a *proposal* and the agent links the human to the console. Either way the response carries the full reasoning.
+
+Agents can also **author** the work, not just operate it: read `list_parameters` to find the building blocks, then `create_change` to draft a change from those existing parameters — optionally `start:true` to begin the canary under the same resolver. A human still owns every approval and every masking placement.
 
 Plus the standing questions: "what needs me?" (`list_attention`), "what changed while I was asleep?" (`get_change_decisions` / `get_project_decisions`), "how much longer does this experiment need?" (`preview_transition`), and "how healthy is our change process?" (`get_change_stats`).
 
