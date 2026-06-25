@@ -59,6 +59,7 @@ Scope is the **durable ceiling**; the [autonomy resolver](#the-autonomy-resolver
 
 | Tool | Required scope | Returns |
 |------|----------------|---------|
+| `whoami` | _any token_ | The caller's identity, the org their token is scoped to, and the projects they can reach in it. Call it first to get a `projectId` for every other tool — it's the one tool that needs no id and no scope. |
 | `list_changes` | `changes:read` | Changes in the project — key, name, state, intent, lifecycle template, current phase |
 | `get_change` | `changes:read` | One change in full: its phases, parameters, and executing policies |
 | `get_change_evidence` | `changes:read` | Evidence records (newest first): durable analysis artifacts with a recommendation, rationale, and provenance |
@@ -129,9 +130,10 @@ Writes roll out per-org from `advisory` to `execute`. The **least-privilege guar
 
 A typical operate-time loop:
 
-1. **Check status** — `get_change` for the state and current phase, then `get_change_evidence` for the latest recommendation and rationale.
-2. **Summarize the evidence** — lead with the recommendation, pass the rationale through (which gate, which guardrail, which threshold), and flag any data-quality evidence.
-3. **Act under governance** — with a write scope, check `get_autonomy`, then call `request_transition`: if the resolver returns `execute` (and write mode allows) the transition fires; otherwise it becomes a *proposal* and the agent links the human to the console. Either way the response carries the full reasoning.
+1. **Orient** — `whoami` to discover the org and a `projectId`, then `get_ai_overview` (or `list_changes`) for what's going on in it.
+2. **Check status** — `get_change` for the state and current phase, then `get_change_evidence` for the latest recommendation and rationale.
+3. **Summarize the evidence** — lead with the recommendation, pass the rationale through (which gate, which guardrail, which threshold), and flag any data-quality evidence.
+4. **Act under governance** — with a write scope, check `get_autonomy`, then call `request_transition`: if the resolver returns `execute` (and write mode allows) the transition fires; otherwise it becomes a *proposal* and the agent links the human to the console. Either way the response carries the full reasoning.
 
 Agents can also **author** the work, not just operate it: read `list_parameters` to find the building blocks, then `create_change` to draft a change from those existing parameters — optionally `start:true` to begin the canary under the same resolver. A human still owns every approval and every masking placement.
 
