@@ -1,0 +1,50 @@
+---
+title: "Ratio metrics"
+description: "Per-session and per-order metrics where both the numerator and denominator vary — measured with the delta method."
+---
+
+Some of the most important metrics aren't a simple average over users. **Revenue per session**, **average order value**, **items per order** — each is a ratio where *both* the top and the bottom change from unit to unit. Ratio metrics measure these correctly.
+
+## Why a ratio is different
+
+Take revenue per session. If you divided total revenue by total sessions and stopped there, you'd have a number — but no honest sense of how uncertain it is, because the denominator (sessions) is itself random and varies between users.
+
+A ratio metric accounts for that. Traffical estimates the ratio and its uncertainty using the **delta method**, which combines the variability of the numerator, the variability of the denominator, and how the two move together. The result is a lift and a confidence interval you can trust, just like any other metric.
+
+<Note>
+  Use a ratio metric whenever the quantity you care about is naturally "X per Y" and Y isn't fixed — per session, per order, per visit. If the denominator is simply the number of exposed units, an [average or conversion-rate metric](/statistics/significance) is the simpler choice.
+</Note>
+
+## What you configure
+
+A ratio metric is defined by two parts:
+
+- **Numerator** — what you're summing (for example, revenue, or items).
+- **Denominator** — what you're dividing by (for example, sessions, or orders).
+
+Each is sourced from your events the same way other metrics are. The engine sums both per unit, then forms the ratio and its standard error across units.
+
+## Examples
+
+<Tabs>
+  <Tab title="Revenue per session">
+    Numerator: purchase revenue. Denominator: sessions. Answers "did the variant change how much each session is worth?" — independent of whether it also changed the number of sessions.
+  </Tab>
+  <Tab title="Average order value">
+    Numerator: order revenue. Denominator: orders. Isolates basket size from purchase frequency.
+  </Tab>
+  <Tab title="Items per order">
+    Numerator: items. Denominator: orders. Measures basket composition directly.
+  </Tab>
+</Tabs>
+
+## Works with the rest of the engine
+
+Ratio metrics flow through the same analysis as everything else:
+
+- **[Sequential testing](/statistics/sequential-testing)** — peek at a ratio metric as often as you like, with the same anytime-valid guarantee.
+- **Confidence and significance** — the same two-sided confidence level and interval-based decision described in [Significance](/statistics/significance).
+
+<Tip>
+  Pair a ratio metric (revenue per session) with a count metric (sessions per user) when you want to see *both* whether each session got more valuable *and* whether users came back more often. They answer different questions.
+</Tip>
