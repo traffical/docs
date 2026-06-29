@@ -1,0 +1,65 @@
+---
+title: "Sequential testing"
+description: "Anytime-valid confidence sequences — peek at results as often as you like and the false-positive rate still holds."
+---
+
+A classic A/B test has one rule that's easy to break: **look only once**, at a sample size you committed to in advance. The moment you start refreshing the dashboard and stopping when it looks good, you quietly inflate your false-positive rate — a difference that isn't real starts crossing the line just by chance.
+
+Sequential testing removes that trap.
+
+## The guarantee
+
+When you enable sequential analysis, Traffical reports an **anytime-valid confidence sequence** instead of a fixed-horizon interval. Its promise, in one line:
+
+> **Peek as often as you want — the false-positive rate stays at the level you chose.**
+
+More precisely: the probability that the sequence *ever* shows a significant result when there's truly no difference is held at or below your chosen level (5% at the 95% setting), **across every look combined** — not per look. You can check after every batch of data and stop the instant the interval excludes zero, with the guarantee intact.
+
+<Note>
+  This is the right mode for **continuous monitoring** and for automated systems that evaluate experiments repeatedly. There's no peeking penalty to budget and no pre-committed sample size to wait out.
+</Note>
+
+## What it costs
+
+Anytime-validity isn't free — the protection comes from a **wider interval**. At any single look, a confidence sequence is broader than the fixed-horizon interval for the same data, because it has to stay valid at every other look too.
+
+The width is tuned by a **target sample size**: the sequence is at its tightest around the sample size you expect the experiment to reach, and looser far from it. Set that target from your power analysis when you have one; otherwise a sensible default is used.
+
+<Tabs>
+  <Tab title="Early in the experiment">
+    Intervals are wide. With little data they may be effectively unbounded — the engine is telling you, correctly, that it can't conclude yet. Nothing is significant by accident.
+  </Tab>
+  <Tab title="Around the target sample size">
+    The sequence is at its tightest. This is where a true effect is most likely to be detected, and it's the point the target is tuned for.
+  </Tab>
+  <Tab title="Far beyond the target">
+    Intervals widen again relative to a fixed test. Anytime-validity keeps holding no matter how long you run.
+  </Tab>
+</Tabs>
+
+## How to read it
+
+A sequential result is **interval-based**: significant exactly when the confidence sequence on the lift excludes zero. The decision and the reported interval are all you need — there's no separate sequential p-value to interpret.
+
+Everything else stays familiar: the lift, the metric types, and [variance reduction](/statistics/cuped) all work unchanged. Sequential testing only changes how wide the interval is and what guarantee it carries.
+
+## Turning it on
+
+Sequential testing is **off by default** and controlled by a setting at two levels:
+
+- **Project default** — a default for every experiment in the project, set in the project's analysis settings.
+- **Per policy** — each policy can turn it on or off explicitly, overriding the project default. Left unset, a policy inherits the project default.
+
+The effective rule is **policy setting if set, otherwise the project default, otherwise off** — the same model as [CUPED](/statistics/cuped). When it's on for a policy, that policy's results are reported as an anytime-valid confidence sequence instead of a fixed-horizon interval.
+
+<Note>
+  Sequential testing changes how results are *read*, not what data is collected — so you can switch a running experiment between fixed-horizon and sequential and the numbers recompute from the same aggregates.
+</Note>
+
+## Fixed-horizon is still there
+
+Sequential mode is **opt-in**. If your team genuinely pre-commits to a sample size and looks once, the fixed-horizon test gives a tighter interval for that single check and remains the default. Choose sequential when you want the freedom to watch and stop early.
+
+<Tip>
+  Rule of thumb: if anyone — a person or an automated policy — will look at the experiment more than once before it ends, use sequential testing.
+</Tip>

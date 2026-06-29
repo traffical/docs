@@ -15,7 +15,7 @@ Each metric:
 
 - **Name** — human-readable
 - **Source** — a Traffical-native event or a warehouse fact
-- **Aggregation** — `conversion_rate`, `sum`, `count`
+- **Aggregation** — `conversion_rate`, `sum`, `count`, `ratio`
 - **Used by** — policies attached as goal or health metrics
 - **Current value** — the latest computed aggregate across all traffic
 
@@ -41,8 +41,13 @@ Then pick an aggregation:
 | `conversion_rate` | Unique users with ≥ 1 event | Unique users exposed | Proportion (0–1) |
 | `sum` | Sum of value column | Unique users exposed | Per-user average |
 | `count` | Count of events | Unique users exposed | Per-user rate |
+| `ratio` | Sum of a numerator measure | Sum of a denominator measure | Ratio of totals (e.g. revenue per session) |
 
-For `sum`, you also pick the value column (e.g. `order_total`). For `count`, no column is needed.
+For `sum`, you also pick the value column (e.g. `order_total`). For `count`, no column is needed. For `ratio`, you pick **two** fact + measure pairs — a numerator (the primary source above) and a denominator — and the engine uses a delta-method standard error. See [Ratio metrics](/statistics/ratio-metrics).
+
+<Note>
+On **average (mean)** and **conversion-rate** metrics you can also enable **CUPED variance reduction** — a pre-experiment covariate over a lookback window that shrinks confidence intervals. It applies when CUPED is turned on for the policy. See [Variance reduction (CUPED)](/statistics/cuped).
+</Note>
 
 <Note>
 Metric **definitions** can also live as config-as-code in `.traffical/metrics.yaml` and be pushed via the CLI — see the [config file](/tools/config-file) and [CLI](/tools/cli) reference. Attaching a metric as a policy's goal or guardrail is done in the dashboard ([below](#attaching-to-policies)).
@@ -99,6 +104,8 @@ On a policy's detail page, each metric shows per-allocation:
 </Frame>
 
 Significance is computed using cluster-robust standard errors when the metric is measured at a different level than the randomization (e.g. randomized by company, measured per user). The dashboard handles this automatically based on entity definitions.
+
+For how the numbers are computed — confidence intervals, the metric types, **anytime-valid sequential testing** (peek as often as you like), and **CUPED** variance reduction — see the [Statistics](/statistics/overview) section.
 
 ## Best practices
 

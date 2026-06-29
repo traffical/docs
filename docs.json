@@ -48,6 +48,17 @@
             ]
           },
           {
+            "group": "Statistics",
+            "icon": "square-root-variable",
+            "pages": [
+              "statistics/overview",
+              "statistics/significance",
+              "statistics/sequential-testing",
+              "statistics/cuped",
+              "statistics/ratio-metrics"
+            ]
+          },
+          {
             "group": "Guides",
             "icon": "compass",
             "pages": [

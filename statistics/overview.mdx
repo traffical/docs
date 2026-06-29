@@ -1,0 +1,50 @@
+---
+title: "Statistics overview"
+description: "How Traffical turns events into trustworthy decisions — significance, anytime-valid peeking, variance reduction, and ratio metrics."
+---
+
+Every experiment in Traffical ends in the same question: **is the difference between your variants real, or is it noise?** The statistics engine answers it from the events you already collect, using methods chosen so the numbers stay trustworthy even when you check them often.
+
+This section explains, in plain terms, how that works and what each option buys you.
+
+## What the engine computes
+
+For every metric on a policy, Traffical estimates each allocation's value, the **lift** versus control, a **confidence interval** around that lift, and whether the result is **statistically significant** at your chosen confidence level. The same machinery serves several metric shapes:
+
+<CardGroup cols={2}>
+  <Card title="Significance & metric types" icon="square-root-variable" href="/statistics/significance">
+    Confidence intervals, p-values, and how binary, mean, count, and ratio metrics each get a lift and a standard error.
+  </Card>
+  <Card title="Sequential testing" icon="gauge-high" href="/statistics/sequential-testing">
+    Anytime-valid results: peek as often as you like and the false-positive rate still holds.
+  </Card>
+  <Card title="Variance reduction (CUPED)" icon="compress" href="/statistics/cuped">
+    Use pre-experiment data to shrink confidence intervals and reach significance sooner.
+  </Card>
+  <Card title="Ratio metrics" icon="divide" href="/statistics/ratio-metrics">
+    Per-session and per-order metrics where both the numerator and denominator vary.
+  </Card>
+</CardGroup>
+
+## Two ways to read an experiment
+
+How you intend to *look* at an experiment determines which method keeps you honest.
+
+<Tabs>
+  <Tab title="Fixed-horizon">
+    You decide a sample size up front, wait until you reach it, and look **once**. This is the classic A/B test. It is the default, and it gives the tightest interval for a single planned check — but every extra peek inflates the chance of a false positive.
+  </Tab>
+  <Tab title="Sequential (anytime-valid)">
+    You want to watch the experiment as data arrives and stop the moment it's conclusive. [Sequential testing](/statistics/sequential-testing) makes that safe: the false-positive rate is held at your chosen level **across all looks combined**, so continuous monitoring never erodes the guarantee.
+  </Tab>
+</Tabs>
+
+## What stays true regardless
+
+- **Your confidence level is a promise, not a suggestion.** At the default 95% two-sided level, a non-significant result genuinely means the data can't yet distinguish the variants.
+- **Variance reduction never changes the answer in expectation.** [CUPED](/statistics/cuped) only removes noise that was predictable from the past — it tightens intervals without biasing the lift.
+- **The engine reads aggregates, not raw rows.** Everything is computed from sufficient statistics summarised in your warehouse, so analysis is cheap to re-run at any moment.
+
+<Note>
+  Defaults are sensible out of the box: frequentist analysis at 95% confidence, two-sided. You only need the rest of this section when you want to peek continuously, reach significance faster, or measure a ratio.
+</Note>

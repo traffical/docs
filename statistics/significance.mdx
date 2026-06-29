@@ -1,0 +1,53 @@
+---
+title: "Significance & metric types"
+description: "Confidence intervals, p-values, and how each metric type produces a lift and a standard error."
+---
+
+Statistical significance is Traffical's way of separating a real difference from random variation. This page covers the fixed-horizon test that runs by default, and how the four metric types each feed into it.
+
+## The core comparison
+
+For each treatment allocation, the engine compares its metric value against control:
+
+- **Lift** — the difference between treatment and control. Reported both in absolute terms and as a relative percentage of control.
+- **Standard error** — how much that lift would wobble from sampling alone, built from each allocation's variance and sample size.
+- **Confidence interval** — the range of lifts compatible with the data at your confidence level (95% by default). When the interval excludes zero, the result is significant.
+- **p-value** — the probability of seeing a lift this large if the variants were truly identical.
+
+A result is **significant** when the confidence interval on the lift does not contain zero — equivalently, when the p-value falls below `1 − confidence`.
+
+<Note>
+  The default is a **two-sided test at 95% confidence**, so the false-positive rate is 5%. You can run at 90% where a faster, more permissive read is acceptable.
+</Note>
+
+## Metric types
+
+Every metric reduces to a per-unit value, a lift, and a standard error. What differs is how that value and its variance are built from your events.
+
+<Tabs>
+  <Tab title="Binary / proportion">
+    **Conversion rate** — did the unit convert or not. The value is the share of exposed units that converted, and the variance is `p(1 − p)`. Use it for signups, checkouts, click-through, activation.
+  </Tab>
+  <Tab title="Mean">
+    **Average per unit** — a continuous outcome like revenue per user or time on page. The value is the per-unit mean and the variance is the sample variance of the per-unit totals.
+  </Tab>
+  <Tab title="Count">
+    **Events per unit** — how many times something happened per unit, such as pageviews or actions per session.
+  </Tab>
+  <Tab title="Ratio">
+    **Ratio of two quantities** — revenue per session, average order value, items per order. Both the numerator and the denominator vary across units, so the standard error is built with the delta method. See [Ratio metrics](/statistics/ratio-metrics).
+  </Tab>
+</Tabs>
+
+## Winsorization
+
+Heavy-tailed metrics — revenue especially — can be dominated by a handful of extreme units. When you set a winsorization percentile on a metric, the engine caps per-unit values at that percentile before aggregating, so a single outlier order can't swing the result. The lift stays interpretable while the variance comes down.
+
+## When you don't have enough data
+
+With few units, intervals are correctly wide and results stay non-significant — the engine reports uncertainty rather than a false read. Near-degenerate cases (zero observed variance, a proportion of exactly 0 or 1, a ratio with a near-zero denominator) are handled gracefully: they widen the interval instead of producing a misleading number.
+
+## Where to go next
+
+- To **watch results as they accrue** without inflating false positives, use [sequential testing](/statistics/sequential-testing).
+- To **reach significance sooner**, add a pre-experiment covariate with [CUPED](/statistics/cuped).

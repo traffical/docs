@@ -1,0 +1,61 @@
+---
+title: "Variance reduction (CUPED)"
+description: "Use pre-experiment data to shrink confidence intervals and reach significance sooner — without biasing the result."
+---
+
+Two users rarely behave the same. A lot of the variation you see during an experiment was already visible **before** it started — a high spender keeps spending, a heavy user keeps engaging. CUPED (Controlled-experiment Using Pre-Experiment Data) uses that history to cancel out the noise it can explain, so what's left is a cleaner view of the effect your change actually had.
+
+The result: **narrower confidence intervals and faster significance**, with no change to the lift in expectation.
+
+## The intuition
+
+For each unit, Traffical looks at a **pre-experiment covariate** — typically the same metric measured over a window before the unit was exposed. It then removes the part of the unit's in-experiment outcome that was predictable from that covariate, comparing variants on what remains.
+
+Because the covariate comes from *before* the experiment, it can't have been affected by the variant. Adjusting for it is therefore **unbiased**: CUPED only removes noise, it never invents or hides an effect.
+
+<Note>
+  How much you gain depends on how well the past predicts the present. The stronger the correlation between the pre-period covariate and the outcome, the more variance comes out and the tighter the interval — a strongly predictive covariate can cut interval width substantially.
+</Note>
+
+## Turning it on
+
+CUPED is **off by default** and controlled by a setting at two levels:
+
+- **Project default** — set a default for every experiment in the project (for example, "use CUPED everywhere we can").
+- **Per policy** — each policy can turn CUPED on or off explicitly, overriding the project default. Left unset, a policy inherits the project default.
+
+The effective rule is simply: **policy setting if set, otherwise the project default, otherwise off.** Turning the project default on is the easy way to get variance reduction across the board; the per-policy switch is there for the experiments where you want to opt in or out individually.
+
+## What it measures
+
+When CUPED is on, it adjusts by a **pre-experiment covariate** — the metric's own value over a window before each unit was exposed (for example, the two weeks before they first saw the experiment). Where a unit has no pre-period history, it's analysed without adjustment. CUPED only ever removes noise — enabling it never makes an interval wider or changes the lift in expectation.
+
+## Configuring it on a metric
+
+CUPED needs **two things** to take effect, by design:
+
+1. **A covariate on the metric.** On the metric itself, enable variance reduction and set the **lookback window** (how many days before exposure to measure the covariate). The covariate defaults to the metric's own value over that window. Available on **average (mean)** and **conversion-rate** metrics.
+2. **CUPED enabled on the policy** (or project default), as described above.
+
+If either is missing, the metric is analysed normally — so turning the project default on does nothing until your metrics also carry a covariate, and a metric's covariate is dormant until a policy enables CUPED.
+
+## Where it applies
+
+CUPED works on **average (mean)** and **conversion-rate** metrics. It composes cleanly with the rest of the engine:
+
+<CardGroup cols={2}>
+  <Card title="With sequential testing" icon="gauge-high" href="/statistics/sequential-testing">
+    Variance reduction narrows the confidence sequence too — you keep the anytime-valid guarantee and reach a conclusion sooner.
+  </Card>
+  <Card title="With winsorization" icon="scissors" href="/statistics/significance">
+    Outlier capping and CUPED stack: cap the extreme tail, then remove the predictable variation from the rest.
+  </Card>
+</CardGroup>
+
+## When it helps most
+
+- Metrics with **high natural variance** between units — revenue, engagement time, order value.
+- Experiments where users have **history** in your product, so the pre-period covariate is meaningful.
+- Any time you want a **decision sooner** without lowering your confidence level.
+
+For brand-new users with no pre-period history, the covariate is simply absent and they're analysed without adjustment — CUPED helps where it can and stays out of the way where it can't.
