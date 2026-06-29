@@ -43,6 +43,19 @@ A sequential result is **interval-based**: significant exactly when the confiden
 
 Everything else stays familiar: the lift, the metric types, and [variance reduction](/statistics/cuped) all work unchanged. Sequential testing only changes how wide the interval is and what guarantee it carries.
 
+## Turning it on
+
+Sequential testing is **off by default** and controlled by a setting at two levels:
+
+- **Project default** — a default for every experiment in the project, set in the project's analysis settings.
+- **Per policy** — each policy can turn it on or off explicitly, overriding the project default. Left unset, a policy inherits the project default.
+
+The effective rule is **policy setting if set, otherwise the project default, otherwise off** — the same model as [CUPED](/statistics/cuped). When it's on for a policy, that policy's results are reported as an anytime-valid confidence sequence instead of a fixed-horizon interval.
+
+<Note>
+  Sequential testing changes how results are *read*, not what data is collected — so you can switch a running experiment between fixed-horizon and sequential and the numbers recompute from the same aggregates.
+</Note>
+
 ## Fixed-horizon is still there
 
 Sequential mode is **opt-in**. If your team genuinely pre-commits to a sample size and looks once, the fixed-horizon test gives a tighter interval for that single check and remains the default. Choose sequential when you want the freedom to watch and stop early.

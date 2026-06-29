@@ -28,7 +28,16 @@ The effective rule is simply: **policy setting if set, otherwise the project def
 
 ## What it measures
 
-When CUPED is on, it adjusts by a **pre-experiment covariate** — by default the metric's own value over a window before each unit was exposed (for example, the two weeks before they first saw the experiment). Where a unit has no pre-period history, it's analysed without adjustment. CUPED only ever removes noise — enabling it never makes an interval wider or changes the lift in expectation.
+When CUPED is on, it adjusts by a **pre-experiment covariate** — the metric's own value over a window before each unit was exposed (for example, the two weeks before they first saw the experiment). Where a unit has no pre-period history, it's analysed without adjustment. CUPED only ever removes noise — enabling it never makes an interval wider or changes the lift in expectation.
+
+## Configuring it on a metric
+
+CUPED needs **two things** to take effect, by design:
+
+1. **A covariate on the metric.** On the metric itself, enable variance reduction and set the **lookback window** (how many days before exposure to measure the covariate). The covariate defaults to the metric's own value over that window. Available on **average (mean)** and **conversion-rate** metrics.
+2. **CUPED enabled on the policy** (or project default), as described above.
+
+If either is missing, the metric is analysed normally — so turning the project default on does nothing until your metrics also carry a covariate, and a metric's covariate is dormant until a policy enables CUPED.
 
 ## Where it applies
 
