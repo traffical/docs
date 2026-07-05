@@ -44,7 +44,8 @@
               "experimentation/feature-flags",
               "experimentation/ab-testing",
               "experimentation/rollouts",
-              "experimentation/optimization"
+              "experimentation/optimization",
+              "experimentation/choosing-an-algorithm"
             ]
           },
           {

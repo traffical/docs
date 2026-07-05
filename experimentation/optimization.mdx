@@ -24,10 +24,12 @@ Stick with static A/B tests when:
 
 | Algorithm | What it does | Best for |
 |-----------|-------------|----------|
-| `thompson_bernoulli` | Beta-Bernoulli Thompson Sampling. Bayesian exploration/exploitation. | Binary outcomes (clicked/didn't, converted/didn't) |
+| `thompson_bernoulli` | Thompson Sampling. Bayesian exploration/exploitation — Beta-Bernoulli for conversion goals, Gaussian with measured variance for count/sum goals. | The default. Binary outcomes and per-user counts or values alike |
 | `epsilon_greedy` | Mostly exploits the best-known variant; explores randomly with probability ε. | Simple baseline with predictable exploration rate |
-| `ucb1` | Upper Confidence Bound. Optimistic exploration that naturally decreases over time. | When you want a deterministic, parameter-free explorer |
+| `ucb1` | Upper Confidence Bound. Optimistic exploration that naturally decreases over time. | A deterministic, parameter-free explorer — pair with conversion-rate goals |
 | `linear_contextual` | Personalized scoring per user via a trained linear model. Resolved locally. | Personalization — when the best variant depends on user context |
+
+Not sure which to pick — or how the goal event shapes what the optimizer learns? See [Choosing an optimization algorithm](/experimentation/choosing-an-algorithm).
 
 ## Setting up an adaptive policy
 
