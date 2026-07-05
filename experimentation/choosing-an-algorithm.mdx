@@ -49,7 +49,7 @@ Start with Thompson Sampling. Deviate only when you have a specific reason:
 |-----------|-----------------|-------------------|
 | **Thompson Sampling** (default) | Samples from its current uncertainty — explores a lot when unsure, exploits when confident | Almost always. Works with all goal types and needs no tuning. |
 | **Epsilon Greedy** | Sends a fixed share of traffic (ε) to random variants, the rest to the current best | You need a predictable, budgeted exploration rate you can explain in one sentence. |
-| **UCB1** | Deterministic optimism — tries whichever variant has the highest plausible upside | You want a parameter-free, non-random explorer. Best paired with **conversion rate** goals; prefer Thompson Sampling for count and sum goals. |
+| **UCB1** | Deterministic optimism — tries whichever variant has the highest plausible upside, with bounds that scale to the measured spread of your rewards | You want a parameter-free, non-random explorer. Works with all goal types; Thompson Sampling remains the recommended default. |
 | **Contextual Bandit** | Learns a per-user model from context features and personalizes the choice | The best variant genuinely differs per user (device, engagement level, referral source) and you can describe users with a few features available at decision time. |
 
 Two quick sanity checks before choosing anything other than Thompson Sampling:
