@@ -84,6 +84,21 @@ The SDK resolves from the bundle. The engine periodically retrains and republish
 | `maxShiftPerUpdate` | Caps how much traffic can move in a single update (e.g. 0.1 = at most 10% of traffic shifts per cycle). |
 | `windowSizeMinutes` | How often the engine re-evaluates. Shorter windows = faster reaction, but noisier. |
 
+## Optimizing with your warehouse
+
+The optimizer's reward source is the policy's **primary metric** — its warehouse aggregates feed the bandit on every tick. On projects with defined events, the goal event you pick simply resolves to that metric for you. On BYO-warehouse projects with no event definitions at all, you declare the goal directly as a metric:
+
+1. **Define a fact** over your own tables (SQL in your warehouse's dialect) — one row per goal action, with the entity key, a timestamp, and an optional value column.
+2. **Create a metric** on that fact — conversion, count, or sum. Ratio metrics can't be optimization goals (the reward would use only the numerator).
+3. **Create the adaptive policy** and pick that metric in the goal step. The goal type follows the metric's type, and the metric is attached as the policy's primary — the optimizer and measurement judge the same quantity by construction.
+
+Two things to know about this contract:
+
+- **The primary metric is authoritative.** Re-pointing the policy's primary metric re-points the optimizer on its next tick. A policy without a resolvable primary metric can't start, and a running one reports a "no goal metric" health failure instead of silently optimizing nothing.
+- **Metrics that should go down work too.** A goal metric with a *decrease* desired direction (error rate, time-to-complete, support contacts) makes the bandit minimize: traffic shifts toward the variant with the lowest reward.
+
+Adaptive policies also require the project to actually be served by Traffical. If yours is a measurement-only deployment — something else entirely decides who sees what, and Traffical purely analyzes — mark the project **externally served** in project settings: adaptive policies are then blocked from starting and the optimizer skips the project, since nothing would read the traffic splits it writes. Note that routing assignment data through your own pipeline (the [BYO assignment logging](/sdks/php#byo-warehouse-native-assignment-logging) pattern) is *not* external serving — the SDK still serves the traffic there, and adaptive optimization works end to end.
+
 ## Contextual bandits
 
 The `linear_contextual` algorithm personalizes selection: different users get different variants based on context features. The training pipeline learns coefficients per allocation per feature; those coefficients ship in the config bundle; the SDK uses them to score each allocation for the current user at resolution time.

@@ -31,6 +31,12 @@ The goal type changes the statistics under the hood, not just the arithmetic:
 
 When you pick a goal event in the dashboard, Traffical suggests a goal type from the event's value type — currency-valued events suggest **sum**, everything else **count** — and you can always override it. You can also change the goal type later in the policy's settings: the attached primary metric follows the goal automatically, so measurement always judges the same quantity the optimizer optimizes.
 
+## No events? Pick a goal metric
+
+The goal event is a convenience: what the optimizer actually reads is the policy's **primary metric**, which the goal event resolves to at creation (the dialog shows it — "Optimizing metric: *purchase Count*"). On warehouse-only projects with no event definitions, the goal step is a metric picker instead: choose any fact-backed conversion, count, or sum metric and the goal type follows the metric. See [Optimizing with your warehouse](/experimentation/optimization#optimizing-with-your-warehouse) for the full recipe.
+
+A goal metric whose desired direction is *decrease* (an error rate, a latency, a cancellation count) makes the optimizer **minimize** — traffic shifts toward the variant with the lowest per-user score. Ratio metrics can't be goals: their reward would use only the numerator.
+
 <Tip>
 If your reward is revenue-like, a handful of extreme users can dominate the signal. Consider winsorizing the corresponding metric so a single outlier order doesn't swing the verdict — see [Metrics](/dashboard/metrics).
 </Tip>
