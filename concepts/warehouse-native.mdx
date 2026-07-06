@@ -76,6 +76,8 @@ Required columns:
 
 If you're using a Traffical SDK to do the assigning, you get the same effect for free — the SDK ships exposure events to Traffical and the platform manages the assignment table for you. You only need to write an assignment definition if assignments come from somewhere else.
 
+The managed assignment table (and the BYO-warehouse assignment-logging path) also carries a few optional columns per assignment: `bucket` (the deterministic bucket the unit hashed into), `propensity` (the probability the SDK gave the chosen allocation at decision time — a fixed split's share, or a bandit's sampled probability), `model_version` (for contextual policies, the coefficient set that scored the decision), and `config_version` (the config bundle the SDK evaluated against). These power honest analysis of adaptive traffic and off-policy evaluation; they're additive and safe to ignore if you don't need them.
+
 ### Fact definitions
 
 A fact definition is SQL that produces outcome events.

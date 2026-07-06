@@ -37,6 +37,8 @@ The goal event is a convenience: what the optimizer actually reads is the policy
 
 A goal metric whose desired direction is *decrease* (an error rate, a latency, a cancellation count) makes the optimizer **minimize** — traffic shifts toward the variant with the lowest per-user score. Ratio metrics can't be goals: their reward would use only the numerator.
 
+The goal can also be a [composite metric](/dashboard/metrics#composite-metrics) — a weighted sum like *revenue minus cost* — so the optimizer trades several outcomes off against each other directly instead of chasing one event.
+
 <Tip>
 If your reward is revenue-like, a handful of extreme users can dominate the signal. Consider winsorizing the corresponding metric so a single outlier order doesn't swing the verdict — see [Metrics](/dashboard/metrics).
 </Tip>

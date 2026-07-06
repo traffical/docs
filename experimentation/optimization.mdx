@@ -159,6 +159,34 @@ To train the model, the platform needs to see the context fields with each expos
 
 Anything outside the allowlist is dropped before storage.
 
+### Typing your context fields
+
+A plain string entry lets the pipeline infer the field's type from the data. You can also **declare** the type, which makes encoding predictable and guards against the classic foot-guns (a raw ID or timestamp entering the model unbounded). An allow-list entry can be an object:
+
+```json
+{
+  "contextLogging": {
+    "allowedFields": [
+      "session.referrer",
+      { "key": "user.device_type", "type": "enum", "values": ["mobile", "desktop", "tablet"] },
+      { "key": "user.engagement_score", "type": "number", "range": [0, 100] },
+      { "key": "user.plan_tier", "type": "enum", "values": ["free", "pro", "enterprise"] },
+      { "key": "session.started_at", "type": "timestamp" }
+    ]
+  }
+}
+```
+
+| Type | Encoding |
+|------|----------|
+| `enum` | One-hot over the declared `values`; an unseen level folds into an `other` bucket (the feature space stays stable across retrains). |
+| `string` | Top-K most frequent values + `other` (set `topK`, default 20). |
+| `number` | Fed to the model directly; the trainer standardizes scale internally, so a 0–100 score sits comfortably next to 0/1 indicators. `range` and quantile `binning` are available for bounded or non-monotonic features. |
+| `boolean` | 0/1. |
+| `timestamp` | Never used raw — expanded into day-of-week, hour-of-day, and is-weekend features. |
+
+Declared fields are encoded deterministically regardless of the traffic window, and editing a declaration retrains the model from scratch so the change takes effect immediately. Fields you leave as plain strings keep the inferred behaviour.
+
 ### When to use contextual bandits
 
 When the optimal variant differs per user, and you can describe "who they are" with a handful of features:

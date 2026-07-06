@@ -42,8 +42,15 @@ Then pick an aggregation:
 | `sum` | Sum of value column | Unique users exposed | Per-user average |
 | `count` | Count of events | Unique users exposed | Per-user rate |
 | `ratio` | Sum of a numerator measure | Sum of a denominator measure | Ratio of totals (e.g. revenue per session) |
+| `composite` | Weighted sum of component metrics | Unique users exposed | Per-user net value |
 
 For `sum`, you also pick the value column (e.g. `order_total`). For `count`, no column is needed. For `ratio`, you pick **two** fact + measure pairs — a numerator (the primary source above) and a denominator — and the engine uses a delta-method standard error. See [Ratio metrics](/statistics/ratio-metrics).
+
+### Composite metrics
+
+A **composite** metric is a weighted sum of components — the way to express a net objective like *revenue minus fulfilment cost*, *success per token*, or *engagement penalised by unsubscribes*. Each component is a fact + aggregation (`binary`/`count`/`sum`) with a **weight** (negative weights subtract — that's how a cost component works), an optional per-user **cap** (whale protection, applied before weighting), and an optional per-component **timeframe**. Per user, the metric is `Σ weight × cap(component)`, and it behaves as a per-user average everywhere downstream (significance, confidence intervals, and adaptive optimization).
+
+Because a composite carries a single per-user reward, it can be an adaptive policy's **goal** — the optimizer maximises (or, with a decrease direction, minimises) the net weighted objective directly, rather than you hand-tuning one event. Components must be fact-backed count/sum/binary metrics; a composite can't nest another composite or use a ratio component.
 
 <Note>
 On **average (mean)** and **conversion-rate** metrics you can also enable **CUPED variance reduction** — a pre-experiment covariate over a lookback window that shrinks confidence intervals. It applies when CUPED is turned on for the policy. See [Variance reduction (CUPED)](/statistics/cuped).
