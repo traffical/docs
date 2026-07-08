@@ -124,6 +124,10 @@
             "pages": ["sdks/javascript", "sdks/react", "sdks/svelte", "sdks/react-native"]
           },
           {
+            "group": "Integrations",
+            "pages": ["sdks/openfeature"]
+          },
+          {
             "group": "Patterns",
             "pages": ["sdks/ssr"]
           }

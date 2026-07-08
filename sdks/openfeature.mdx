@@ -1,0 +1,297 @@
+---
+title: "OpenFeature Provider"
+description: "Drop-in OpenFeature provider for Traffical — register the provider, map targeting keys, signal exposures, and track rewards."
+---
+
+`@traffical/openfeature-server` and `@traffical/openfeature-web` are official [OpenFeature](https://openfeature.dev) providers that wrap the native Traffical SDKs (`@traffical/node` and `@traffical/js-client`). If your team already evaluates flags through the OpenFeature API, you can point it at Traffical without rewriting your call sites — you keep `getBooleanValue`, `getObjectValue`, and friends, and Traffical handles bucketing, decisions, and measurement underneath.
+
+The providers are thin translation layers over the native clients, so they inherit the same SHA-256 bucketing, layered resolution, and contextual-bandit scoring as every other Traffical SDK — a given unit buckets identically whether you resolve through OpenFeature or the native client.
+
+<Note>
+  **Resolve is a decision, not an exposure.** Reading a flag value records an intent-to-treat (ITT) decision. It does **not** record that the user actually saw the treatment. You **must** signal exposure explicitly (or opt into `exposureOnResolve`) — otherwise your primary metrics, SRM health, and optimization stay empty. See [Signalling exposure](#signalling-exposure).
+</Note>
+
+## Installation
+
+Install the provider for your paradigm plus the matching OpenFeature SDK (the OpenFeature SDK is a peer dependency).
+
+<CodeGroup>
+  ```bash Server
+  npm install @traffical/openfeature-server @openfeature/server-sdk
+  ```
+
+  ```bash Web
+  npm install @traffical/openfeature-web @openfeature/web-sdk
+  ```
+</CodeGroup>
+
+Both providers depend on the corresponding native client (`@traffical/node` / `@traffical/js-client`) transitively — you don't install it separately, but you do construct it and hand it to the provider.
+
+## Registering the provider
+
+The provider takes an **already-constructed** Traffical client. You own the client's lifecycle (one instance per process/page); the provider is a membrane over it.
+
+### Server
+
+```typescript
+import { OpenFeature } from "@openfeature/server-sdk";
+import { createTrafficalClient } from "@traffical/node";
+import { TrafficalServerProvider } from "@traffical/openfeature-server";
+
+const traffical = await createTrafficalClient({
+  orgId: "org_acme",
+  projectId: "proj_marketplace",
+  env: "production",
+  apiKey: process.env.TRAFFICAL_API_KEY!,
+});
+
+await OpenFeature.setProviderAndWait(new TrafficalServerProvider(traffical));
+
+const client = OpenFeature.getClient();
+```
+
+The server provider requires OpenFeature **transaction context** (backed by `AsyncLocalStorage`) so that per-request identity and the decision the user saw can be stitched to later exposure and reward events. See [Request scoping](#request-scoping).
+
+### Web
+
+```typescript
+import { OpenFeature } from "@openfeature/web-sdk";
+import { createTrafficalClient } from "@traffical/js-client";
+import { TrafficalWebProvider } from "@traffical/openfeature-web";
+
+const traffical = createTrafficalClient({
+  orgId: "org_acme",
+  projectId: "proj_marketplace",
+  env: "production",
+  clientKey: process.env.TRAFFICAL_CLIENT_KEY!,
+});
+
+// Bind the evaluation context (identity) before setting the provider.
+await OpenFeature.setContext({ targetingKey: "user_789", plan: "pro" });
+await OpenFeature.setProviderAndWait(new TrafficalWebProvider(traffical));
+
+const client = OpenFeature.getClient();
+```
+
+On web the evaluation context is **static** — it's the bound user. When identity changes (login/logout), update it with `OpenFeature.setContext(...)`; the provider clears its current-decision memo and reconciles, and the SDK emits `PROVIDER_CONTEXT_CHANGED`.
+
+### Provider options
+
+Both provider constructors accept an optional second argument:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `unitKey` | `string` | from client config | Context field to bucket on. Overrides the client's configured unit-key field. |
+| `exposureEventName` | `string` | `"$traffical.exposure"` | The reserved tracking event the provider routes to `trackExposure`. |
+| `exposureOnResolve` | `boolean` | `false` | Fire exposure automatically on every resolve. Collapses ToT ≈ ITT — see [Signalling exposure](#signalling-exposure). |
+| `reasonMapping` | `Record<string, string>` | — | Cosmetically relabel the OpenFeature `reason` string. Never changes which events fire. |
+
+## Resolving parameters
+
+Each Traffical **parameter** maps to one OpenFeature **flag**. The four value types line up directly:
+
+```typescript
+const buttonColor = await client.getStringValue("checkout.button.color", "#1E6EFB", {
+  targetingKey: "user_789",
+  plan: "pro",
+});
+
+const showBadges = await client.getBooleanValue("checkout.show_trust_badges", false, {
+  targetingKey: "user_789",
+});
+
+const discountPct = await client.getNumberValue("pricing.discount_pct", 0, {
+  targetingKey: "user_789",
+});
+```
+
+Use `getStringDetails` / `getBooleanDetails` / etc. when you need the full `ResolutionDetails` — the `variant`, `reason`, and `flagMetadata` (including the `decisionId` you'll echo back on exposure):
+
+```typescript
+const details = await client.getStringDetails("checkout.button.color", "#1E6EFB", {
+  targetingKey: "user_789",
+});
+
+details.value;                                  // "#22C55E"
+details.variant;                                // "treatment"
+details.reason;                                 // "SPLIT"
+details.flagMetadata["traffical.decisionId"];   // "dec_abc123"
+```
+
+Types are checked strictly — there is **no** silent coercion (`"true"` never becomes `true`). A type mismatch returns your default with `reason: ERROR` and `errorCode: TYPE_MISMATCH`.
+
+### Targeting key → unit key
+
+OpenFeature identifies the subject with `targetingKey`. Traffical buckets on the project's configured **unit-key field** (e.g. `userId`), *not* a field literally named `targetingKey`. The provider maps them for you: it writes the `targetingKey` into the client's unit-key field before deciding.
+
+```typescript
+// You pass:
+{ targetingKey: "user_789", plan: "pro" }
+
+// The provider decides on (assuming unit key = "userId"):
+{ userId: "user_789", targetingKey: "user_789", plan: "pro" }
+```
+
+Every other context field is available for policy targeting conditions, exactly as with the native SDK. If `targetingKey` is missing the provider throws `TargetingKeyMissingError` (the OpenFeature SDK catches it and returns your default with `reason: ERROR`) — bucketing has no valid identity, so it fails loud rather than silently mis-bucketing to an anonymous id.
+
+<Note>
+  Multi-entity per-layer unit keys (e.g. bucketing one layer on `accountId` and another on `userId`) aren't expressed through `targetingKey`. Pass the additional identifiers as ordinary context attributes.
+</Note>
+
+## Signalling exposure
+
+This is the one thing an OpenFeature integration must not skip.
+
+A **resolve records a decision** (the intent-to-treat / ITT event) — it means "this unit *would* get this variant." A **true exposure** means "this unit actually saw the treatment," and it's a separate, explicit signal. The provider never turns a resolve into an exposure automatically (doing so would erase the ITT-vs-treated distinction), so you fire exposure at render time via the reserved tracking event:
+
+```typescript
+// After the user actually sees the treated experience:
+client.track("$traffical.exposure", context, {
+  flagKey: "checkout.button.color",
+  decisionId: details.flagMetadata["traffical.decisionId"],
+});
+```
+
+The provider looks up the decision by `decisionId` (in the request store, then the client's decision cache), filters it to the flag's owning layer, and calls the native `trackExposure`. It **never** re-decides — a decision it can't find is dropped with a one-time warning rather than synthesized (a re-decide would mint an orphan decision and re-sample propensity against a possibly-refreshed bundle).
+
+<Warning>
+  **Missing exposures leave your measurement empty.** Traffical's default primary metric source is **Exposures (treated / ToT)**, and exposures also gate the **SRM health check** and **bandit/optimization training**. A drop-in integration that resolves flags but never fires `$traffical.exposure` will silently record decisions with:
+
+  - **empty ToT primary metrics** — nothing to compare,
+  - **a blind SRM gate** — imbalance goes undetected,
+  - **a non-learning optimizer** — bandits get no training signal.
+
+  The provider watches for this: if it sees decisions but no exposures past a threshold, it emits a one-time warning and a `PROVIDER_ERROR` telling you to fire `$traffical.exposure` or set `exposureOnResolve`.
+</Warning>
+
+### `exposureOnResolve` — the zero-friction escape hatch
+
+If you can't (or don't want to) thread an explicit render-time signal, set `exposureOnResolve: true`. The resolver then fires the exposure on the decision it just made — same `decisionId`, correct propensity and config version, filtered to the owning layer:
+
+```typescript
+new TrafficalServerProvider(traffical, { exposureOnResolve: true });
+```
+
+This is safe (denominators are per-unit and `trackExposure` dedups), but it **collapses ToT ≈ ITT**: you lose the ability to distinguish "would have been treated" from "was treated." Use it when resolve *is* the render, and prefer the explicit signal when it isn't.
+
+## Request scoping
+
+On the server, exposure and reward events must attach to the same decision the request actually served. The provider does this through OpenFeature's transaction context — wrap each request so the provider has a per-request identity and decision store:
+
+```typescript
+import express from "express";
+import { OpenFeature } from "@openfeature/server-sdk";
+
+const app = express();
+
+app.use((req, res, next) => {
+  const userId = req.session?.userId ?? req.cookies?.anonymousId;
+  OpenFeature.setTransactionContext({ targetingKey: userId }, () => next());
+});
+
+app.get("/checkout", async (req, res) => {
+  const client = OpenFeature.getClient();
+
+  // Resolves within this request share one decision (one decisionId).
+  const color = await client.getStringValue("checkout.button.color", "#1E6EFB");
+  const badges = await client.getBooleanValue("checkout.show_trust_badges", false);
+
+  res.render("checkout", { color, badges });
+});
+```
+
+Everything resolved inside the transaction shares one decision, so:
+
+- one request → one `decisionId`,
+- exposure and reward events find *the* decision without re-deriving identity from their own call's context,
+- the ITT population for co-resolved flags matches a native batched `decide()`.
+
+The store is discarded at request end — no cross-request bleed, no unbounded growth.
+
+<Note>
+  The server provider supports `evaluationMode: "bundle"` clients (local, per-request context). A `"server"`-mode client resolves against a background-polled snapshot with an empty context and ignores per-request `targetingKey`, so it can't do per-request targeting — the provider warns if you construct it with one.
+</Note>
+
+## Flag metadata
+
+Every resolution carries Traffical internals in `flagMetadata` under the `traffical.*` prefix. All values are scalars (`string | number | boolean`):
+
+| Key | Description |
+|-----|-------------|
+| `traffical.decisionId` | The decision this resolution belongs to. **Echo this back on `$traffical.exposure`.** |
+| `traffical.policyId` / `traffical.policyKey` | The policy that produced the assignment. |
+| `traffical.allocationId` / `traffical.allocationKey` | The allocation (arm) the unit landed in. |
+| `traffical.layerId` | The owning layer for this flag. |
+| `traffical.bucket` | The bucket index. Omitted when `-1` (no bucketed allocation). |
+| `traffical.propensity` | Selection probability. Omitted for static policies; **not exposed on web**. |
+| `traffical.modelVersion` | Bandit model version. Omitted for static policies; **not exposed on web**. |
+| `traffical.configVersion` | The config bundle version that produced this decision. |
+
+Metadata reflects the flag's **owning layer** — never a sibling experiment's layer that the unit happens to be bucketed into. On web, bandit internals (`propensity`, `modelVersion`) are gated out because `flagMetadata` is visible in browser devtools.
+
+## Tracking rewards
+
+Business events (conversions, revenue, engagement) go through OpenFeature's `track`. Pass a numeric reward under the standard `value` field; put everything else in the metadata object:
+
+```typescript
+// Conversion with a numeric reward value
+client.track("purchase", context, { value: 49.99, currency: "USD" });
+
+// Action without a value
+client.track("add_to_cart", context);
+```
+
+The provider always sets the `unitKey` from the request's `targetingKey` (server) or bound identity (web) — if it can't derive one it fails loud rather than emitting an unjoinable event. Reward metrics join to first exposure temporally on `unit_key`, so **a correct unit key is all reward correctness requires** — carry `flagKey` and other fields as metadata, never inside the numeric `value`.
+
+## Co-measured parameters: the object-flag pattern
+
+By default, one parameter is one flag, each with its own exposure. Deterministic bucketing keeps a unit consistent across flags, so this is the natural model.
+
+When several parameters make up **one variant that must be measured together**, model them as a single `json` object-flag instead. One flag → one variant → one exposure, and it's the ITT-parity option (the whole bundle is decided and exposed as a unit):
+
+```typescript
+const checkout = await client.getObjectValue(
+  "checkout.experience",
+  { buttonColor: "#1E6EFB", headline: "Complete your order", showBadges: false },
+  { targetingKey: "user_789" },
+);
+
+checkout.buttonColor;   // "#22C55E"
+checkout.headline;      // "Almost there!"
+checkout.showBadges;    // true
+
+// One flag, one exposure for the whole co-measured variant:
+const details = await client.getObjectDetails("checkout.experience", {}, { targetingKey: "user_789" });
+client.track("$traffical.exposure", { targetingKey: "user_789" }, {
+  flagKey: "checkout.experience",
+  decisionId: details.flagMetadata["traffical.decisionId"],
+});
+```
+
+Reach for the object-flag when parameters are interdependent (they only make sense evaluated together) or when experiments must share one ITT population. Keep separate flags when parameters vary independently.
+
+## Measurement fidelity
+
+A few honest properties worth knowing:
+
+- **ITT is reshaped, not inflated.** Denominators are per-unit, so resolve-without-render and repeat resolves don't inflate ITT. But because sibling `attributionOnly` layers are dropped from the ITT source, per-key resolution records a co-running experiment's ITT only when *its own* flag is resolved. Batched per-request decisions (server) and the object-flag pattern restore native parity when you need co-measured populations.
+- **Exposures gate the primary path** (ToT, SRM, optimization) — see the warning above.
+- **Reward metrics need only `unit_key`;** the attribution array is auxiliary (dashboard breakdowns).
+- **Propensity is captured faithfully** on the exposure event and is future-enabling (off-policy evaluation), not a present correctness requirement. Its capture depends on exposures firing and on never re-deciding.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Node.js SDK" icon="node-js" href="/sdks/node">
+    The native server client the provider wraps.
+  </Card>
+  <Card title="Events & metrics" icon="chart-line" href="/concepts/events-and-metrics">
+    How exposures and rewards become metrics.
+  </Card>
+  <Card title="Decisions & attribution" icon="link" href="/concepts/assignments">
+    What `decisionId` stitches together.
+  </Card>
+  <Card title="Optimization" icon="wand-magic-sparkles" href="/experimentation/optimization">
+    How exposures train the bandit.
+  </Card>
+</CardGroup>
