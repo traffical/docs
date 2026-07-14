@@ -38,7 +38,7 @@ const traffical = await createTrafficalClient({
 });
 ```
 
-Use `createTrafficalClient` (async) when you can `await` at startup — it waits for the first bundle fetch. If you can't await (e.g. in module top-level code where top-level await isn't available), use `createTrafficalClientSync` and call `await traffical.waitUntilReady()` before the first resolution.
+Use `createTrafficalClient` (async) when you can `await` at startup — it waits for the first bundle fetch. If you can't await (e.g. in module top-level code where top-level await isn't available), use `createTrafficalClientSync` and call `await traffical.waitForReady()` before the first resolution. `waitForReady()` resolves once the first config load completes — and still resolves (never hangs) when the SDK fails open on an unavailable or malformed bundle.
 
 ### Options
 
@@ -51,28 +51,41 @@ Use `createTrafficalClient` (async) when you can `await` at startup — it waits
 | `baseUrl` | `string` | `https://sdk.traffical.io` | SDK API base URL |
 | `refreshIntervalMs` | `number` | `60000` | How often to re-fetch the bundle |
 | `localConfig` | `ConfigBundle` | — | Embed a bundle for instant cold-start |
+| `evaluationMode` | `"bundle" \| "server"` | `"bundle"` | Resolve locally from the bundle, or delegate to the edge per call. See [how it works](/how-it-works#evaluation-modes) |
 | `eventBatchSize` | `number` | `10` | Events per batch before flushing |
 | `eventFlushIntervalMs` | `number` | `30000` | Max time before flushing pending events |
+| `eventMaxQueueSize` | `number` | `1000` | Max events buffered before the oldest is dropped |
+| `requestTimeoutMs` | `number` | `10000` | Timeout for the config fetch and event POSTs; a timeout is treated as a network failure |
 | `trackDecisions` | `boolean` | `true` | Emit decision events alongside exposures |
-| `attributionMode` | `"cumulative" \| "decision"` | `"cumulative"` | Track-event attribution strategy |
+| `decisionDeduplicationTtlMs` | `number` | `3600000` | Window in which the same unit + assignment won't re-emit a decision event |
+| `deduplicateExposures` | `boolean` | `true` | Dedup exposure events per (unit, policy, allocation) within a session |
+| `exposureSessionTtlMs` | `number` | `1800000` | Exposure-dedup session TTL (30 min) |
+| `disableCloudEvents` | `boolean` | `false` | Stop sending events to Traffical (config is still fetched) |
+| `assignmentLogger` | `AssignmentLogger` | — | Route assignment rows to your own warehouse pipeline |
 
 ## Resolving parameters
 
 ```typescript
-const params = traffical.getParams({
-  context: { userId: "user_789", locale: "en-US", plan: "pro" },
-  defaults: {
+const params = traffical.getParams(
+  { userId: "user_789", locale: "en-US", plan: "pro" },
+  {
     "checkout.button.color": "#1E6EFB",
     "checkout.headline": "Complete your order",
     "checkout.show_trust_badges": false,
     "pricing.discount_pct": 0,
   },
-});
+);
 
 params["checkout.button.color"];     // "#22C55E" if assigned to treatment
 params["checkout.show_trust_badges"]; // true if policy overrides it
 params["pricing.discount_pct"];       // 0 (no policy → default)
 ```
+
+Both `getParams(context, defaults)` and `decide(context, defaults)` take **context first, defaults second**, and both are **synchronous**.
+
+<Note>
+The legacy object-bag form — `getParams({ context, defaults })` / `decide({ context, defaults })` — still works but is deprecated. Prefer the positional form above.
+</Note>
 
 ### Context
 
@@ -87,13 +100,13 @@ Always pass defaults for every parameter you read. They're the fallback when no 
 
 ## Decisions vs `getParams`
 
-`getParams` returns just the resolved values. `decide` returns a full decision record with `decisionId` and the layer-by-layer assignments — useful when you want to pass the decision ID downstream:
+`getParams` returns just the resolved values. `decide` (also synchronous) returns a full `DecisionResult` — a `decisionId`, the resolved `assignments`, and per-decision `metadata` (unit key value, per-layer resolution rows, config version) — useful when you want to pass the decision ID downstream:
 
 ```typescript
-const decision = traffical.decide({
-  context: { userId: req.user.id },
-  defaults: { "recommendations.algorithm": "collaborative" },
-});
+const decision = traffical.decide(
+  { userId: req.user.id },
+  { "recommendations.algorithm": "collaborative" },
+);
 
 const recs = await getRecommendations(req.user.id, decision.assignments["recommendations.algorithm"]);
 
@@ -107,31 +120,44 @@ See [decisions & attribution](/concepts/assignments) for when this matters.
 
 ## Tracking events
 
+`track(event, properties?, options?)` — the event name first, an optional `properties` payload second, and an options bag third:
+
 ```typescript
 // Conversion with a value
-traffical.track("purchase", {
-  unitKey: "user_789",
-  properties: { order_total: 49.99, currency: "USD" },
-});
+traffical.track(
+  "purchase",
+  { order_total: 49.99, currency: "USD" },
+  { unitKey: "user_789", value: 49.99 },
+);
 
 // Action without a value
-traffical.track("add_to_cart", { unitKey: "user_789" });
+traffical.track("add_to_cart", {}, { unitKey: "user_789" });
 
 // Cross-process — attribute to a specific decision
-traffical.track("page_view", {
-  unitKey: "user_789",
-  decisionId: "dec_abc123",
-  properties: { path: "/checkout" },
-});
+traffical.track(
+  "page_view",
+  { path: "/checkout" },
+  { unitKey: "user_789", decisionId: "dec_abc123" },
+);
 ```
 
-### Track options
+### Track arguments
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `unitKey` | `string` | yes | The user ID (or whatever the project's unit key is) |
-| `properties` | `object` | no | Event payload — anything relevant |
-| `decisionId` | `string` | no | Tie this event to a specific decision (cross-process) |
+| Argument | Type | Description |
+|----------|------|-------------|
+| `event` | `string` | Event name (positional, required) |
+| `properties` | `object` | Event payload (positional, optional) |
+| `options` | `TrackEventOptions` | Options bag (positional, optional) — see below |
+
+`TrackEventOptions` fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `unitKey` | `string` | The user ID (or whatever the project's unit key is). On the server there is no auto stable ID, so pass this |
+| `decisionId` | `string` | Tie this event to a specific decision (cross-process) |
+| `value` | `number` | Single numeric value (e.g. revenue); falls back to `properties.value` |
+| `values` | `Record<string, number>` | Multiple named numeric values for multi-objective optimization |
+| `eventTimestamp` | `string` | Explicit event time (ISO 8601); defaults to "now" |
 
 ## Express middleware pattern
 
@@ -151,13 +177,13 @@ const traffical = await createTrafficalClient({
 app.use((req, res, next) => {
   const userId = req.session?.userId ?? req.cookies?.anonymousId;
   if (userId) {
-    req.traffical = traffical.getParams({
-      context: { userId, locale: req.headers["accept-language"] },
-      defaults: {
+    req.traffical = traffical.getParams(
+      { userId, locale: req.headers["accept-language"] },
+      {
         "checkout.button.color": "#1E6EFB",
         "checkout.show_trust_badges": false,
       },
-    });
+    );
   }
   next();
 });
@@ -178,25 +204,27 @@ Generate TypeScript types from your event definitions to catch invalid event nam
 bunx @traffical/cli generate-types
 ```
 
+Instantiate the client with your generated event map and `track` is type-checked against it — event names and their property shapes:
+
 ```typescript
+import { createTrafficalClient } from "@traffical/node";
 import type { TrafficalEventProperties } from "./traffical.generated";
 
-type TypedTrack = <E extends keyof TrafficalEventProperties>(
-  event: E,
-  options: { unitKey: string; properties?: TrafficalEventProperties[E]; decisionId?: string }
-) => void;
-
-const track = traffical.track.bind(traffical) as TypedTrack;
-
-track("purchase", {
-  unitKey: "user_789",
-  properties: { order_total: 99.99, payment_method: "visa" },     // ✅
+const traffical = await createTrafficalClient<TrafficalEventProperties>({
+  orgId, projectId, env, apiKey,
 });
 
-track("purchase", {
-  unitKey: "user_789",
-  properties: { order_total: 99.99, unknown_field: true },        // ❌ compile error
-});
+traffical.track(
+  "purchase",
+  { order_total: 99.99, payment_method: "visa" },   // ✅
+  { unitKey: "user_789" },
+);
+
+traffical.track(
+  "purchase",
+  { order_total: 99.99, unknown_field: true },       // ❌ compile error
+  { unitKey: "user_789" },
+);
 ```
 
 ## Error handling
