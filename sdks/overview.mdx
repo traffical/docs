@@ -23,7 +23,7 @@ Most SDKs support two evaluation modes:
 | Mode | Behaviour | Default for |
 |------|-----------|-------------|
 | `bundle` | SDK fetches the bundle and resolves locally. Sub-millisecond. | Node, PHP, web browser, React, Svelte |
-| `server` | SDK calls Traffical for each resolution. Fresh state, higher latency. | React Native |
+| `server` | Each resolution is evaluated for that call's context on the edge, and the response is cached. Fresh state, higher latency. | React Native |
 
 You usually want `bundle`. Use `server` when caching a full bundle isn't reasonable (very limited memory, very rare resolutions) or for per-entity adaptive policies that need the freshest possible weights.
 

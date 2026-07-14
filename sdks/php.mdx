@@ -5,7 +5,7 @@ description: "Server-side SDK for PHP 8.1+ — install, initialize, resolve para
 
 `traffical/sdk` is the official server-side SDK for PHP (`^8.1`). It fetches the config bundle, caches it (shared across PHP-FPM workers via a PSR-16 store), resolves parameters locally per request, and flushes events **after** the response is returned so experimentation never adds latency to the user-visible request.
 
-It shares the language-agnostic [Traffical SDK spec](/sdks/overview#source-code) with the TypeScript and Swift SDKs — same SHA-256 v2 (UTF-8 byte) bucketing, same layered resolution engine, same contextual-bandit scoring — so a given unit buckets identically on every platform.
+It shares the language-agnostic [Traffical SDK spec](/sdks/overview#source-code) with the TypeScript and Swift SDKs — the same [SHA-256 v2 bucketing](/how-it-works#local-resolution), the same layered resolution engine, the same contextual-bandit scoring — so a given unit buckets identically on every platform.
 
 ## Installation
 
@@ -28,7 +28,7 @@ use Traffical\ClientOptions;
 
 $client = new Client(new ClientOptions(
     orgId: 'org_acme',
-    projectId: 'prj_marketplace',
+    projectId: 'proj_marketplace',
     env: 'production',
     apiKey: getenv('TRAFFICAL_API_KEY'),
 ));
@@ -51,7 +51,13 @@ $client = new Client(new ClientOptions(
 | `assignmentLogger` | `callable\|AssignmentLogger` | `null` | BYO warehouse-native assignment logger |
 | `disableCloudEvents` | `bool` | `false` | Stop sending events to Traffical |
 | `deduplicateAssignmentLogger` | `bool` | `true` | Dedup logger calls per request |
-| `eventBatchSize` | `int` | `10` | Events per batch before auto-flushing |
+| `batchSize` | `int` | `10` | Events per batch before auto-flushing |
+| `flushIntervalMs` | `int` | `30000` | Event flush cadence (PHP flushes on batch-full or request end) |
+| `configTimeoutMs` | `int` | `10000` | Config-fetch request timeout |
+| `eventsTimeoutMs` | `int` | `10000` | Event-delivery request timeout |
+| `resolveTimeoutMs` | `int` | `5000` | Server-resolve request timeout (`server` mode) |
+| `deduplicateExposures` | `bool` | `true` | Session-dedup exposure events per (unit, layer, allocation) |
+| `exposureSessionTtlMs` | `int` | `1800000` | Exposure-dedup session TTL (30 min) |
 | `httpClient`, `requestFactory`, `streamFactory` | PSR-18/17 | discovered | HTTP seams |
 | `cache` | `CacheInterface` | `null` | PSR-16 shared store (FPM workers share one bundle) |
 | `logger` | `LoggerInterface` | `NullLogger` | PSR-3 logger |
@@ -107,12 +113,20 @@ See [decisions & attribution](/concepts/assignments) for when this matters.
 
 ## Tracking events
 
+`track(string $event, ?array $properties = null, ?TrackOptions $options = null)` — the event name first, an optional `properties` array second, and a `TrackOptions` bag third (`decisionId`, `unitKey`, `value`, `values`, `eventTimestamp`):
+
 ```php
+use Traffical\TrackOptions;
+
 // Conversion with a value, attributed to a decision
-$client->track('checkout_completed', ['revenue' => 49.0, 'currency' => 'USD'], $decision->decisionId);
+$client->track(
+    'checkout_completed',
+    ['currency' => 'USD'],
+    new TrackOptions(value: 49.0, decisionId: $decision->decisionId, unitKey: 'user_789'),
+);
 
 // Action without a decision context
-$client->track('add_to_cart', ['sku' => 'ABC-123']);
+$client->track('add_to_cart', ['sku' => 'ABC-123'], new TrackOptions(unitKey: 'user_789'));
 ```
 
 If you're running an adaptive policy, the optimization engine uses these events as reward signals to learn which variants perform best.
@@ -124,7 +138,7 @@ Delegate resolution to the edge worker instead of evaluating a local bundle. Eac
 ```php
 $client = new Client(new ClientOptions(
     orgId: 'org_acme',
-    projectId: 'prj_marketplace',
+    projectId: 'proj_marketplace',
     env: 'production',
     apiKey: getenv('TRAFFICAL_API_KEY'),
     evaluationMode: 'server',
@@ -138,7 +152,7 @@ PHP's request/response model differs from a long-lived Node process. On construc
 1. Calls `fastcgi_finish_request()` **if available**, returning the buffered HTTP response to the client immediately.
 2. Flushes queued decision/exposure/track events over PSR-18 HTTP — fire-and-forget, so transport errors are caught and logged via PSR-3 and never surface to the user.
 
-Events also flush automatically once the in-memory queue reaches `eventBatchSize` (default `10`).
+Events also flush automatically once the in-memory queue reaches `batchSize` (default `10`).
 
 ### CLI, queue workers, and long-running processes
 
@@ -153,7 +167,7 @@ foreach ($jobs as $job) {
 }
 ```
 
-Or call `$client->destroy()` at shutdown, which runs plugin `onDestroy` hooks and flushes.
+Or call `$client->close()` at shutdown — the single teardown verb, which runs plugin teardown (`onDestroy`) hooks and awaits a final flush.
 
 ### Sharing config across FPM workers
 
@@ -180,7 +194,7 @@ $logger = new WarehouseNativeLogger(function (array $row): void {
 
 $client = new Client(new ClientOptions(
     orgId: 'org_acme',
-    projectId: 'prj_marketplace',
+    projectId: 'proj_marketplace',
     env: 'production',
     apiKey: getenv('TRAFFICAL_API_KEY'),
     assignmentLogger: $logger,
