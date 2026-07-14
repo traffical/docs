@@ -75,7 +75,7 @@ Use `useTraffical` in any component:
 
 ## Setting context
 
-Pass context through the provider:
+`TrafficalProvider` takes exactly two props: `config` and `children`. Context is supplied through `config.contextFn` — a function called on each resolution, so hooks re-resolve when the values it returns change:
 
 ```svelte
 <script lang="ts">
@@ -83,11 +83,6 @@ Pass context through the provider:
   import { page } from "$app/state";
 
   let { children } = $props();
-
-  let context = $derived({
-    userId: page.data.user?.id ?? "anonymous",
-    locale: navigator.language,
-  });
 </script>
 
 <TrafficalProvider
@@ -96,12 +91,17 @@ Pass context through the provider:
     projectId: "proj_marketplace",
     env: "production",
     apiKey: import.meta.env.PUBLIC_TRAFFICAL_API_KEY,
+    contextFn: () => ({
+      userId: page.data.user?.id ?? "anonymous",
+      locale: navigator.language,
+    }),
   }}
-  {context}
 >
   {@render children()}
 </TrafficalProvider>
 ```
+
+To customize the unit key, pass `unitKeyFn` inside `config` as well.
 
 ## SvelteKit SSR
 
@@ -138,14 +138,18 @@ export async function load({ fetch }) {
     projectId: "proj_marketplace",
     env: "production",
     apiKey: import.meta.env.PUBLIC_TRAFFICAL_API_KEY,
-    localConfig: data.traffical.bundle,
+    initialBundle: data.traffical.bundle,
   }}
 >
   {@render children()}
 </TrafficalProvider>
 ```
 
-The server resolves with the bundle. The client picks up the same bundle via `localConfig` and hydrates without a second fetch. No flash of original content.
+The server resolves with the bundle. The client picks up the same bundle via `initialBundle` and hydrates without a second fetch. No flash of original content.
+
+<Note>
+The server-fetched bundle goes through `initialBundle` — that is what marks the provider ready during SSR. `localConfig` is the separate build-time/offline fallback bundle. Without an `initialBundle` (client-only usage), `params` start at your defaults and update as soon as the first background fetch lands.
+</Note>
 
 See [SSR patterns](/sdks/ssr) for the full pattern, including per-page pre-resolution.
 
@@ -153,14 +157,16 @@ See [SSR patterns](/sdks/ssr) for the full pattern, including per-page pre-resol
 
 The Svelte SDK uses the browser client's stable-ID handling. When the user logs in:
 
+`useTrafficalClient()` returns `{ client, ready, error }` — destructure `client` (it can be `null` until the provider initializes):
+
 ```svelte
 <script lang="ts">
   import { useTrafficalClient } from "@traffical/svelte";
 
-  const client = useTrafficalClient();
+  const { client } = useTrafficalClient();
 
   function login(user) {
-    client.identify(user.id);
+    client?.identify(user.id);
   }
 </script>
 ```
