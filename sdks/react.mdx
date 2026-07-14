@@ -143,28 +143,33 @@ function Login() {
 
 ## SSR (Next.js, RSC)
 
-For Next.js (App Router or Pages), fetch the bundle on the server and pass it as `localConfig`:
+For Next.js (App Router or Pages), fetch the bundle on the server and pass it to `TrafficalProvider` as `localConfig`. There is no `@traffical/react/server` entry point — fetch the config bundle directly from the SDK config endpoint (the same one the client SDK calls):
 
 ```tsx
 // app/layout.tsx (RSC)
-import { fetchBundle } from "@traffical/react/server";
 import { TrafficalProvider } from "@traffical/react";
 
+async function fetchBundle() {
+  const res = await fetch(
+    "https://sdk.traffical.io/v1/config/proj_marketplace?env=production",
+    {
+      headers: { Authorization: `Bearer ${process.env.TRAFFICAL_API_KEY!}` },
+      next: { revalidate: 60 },   // cache via Next.js fetch integration
+    },
+  );
+  return res.ok ? res.json() : null;
+}
+
 export default async function RootLayout({ children }) {
-  const bundle = await fetchBundle({
-    orgId: "org_acme",
-    projectId: "proj_marketplace",
-    env: "production",
-    apiKey: process.env.TRAFFICAL_API_KEY!,    // server-only
-  });
+  const bundle = await fetchBundle();
 
   return (
     <TrafficalProvider config={{
       orgId: "org_acme",
       projectId: "proj_marketplace",
       env: "production",
-      apiKey: process.env.NEXT_PUBLIC_TRAFFICAL_API_KEY!,    // public
-      localConfig: bundle,
+      apiKey: process.env.NEXT_PUBLIC_TRAFFICAL_API_KEY!,
+      localConfig: bundle,   // server + client resolve from the same bundle → no flash
     }}>
       {children}
     </TrafficalProvider>
@@ -172,7 +177,7 @@ export default async function RootLayout({ children }) {
 }
 ```
 
-See the [SSR patterns](/sdks/ssr) page for the full setup.
+The same `traffical_sk_...` SDK key is browser-safe, so there is no separate server secret for the SDK path. See the [SSR patterns](/sdks/ssr) page for the full setup, including the Pages Router.
 
 ## Standalone tracking
 
@@ -189,14 +194,18 @@ function Footer() {
 
 ## Direct client access
 
-If you need to do something the hooks don't expose, get the underlying client:
+If you need to do something the hooks don't expose, get the underlying client. `useTrafficalClient()` returns `{ client, ready, error }` — the client can be `null` until the provider has initialized, so guard it:
 
 ```tsx
 import { useTrafficalClient } from "@traffical/react";
 
 function DebugPanel() {
-  const client = useTrafficalClient();
-  return <button onClick={() => client.flushEvents()}>Flush</button>;
+  const { client, ready } = useTrafficalClient();
+  return (
+    <button disabled={!ready || !client} onClick={() => client?.flushEvents()}>
+      Flush
+    </button>
+  );
 }
 ```
 
