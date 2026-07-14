@@ -43,16 +43,22 @@ Use an **SDK key** (`traffical_sk_...`, scopes `sdk:read`+`sdk:write`) in browse
 ## Resolving parameters
 
 ```typescript
-const params = traffical.getParams({
-  context: { userId: "user_789" },
-  defaults: {
+const params = traffical.getParams(
+  { userId: "user_789" },
+  {
     "homepage.hero_headline": "Welcome back",
     "homepage.show_banner": true,
   },
-});
+);
 
 document.querySelector("h1")!.textContent = params["homepage.hero_headline"];
 ```
+
+Both `getParams(context, defaults)` and `decide(context, defaults)` take **context first, defaults second**, and both are **synchronous**. In the browser you can usually omit the unit key — the SDK fills it from the auto-generated stable ID (see below).
+
+<Note>
+The legacy object-bag form — `getParams({ context, defaults })` / `decide({ context, defaults })` — still works but is deprecated. Prefer the positional form.
+</Note>
 
 An exposure event is emitted automatically the first time a user/assignment combination is resolved in a session.
 
@@ -80,16 +86,43 @@ You can read the current stable ID with `traffical.getStableId()`. After `identi
 
 ## Tracking events
 
-```typescript
-traffical.track("signup", { unitKey: "user_789" });
+`track(event, properties?, options?)` — the event name first, an optional `properties` payload second, and an options bag (`unitKey`, `decisionId`, `value`, `values`, `eventTimestamp`) third. In the browser `unitKey` defaults to the current stable ID, so you rarely pass it:
 
-traffical.track("purchase", {
-  unitKey: "user_789",
-  properties: { order_total: 29.99, currency: "USD" },
-});
+```typescript
+traffical.track("signup");
+
+traffical.track("purchase", { order_total: 29.99, currency: "USD" }, { value: 29.99 });
 ```
 
 Events are batched in memory and flushed in the background.
+
+## Lifecycle
+
+`createTrafficalClient` (async) awaits the first bundle fetch. When you can't await at construction, use `createTrafficalClientSync` and await readiness before the first resolution:
+
+```typescript
+import { createTrafficalClientSync } from "@traffical/js-client";
+
+const traffical = createTrafficalClientSync({ orgId, projectId, env, apiKey });
+await traffical.initialize();
+await traffical.waitForReady();   // resolves once config loads — or fails open; never hangs
+```
+
+Force a flush of queued events (e.g. after a critical conversion, before navigating):
+
+```typescript
+await traffical.flushEvents();
+```
+
+Tear the client down with the single teardown verb, `close()`. It stops the background refresh and awaits a final event flush before returning (on page unload it falls back to `sendBeacon` so the last batch still ships):
+
+```typescript
+await traffical.close();
+```
+
+<Note>
+`destroy()` still exists but is deprecated — prefer `close()`, which awaits the final flush.
+</Note>
 
 ## Options
 
@@ -104,9 +137,17 @@ Events are batched in memory and flushed in the background.
 | `localConfig` | `ConfigBundle` | — | Embedded bundle for cold-start |
 | `evaluationMode` | `"bundle" \| "server"` | `"bundle"` | See [how it works](/how-it-works#evaluation-modes) |
 | `attributionMode` | `"cumulative" \| "decision"` | `"cumulative"` | Track-event attribution strategy |
+| `eventBatchSize` | `number` | `10` | Events per batch before flushing |
+| `eventFlushIntervalMs` | `number` | `30000` | Max time before flushing pending events |
+| `eventMaxQueueSize` | `number` | `1000` | Max events buffered before the oldest is dropped |
+| `requestTimeoutMs` | `number` | `10000` | Timeout for the config fetch and event POSTs |
+| `exposureSessionTtlMs` | `number` | `1800000` | Exposure-dedup session TTL (30 min) |
 | `trackDecisions` | `boolean` | `true` | Emit decision events alongside exposures |
+| `decisionDeduplicationTtlMs` | `number` | `3600000` | Window in which the same unit + assignment won't re-emit a decision event |
+| `disableCloudEvents` | `boolean` | `false` | Stop sending events to Traffical (config is still fetched) |
 | `disableAutoStableId` | `boolean` | `false` | Disable auto-generation of `stableId` |
 | `storage` | `StorageProvider` | `LocalStorageProvider` | Persistence for the stable ID |
+| `assignmentLogger` | `AssignmentLogger` | — | Route assignment rows to your own warehouse pipeline |
 | `plugins` | `TrafficalPlugin[]` | `[]` | Plugins (DOM bindings, redirect tests, devtools) |
 
 ## Bundle caching
