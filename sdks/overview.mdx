@@ -35,10 +35,14 @@ See [how it works](/how-it-works#evaluation-modes) for details.
 |---------|------------|--------------|
 | [`@traffical/node`](/sdks/node) | Server (Node.js / Bun) | `bundle` |
 | [`traffical/sdk`](/sdks/php) | Server (PHP 8.1+) | `bundle` |
+| [`traffical`](/sdks/python) | Server (Python 3.10+) | `bundle` |
 | [`@traffical/js-client`](/sdks/javascript) | Browser, framework-free | `bundle` |
 | [`@traffical/react`](/sdks/react) | React (browser, RSC) | `bundle` |
 | [`@traffical/svelte`](/sdks/svelte) | Svelte + SvelteKit | `bundle` |
+| [`Traffical`](/sdks/ios) | Native iOS / macOS / tvOS / watchOS (Swift) | `bundle` |
 | [`@traffical/react-native`](/sdks/react-native) | iOS / Android via React Native | `server` |
+| [`@traffical/openfeature-server`](/sdks/openfeature) | Server, via OpenFeature | `bundle` |
+| [`@traffical/openfeature-web`](/sdks/openfeature) | Browser, via OpenFeature | `bundle` |
 
 All SDKs share a common core that implements bundle parsing, bucket hashing, condition evaluation, and resolution — `@traffical/core` for the TypeScript SDKs, mirrored by the PHP and Swift engines against the same language-agnostic spec. Whichever language or framework you use, the same parameter resolves to the same allocation for the same user.
 
@@ -46,16 +50,19 @@ All SDKs share a common core that implements bundle parsing, bucket hashing, con
 
 - **Node.js / Bun backend** → `@traffical/node`. Server runtime, in-memory bundle, sub-ms resolution.
 - **PHP backend (Laravel, Symfony, plain PHP-FPM)** → `traffical/sdk`. Local resolution, PSR-first, events flushed after the response.
+- **Python backend (Django, FastAPI, Flask, Celery)** → `traffical`. Sync + asyncio clients, fork-safe local resolution.
 - **React single-page app or RSC** → `@traffical/react`. Provider + `useTraffical` hook.
 - **SvelteKit or Svelte 5** → `@traffical/svelte`. SSR-friendly with `loadTrafficalBundle()`.
 - **Plain browser app (Vue, no framework, vanilla)** → `@traffical/js-client`. Direct API.
+- **Native iOS / macOS / tvOS / watchOS (Swift)** → `Traffical`. SwiftPM, Keychain stable ID, offline baked bundle.
 - **Mobile (iOS / Android via React Native)** → `@traffical/react-native`.
+- **Already standardized on OpenFeature** → `@traffical/openfeature-server` / `@traffical/openfeature-web`. Keep your call sites, swap the provider.
 
 You can mix server and client SDKs in the same app. A common pattern is to resolve on the server for the initial render (no flash of original content) and let the client SDK handle interactive updates. See [SSR patterns](/sdks/ssr).
 
 ## Source code
 
-The TypeScript SDK packages live in a public repository at [github.com/traffical/js-sdk](https://github.com/traffical/js-sdk), and the PHP SDK at [github.com/traffical/php-sdk](https://github.com/traffical/php-sdk). Both are MIT-licensed and gated on a shared, language-agnostic conformance spec so bucketing is identical across languages. The [`@traffical/cli`](/tools/cli) lives in a separate public repository.
+The TypeScript SDK packages live in a public repository at [github.com/traffical/js-sdk](https://github.com/traffical/js-sdk), the PHP SDK at [github.com/traffical/php-sdk](https://github.com/traffical/php-sdk), the Python SDK at [github.com/traffical/python-sdk](https://github.com/traffical/python-sdk), and the Swift SDK at [github.com/traffical/ios-sdk](https://github.com/traffical/ios-sdk). All are MIT-licensed and gated on a shared, language-agnostic conformance spec so bucketing is identical across languages. The [`@traffical/cli`](/tools/cli) lives in a separate public repository.
 
 ## Next steps
 
@@ -65,6 +72,12 @@ The TypeScript SDK packages live in a public repository at [github.com/traffical
   </Card>
   <Card title="PHP" icon="php" href="/sdks/php">
     Server-side SDK for PHP 8.1+.
+  </Card>
+  <Card title="Python" icon="python" href="/sdks/python">
+    Sync + asyncio, fork-safe.
+  </Card>
+  <Card title="iOS" icon="apple" href="/sdks/ios">
+    Native Swift for iOS, macOS, tvOS, watchOS.
   </Card>
   <Card title="React" icon="react" href="/sdks/react">
     Provider, hooks, SSR.
