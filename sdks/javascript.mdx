@@ -137,10 +137,12 @@ await traffical.close();
 | `localConfig` | `ConfigBundle` | — | Embedded bundle for cold-start |
 | `evaluationMode` | `"bundle" \| "server"` | `"bundle"` | See [how it works](/how-it-works#evaluation-modes) |
 | `attributionMode` | `"cumulative" \| "decision"` | `"cumulative"` | Track-event attribution strategy |
-| `eventBatchSize` | `number` | `10` | Events per batch before flushing |
-| `eventFlushIntervalMs` | `number` | `30000` | Max time before flushing pending events |
+| `batchSize` | `number` | `10` | Events per delivery batch before flushing |
+| `flushIntervalMs` | `number` | `30000` | Max time before flushing pending events |
 | `eventMaxQueueSize` | `number` | `1000` | Max events buffered before the oldest is dropped |
-| `requestTimeoutMs` | `number` | `10000` | Timeout for the config fetch and event POSTs |
+| `configTimeoutMs` | `number` | `10000` | Timeout for the config-bundle fetch |
+| `eventsTimeoutMs` | `number` | `10000` | Timeout for event-delivery POSTs |
+| `resolveTimeoutMs` | `number` | `5000` | Timeout for server-mode resolve calls (`POST /v1/resolve`) |
 | `exposureSessionTtlMs` | `number` | `1800000` | Exposure-dedup session TTL (30 min) |
 | `trackDecisions` | `boolean` | `true` | Emit decision events alongside exposures |
 | `decisionDeduplicationTtlMs` | `number` | `3600000` | Window in which the same unit + assignment won't re-emit a decision event |
@@ -149,6 +151,10 @@ await traffical.close();
 | `storage` | `StorageProvider` | `LocalStorageProvider` | Persistence for the stable ID |
 | `assignmentLogger` | `AssignmentLogger` | — | Route assignment rows to your own warehouse pipeline |
 | `plugins` | `TrafficalPlugin[]` | `[]` | Plugins (DOM bindings, redirect tests, devtools) |
+
+<Note>
+**Deprecated option aliases.** Earlier releases used `eventBatchSize`, `eventFlushIntervalMs`, and a single `requestTimeoutMs`. These still work and forward to the canonical names above (`batchSize`, `flushIntervalMs`, and the three-way timeout split). `requestTimeoutMs` is honored as the legacy fallback for any of `configTimeoutMs` / `eventsTimeoutMs` / `resolveTimeoutMs` that you don't set explicitly. Prefer the canonical names — the aliases will be removed in a future major.
+</Note>
 
 ## Bundle caching
 
