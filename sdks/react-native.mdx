@@ -14,7 +14,7 @@ Mobile has constraints web and backend don't:
 - **App store latency.** Code changes take days. Parameter changes via Traffical are instant — this is the whole point of having a remote configuration system at all.
 - **Background suspension.** The app may be paused for hours and resumed. Cached assignments need refreshing.
 
-The React Native SDK defaults to `evaluationMode: "server"` (each resolution is a network call, with the response cached), backed by `AsyncStorage` for persistence across launches. You can override with `evaluationMode: "bundle"` if you'd rather embed the full bundle.
+The React Native SDK defaults to `evaluationMode: "server"`: each resolution is evaluated for that call's context on the edge, and the response is cached and persisted to `AsyncStorage` across launches. Because `getParams`/`decide` are synchronous, a call returns the last-good cached response and converges as fresh resolves land. You can override with `evaluationMode: "bundle"` if you'd rather embed and evaluate the full bundle locally.
 
 ## Installation
 
@@ -107,32 +107,55 @@ Resolution checks three sources in order:
 
 ## Device-info enrichment
 
-The SDK can enrich `context` with device info — useful for OS-specific experiments and analytics:
-
-```tsx
-import { TrafficalRNProvider, defaultDeviceInfoProvider } from "@traffical/react-native";
-
-<TrafficalRNProvider config={{
-  orgId, projectId, env, apiKey,
-  deviceInfoProvider: defaultDeviceInfoProvider,
-}}>
-```
-
-This adds fields to every resolution:
+The SDK can enrich `context` with device info — useful for OS-specific experiments and analytics. You supply the data through a `deviceInfoProvider`: any object implementing the `DeviceInfoProvider` interface. The SDK ships the interface (`DeviceInfoProvider` / `DeviceInfo` types) but does **not** ship a built-in implementation, so you provide one — typically backed by `react-native-device-info` plus React Native's `Platform` and `Dimensions`:
 
 ```typescript
-{
-  appVersion: "2.1.0",
-  osName: "ios" | "android",
-  osVersion: "17.4",
-  locale: "en-US",
-  screenWidth: 390,
-  screenHeight: 844,
-  deviceModel: "iPhone 15",
+export interface DeviceInfoProvider {
+  getDeviceInfo(): DeviceInfo;
+}
+
+export interface DeviceInfo {
+  appVersion?: string;
+  appBuildNumber?: string;
+  deviceModel?: string;
+  deviceModelName?: string;
+  osName?: string;
+  osVersion?: string;
+  locale?: string;
+  timezone?: string;
+  screenWidth?: number;
+  screenHeight?: number;
+  pixelRatio?: number;
 }
 ```
 
-These are available for policy conditions — e.g. `osName eq "ios"` for an iOS-only experiment, or `appVersion gte "2.0.0"` to scope a feature flag to a minimum version.
+```tsx
+import { TrafficalRNProvider, type DeviceInfoProvider } from "@traffical/react-native";
+import { Platform, Dimensions } from "react-native";
+import DeviceInfo from "react-native-device-info";
+
+const deviceInfoProvider: DeviceInfoProvider = {
+  getDeviceInfo() {
+    const { width, height } = Dimensions.get("window");
+    return {
+      appVersion: DeviceInfo.getVersion(),
+      osName: Platform.OS,          // "ios" | "android"
+      osVersion: String(Platform.Version),
+      deviceModel: DeviceInfo.getModel(),
+      screenWidth: width,
+      screenHeight: height,
+    };
+  },
+};
+
+<TrafficalRNProvider config={{ orgId, projectId, env, apiKey, deviceInfoProvider }}>
+```
+
+The returned fields merge into `context` on every resolution, so they're available for policy conditions — e.g. `osName eq "ios"` for an iOS-only experiment.
+
+<Warning>
+**Version-string targeting is a known gap.** The numeric comparison operators (`gt`/`gte`/`lt`/`lte`) only compare **numbers** — a condition like `appVersion gte "2.0.0"` won't match, because `"2.0.0"` is a string. To gate on a minimum version today, target an exact set of versions with `in`, or expose a numeric build number (`appBuildNumber`) and compare that. Semver-aware version conditions are not yet supported.
+</Warning>
 
 ## Tracking events
 
@@ -158,8 +181,11 @@ When the app returns to the foreground after being suspended, the SDK checks whe
 | `orgId`, `projectId`, `env`, `apiKey` | — | required | Same as other SDKs |
 | `evaluationMode` | `"bundle" \| "server"` | `"server"` | Mobile-friendly default |
 | `localConfig` | `ConfigBundle` | — | Embedded bundle for cold-start |
-| `deviceInfoProvider` | `DeviceInfoProvider` | — | Device-context enrichment |
-| `storage` | `StorageProvider` | AsyncStorage | Custom persistence |
+| `deviceInfoProvider` | `DeviceInfoProvider` | — | Device-context enrichment (you supply the implementation) |
+| `cacheMaxAgeMs` | `number` | `86400000` | Max age of the persisted server response before it's treated as expired (24h) |
+| `refreshIntervalMs` | `number` | `60000` | Background refresh cadence |
+
+Persistence is backed by `AsyncStorage` automatically — the provider registers it for you, so there's no `storage` option to set. The provider also accepts the common options shared with the other SDKs (`trackDecisions`, `exposureSessionTtlMs`, `eventBatchSize`, `eventFlushIntervalMs`, `disableCloudEvents`, `assignmentLogger`, `unitKeyFn`, `contextFn`, `plugins`).
 
 ## Next steps
 

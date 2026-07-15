@@ -1,0 +1,236 @@
+---
+title: "iOS SDK"
+description: "Swift SDK for iOS, macOS, tvOS, and watchOS — install, initialize, typed getters, resolve, track events, fail-open."
+---
+
+`Traffical` is the official Swift SDK for native **iOS, macOS, tvOS, and watchOS** apps. It resolves parameters locally from a config bundle in sub-millisecond time, with mobile-native defaults: a persistent on-disk cache, a Keychain-backed stable ID that survives reinstall, foreground refresh, offline graceful degradation, and an embedded `localConfig` bundle for cold starts.
+
+It shares the language-agnostic [Traffical SDK spec](/sdks/overview#source-code) with the TypeScript, PHP, and Python SDKs — the same [SHA-256 v2 bucketing](/how-it-works#local-resolution), the same layered resolution engine, the same contextual-bandit scoring — so a given unit buckets identically on every platform.
+
+## Installation
+
+### Swift Package Manager
+
+In Xcode: **File → Add Packages…**, enter `https://github.com/traffical/ios-sdk`, and add the `Traffical` library to your app target.
+
+Or in `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/traffical/ios-sdk", from: "0.5.0"),
+],
+```
+
+The package supports iOS 14+, macOS 11+, tvOS 14+, and watchOS 7+, and has no third-party dependencies.
+
+## Quick start
+
+```swift
+import SwiftUI
+import Traffical
+
+@main
+struct MyApp: App {
+    let traffical: TrafficalClient
+
+    init() {
+        traffical = TrafficalClient(options: .init(
+            orgId: "org_acme",
+            projectId: "proj_marketplace",
+            env: "production",
+            apiKey: "traffical_sk_..."
+        ))
+        // `initialize()` is non-throwing — the SDK fails open to localConfig,
+        // the disk cache, or your inline defaults if the fetch is slow or fails.
+        Task { await traffical.initialize() }
+    }
+
+    var body: some Scene {
+        WindowGroup { ContentView(traffical: traffical) }
+    }
+}
+
+struct ContentView: View {
+    let traffical: TrafficalClient
+
+    var body: some View {
+        let label = traffical.string("checkout.button.label", default: "Subscribe")
+        let steps = traffical.int("mobile.onboarding_steps", default: 3)
+
+        VStack {
+            Button(label) { traffical.track("subscribe_clicked") }
+            Text("\(steps) onboarding steps")
+        }
+    }
+}
+```
+
+The client is safe to call **before** `initialize()` returns — it seeds synchronously from `localConfig`, then the disk cache, then your inline defaults, so the first typed getter always has something to work with. `initialize()` upgrades that to fresh network state and starts the background refresh.
+
+## Lifecycle
+
+The lifecycle verbs follow the [cross-language contract](/sdks/overview):
+
+```swift
+await traffical.initialize()              // begin the first fetch, start pollers
+await traffical.waitForReady(timeoutMs: 5_000)  // resolves when config loads — or the window elapses
+try await traffical.refreshConfig()       // force an out-of-band refresh
+await traffical.flushEvents()             // flush the event queue and await delivery
+await traffical.close()                   // single teardown verb — awaits a final flush
+```
+
+`waitForReady(timeoutMs:)` resolves once the first usable config is loaded, or the fail-open window elapses — it never hangs on an unavailable or malformed bundle. `close()` is the **single** teardown verb: it cancels the background refresh and awaits a final event flush before returning.
+
+## Typed getters
+
+The typed getters resolve a single parameter against an inline default and **auto-track an exposure** the first time an assignment is seen in the session. There is one per value type:
+
+```swift
+let color   = traffical.string("checkout.button.color", default: "#1E6EFB")
+let showBadges = traffical.bool("checkout.show_trust_badges", default: false)
+let discount = traffical.double("pricing.discount_pct", default: 0)
+let steps   = traffical.int("mobile.onboarding_steps", default: 3)
+let payload = traffical.json("home.layout", default: .object([:]))
+```
+
+Each getter takes an optional `context:` argument for targeting; when omitted, the SDK uses the stable ID (plus any [device-info fields](#device-info-provider)) as context.
+
+## Decisions and `getParams`
+
+When you need the full decision — or want to delay the exposure until the variant is actually shown — use `decide(context:defaults:)`. It returns a `TrafficalDecisionResult` with a `decisionId`, the resolved `assignments`, and per-layer `metadata`. Both `decide` and `getParams` take **context first, defaults second**:
+
+```swift
+let decision = traffical.decide(
+    context: ["userId": "user_789", "plan": "pro"],
+    defaults: ["recommendations.algorithm": .string("collaborative")]
+)
+
+let algorithm = decision.assignments["recommendations.algorithm"]
+
+// ...render the variant, then record that the user actually saw it:
+traffical.trackExposure(decision)
+```
+
+`getParams(context:defaults:)` returns just the assignment map (no metadata) and does **not** auto-track exposure. `trackExposure(_:)` emits at most one exposure event per call (spec S4), carrying only newly-exposed, non-attribution-only layers, session-deduped by default.
+
+## Tracking events
+
+`track(_:properties:options:)` — the event name first, an optional `properties` payload, and a `TrackOptions` bag (`decisionId`, `unitKey`, `value`, `values`, `eventTimestamp`). `unitKey` defaults to the current stable ID, so you rarely pass it:
+
+```swift
+// Simple action
+traffical.track("subscribe_clicked")
+
+// Conversion with a value, attributed to a decision
+traffical.track(
+    "purchase",
+    properties: ["currency": "USD"],
+    options: .init(value: 49.0, decisionId: decision.decisionId)
+)
+```
+
+Events are batched in memory and flushed in the background (and on app backgrounding).
+
+## Options
+
+`TrafficalClientOptions` uses the canonical [cross-language option names](/sdks/overview). Duration options are milliseconds with a `*Ms` suffix.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `orgId` | `String` | required | Organization ID |
+| `projectId` | `String` | required | Project ID |
+| `env` | `String` | required | Environment name (`"production"`, `"staging"`, etc.) |
+| `apiKey` | `String` | required | SDK key (`traffical_sk_...`) |
+| `baseURL` | `URL` | `https://sdk.traffical.io` | SDK API base URL |
+| `localConfig` | `TrafficalConfigBundle?` | `nil` | Build-time baked fallback bundle for instant cold-start |
+| `evaluationMode` | `.bundle \| .server` | `.bundle` | Resolve locally from the bundle, or delegate to the edge per call |
+| `refreshIntervalMs` | `Int` | `60000` | Bundle refresh cadence |
+| `attributionMode` | `.cumulative \| .decision` | `.cumulative` | Track-event attribution strategy |
+| `trackDecisions` | `Bool` | `true` | Emit decision events alongside exposures |
+| `disableCloudEvents` | `Bool` | `false` | Stop sending events to Traffical (config is still fetched) |
+| `deduplicateAssignmentLogger` | `Bool` | `true` | Dedup assignment-logger rows |
+| `deduplicateExposures` | `Bool` | `true` | Session-dedup exposure events per (unit, policy, allocation) |
+| `exposureSessionTtlMs` | `Int` | `1800000` | Exposure-dedup session TTL (30 min) |
+| `batchSize` | `Int` | `10` | Events per delivery batch before flushing |
+| `flushIntervalMs` | `Int` | `30000` | Event flush cadence |
+| `configTimeoutMs` | `Int` | `10000` | Config-fetch request timeout |
+| `eventsTimeoutMs` | `Int` | `10000` | Event-delivery request timeout |
+| `resolveTimeoutMs` | `Int` | `5000` | Server-resolve request timeout (`.server` mode) |
+| `deviceInfoProvider` | `DeviceInfoProvider?` | `nil` | Merge device fields into every evaluation context |
+| `assignmentLogger` | `TrafficalAssignmentLogger?` | `nil` | Route assignment rows to your own warehouse pipeline |
+| `debugLogger` | `TrafficalDebugLogger?` | `nil` | Debug logging hook |
+
+## Baked bundle (`localConfig`)
+
+Pass a `localConfig` bundle to resolve instantly on cold start — before any network call, and even fully offline. The client seeds from it synchronously in `init`, so the first `string(...)` / `decide(...)` already resolves real assignments; a successful refresh then upgrades to fresh config. Bake the bundle into your app at build time (for example, generated by the [CLI](/tools/cli)) so a fresh install has working config on first launch.
+
+## Stable ID and `identify`
+
+On first launch the SDK generates an anonymous UUID and persists it in the **Keychain**, so it survives app reinstall (matching what analytics SDKs do). This value fills the project's unit-key slot on every resolution, so bucketing and exposures work before the user logs in.
+
+Read it with `getStableId()`. When the user logs in, call `identify(_:)` to swap in the real unit key:
+
+```swift
+let id = traffical.getStableId()   // stable across launches and reinstalls
+
+traffical.identify("user_789")     // overwrites the stored ID; clears session dedup
+```
+
+<Warning>
+**Bucketing changes at login.** The pre-login (UUID) bucket and the post-login (`user_789`) bucket are computed from different inputs, so a user may cross between variants at login. This is inherent to having a single unit of randomization per project. If you need assignments stable across login, run the experiment on logged-in users only, or call `identify()` before the SDK ever resolves the parameter.
+</Warning>
+
+## Device-info provider
+
+Attach a `DeviceInfoProvider` to enrich the evaluation context with device fields — app version, OS, locale, screen size — so you can target experiments by them. The bundled `DefaultDeviceInfoProvider` reads app version/build, locale, timezone, OS name/version, and (on UIKit platforms) screen dimensions and device model:
+
+```swift
+traffical = TrafficalClient(options: .init(
+    orgId: "org_acme",
+    projectId: "proj_marketplace",
+    env: "production",
+    apiKey: "traffical_sk_...",
+    deviceInfoProvider: DefaultDeviceInfoProvider()
+))
+```
+
+The provider's fields are merged into the context on every resolution, so a policy condition like `appBuildNumber gte 500` or `locale == "en_US"` can target them. Implement the `DeviceInfoProvider` protocol yourself to add or override fields.
+
+## Server vs bundle mode
+
+In the default `.bundle` mode the SDK fetches the config bundle and resolves every parameter locally — sub-millisecond, no per-decision network call. In `.server` mode each resolution delegates to the edge worker via `POST /v1/resolve` (cached per context), for when you want zero client-side evaluation logic:
+
+```swift
+traffical = TrafficalClient(options: .init(
+    orgId: "org_acme",
+    projectId: "proj_marketplace",
+    env: "production",
+    apiKey: "traffical_sk_...",
+    evaluationMode: .server
+))
+```
+
+## Fail-open behavior
+
+Every public call is wrapped in an error boundary and fails open to your inline defaults. If the bundle isn't loaded yet — or Traffical is unreachable entirely — typed getters and `decide` return the defaults you passed, and `waitForReady` resolves rather than hanging. Traffical can only raise the ceiling, never lower the floor.
+
+## Cross-language conformance
+
+The Swift engine (`TrafficalCore`) is validated against the spec's deterministic conformance vectors — the same SHA-256 v2 (UTF-8 byte) assignment hashing, layered resolution, and contextual-bandit scoring as every other Traffical SDK — plus events-payload validation against `events.schema.json`, so a given unit buckets identically on every platform.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="A/B testing" icon="flask" href="/experimentation/ab-testing">
+    Run a static experiment.
+  </Card>
+  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+    Patterns for backend, batch, and cross-surface tests.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/tools/cli">
+    Bake a config bundle into your app.
+  </Card>
+  <Card title="API reference" icon="code" href="/api/overview">
+    The endpoints the SDK calls.
+  </Card>
+</CardGroup>

@@ -5,7 +5,7 @@ description: "Drop-in OpenFeature provider for Traffical — register the provid
 
 `@traffical/openfeature-server` and `@traffical/openfeature-web` are official [OpenFeature](https://openfeature.dev) providers that wrap the native Traffical SDKs (`@traffical/node` and `@traffical/js-client`). If your team already evaluates flags through the OpenFeature API, you can point it at Traffical without rewriting your call sites — you keep `getBooleanValue`, `getObjectValue`, and friends, and Traffical handles bucketing, decisions, and measurement underneath.
 
-The providers are thin translation layers over the native clients, so they inherit the same SHA-256 bucketing, layered resolution, and contextual-bandit scoring as every other Traffical SDK — a given unit buckets identically whether you resolve through OpenFeature or the native client.
+The providers are thin translation layers over the native clients, so they inherit the same [SHA-256 v2 bucketing](/how-it-works#local-resolution), layered resolution, and contextual-bandit scoring as every other Traffical SDK — a given unit buckets identically whether you resolve through OpenFeature or the native client.
 
 <Note>
   **Resolve is a decision, not an exposure.** Reading a flag value records an intent-to-treat (ITT) decision. It does **not** record that the user actually saw the treatment. You **must** signal exposure explicitly (or opt into `exposureOnResolve`) — otherwise your primary metrics, SRM health, and optimization stay empty. See [Signalling exposure](#signalling-exposure).
@@ -59,11 +59,11 @@ import { OpenFeature } from "@openfeature/web-sdk";
 import { createTrafficalClient } from "@traffical/js-client";
 import { TrafficalWebProvider } from "@traffical/openfeature-web";
 
-const traffical = createTrafficalClient({
+const traffical = await createTrafficalClient({
   orgId: "org_acme",
   projectId: "proj_marketplace",
   env: "production",
-  clientKey: process.env.TRAFFICAL_CLIENT_KEY!,
+  apiKey: process.env.TRAFFICAL_API_KEY!,
 });
 
 // Bind the evaluation context (identity) before setting the provider.
@@ -84,7 +84,7 @@ Both provider constructors accept an optional second argument:
 | `unitKey` | `string` | from client config | Context field to bucket on. Overrides the client's configured unit-key field. |
 | `exposureEventName` | `string` | `"$traffical.exposure"` | The reserved tracking event the provider routes to `trackExposure`. |
 | `exposureOnResolve` | `boolean` | `false` | Fire exposure automatically on every resolve. Collapses ToT ≈ ITT — see [Signalling exposure](#signalling-exposure). |
-| `reasonMapping` | `Record<string, string>` | — | Cosmetically relabel the OpenFeature `reason` string. Never changes which events fire. |
+| `gatePropensity` | `boolean` | `false` (server) / `true` (web) | When true, omit `traffical.propensity` from `flagMetadata` so bandit-selection internals aren't leaked. The web provider defaults it to `true` (and also strips `traffical.modelVersion`) because `flagMetadata` is visible in browser devtools. |
 
 ## Resolving parameters
 
@@ -209,7 +209,7 @@ Everything resolved inside the transaction shares one decision, so:
 The store is discarded at request end — no cross-request bleed, no unbounded growth.
 
 <Note>
-  The server provider supports `evaluationMode: "bundle"` clients (local, per-request context). A `"server"`-mode client resolves against a background-polled snapshot with an empty context and ignores per-request `targetingKey`, so it can't do per-request targeting — the provider warns if you construct it with one.
+  The server provider is designed for `evaluationMode: "bundle"` clients (local, per-request context). With a `"server"`-mode client, resolution is asynchronous and best-effort — a synchronous `decide()` returns the last cached snapshot rather than a fresh per-request resolve, so the provider can't reliably do per-request `targetingKey` targeting. It warns if you construct it with one.
 </Note>
 
 ## Flag metadata

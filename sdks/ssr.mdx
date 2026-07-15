@@ -51,12 +51,16 @@ export async function load({ fetch }) {
     projectId: "proj_marketplace",
     env: "production",
     apiKey: import.meta.env.PUBLIC_TRAFFICAL_API_KEY,
-    localConfig: data.traffical.bundle,
+    initialBundle: data.traffical.bundle,
   }}
 >
   {@render children()}
 </TrafficalProvider>
 ```
+
+<Note>
+On the Svelte SDK the server-fetched bundle goes through `initialBundle` (not `localConfig`). `initialBundle` is what marks the provider ready during SSR and lets it resolve on the server so the first paint is correct. `localConfig` is the separate build-time/offline fallback bundle.
+</Note>
 
 ### Page
 
@@ -81,18 +85,25 @@ The server resolves with `data.traffical.bundle` and renders the correct variant
 
 ## Next.js (App Router / RSC)
 
+The React SDK has no `@traffical/react/server` entry point. Fetch the config bundle directly from the SDK config endpoint — the same URL the client SDK calls — and pass it as `localConfig`:
+
 ```tsx
 // app/layout.tsx
-import { fetchBundle } from "@traffical/react/server";
 import { TrafficalProvider } from "@traffical/react";
 
+async function fetchBundle() {
+  const res = await fetch(
+    "https://sdk.traffical.io/v1/config/proj_marketplace?env=production",
+    {
+      headers: { Authorization: `Bearer ${process.env.TRAFFICAL_API_KEY!}` },
+      next: { revalidate: 60 },   // cache via Next.js fetch integration
+    },
+  );
+  return res.ok ? res.json() : null;
+}
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const bundle = await fetchBundle({
-    orgId: "org_acme",
-    projectId: "proj_marketplace",
-    env: "production",
-    apiKey: process.env.TRAFFICAL_API_KEY!,    // server-only secret
-  });
+  const bundle = await fetchBundle();
 
   return (
     <html>
@@ -102,7 +113,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             orgId: "org_acme",
             projectId: "proj_marketplace",
             env: "production",
-            apiKey: process.env.NEXT_PUBLIC_TRAFFICAL_API_KEY!,    // public
+            apiKey: process.env.NEXT_PUBLIC_TRAFFICAL_API_KEY!,
             localConfig: bundle,
           }}
         >
@@ -114,7 +125,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 }
 ```
 
-`fetchBundle` is cached via Next.js's `fetch` integration; subsequent renders within the cache window don't re-fetch.
+Wrapping the fetch in Next.js's `fetch` integration (`next: { revalidate }`) caches it, so subsequent renders within the cache window don't re-fetch.
 
 ## Next.js (Pages Router)
 
@@ -141,29 +152,26 @@ export default function App({ Component, pageProps }) {
 
 ```tsx
 // pages/checkout.tsx
-import { fetchBundle } from "@traffical/react/server";
-
 export async function getServerSideProps() {
-  const bundle = await fetchBundle({
-    orgId: "org_acme",
-    projectId: "proj_marketplace",
-    env: "production",
-    apiKey: process.env.TRAFFICAL_API_KEY!,
-  });
+  const res = await fetch(
+    "https://sdk.traffical.io/v1/config/proj_marketplace?env=production",
+    { headers: { Authorization: `Bearer ${process.env.TRAFFICAL_API_KEY!}` } },
+  );
+  const bundle = res.ok ? await res.json() : null;
   return { props: { trafficalBundle: bundle } };
 }
 ```
 
 ## Why this works
 
-- **Same bundle, same hash, same answer.** Both server and client read the same bundle. The hashing function (`hash(unitKey + layerId) % bucketCount`) is identical in `@traffical/core`. The same userId always resolves to the same allocation.
+- **Same bundle, same hash, same answer.** Both server and client read the same bundle and run the same [SHA-256 v2 bucketing](/how-it-works#local-resolution). The same userId always resolves to the same allocation.
 - **One network fetch.** The server fetches; the client receives the bundle inline. No second fetch on hydration.
 - **First paint is correct.** Because the server resolves before rendering, the user sees the right variant immediately. No flash of original content.
 
 ## Pitfalls
 
 - **Mismatched user IDs.** If the server reads `userId` from a session cookie but the client reads it from a different source, the two will resolve to different buckets and you'll see a swap on hydration. Make sure both sides use the same value.
-- **Use the SDK key on both sides.** The same `traffical_sk_...` SDK key (scopes `sdk:read`+`sdk:write`) is browser-safe and is used both client-side in the `TrafficalProvider` and server-side in the `fetchBundle`/`loadTrafficalBundle` call. There is no separate server secret for the SDK path — keep management-scoped keys out of all rendering code.
+- **Use the SDK key on both sides.** The same `traffical_sk_...` SDK key (scopes `sdk:read`+`sdk:write`) is browser-safe and is used both client-side in the `TrafficalProvider` and server-side when you fetch the bundle (the plain `fetch` on Next.js, `loadTrafficalBundle` on SvelteKit). There is no separate server secret for the SDK path — keep management-scoped keys out of all rendering code.
 - **Stale bundle on long-lived pages.** The client refreshes the bundle every 60s by default. SPAs running for hours will pick up new policies automatically. For static pages, a hard reload is enough.
 
 ## Next steps
