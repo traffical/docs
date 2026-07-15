@@ -1,0 +1,292 @@
+---
+title: "Python SDK"
+description: "Server-side SDK for Python 3.10+ — sync and asyncio clients, local resolution, event tracking, fork-safe by construction."
+---
+
+`traffical` is the official server-side SDK for Python (`>=3.10`), with first-class sync (`TrafficalClient`) and asyncio (`AsyncTrafficalClient`) clients. It fetches the config bundle on startup, refreshes it on a background poller, resolves parameters locally per call, and ships events in the background. It is **fork-safe by construction**, so it works under gunicorn pre-fork, Celery, and anything else that calls `os.fork()` after the client is created.
+
+It shares the language-agnostic [Traffical SDK spec](/sdks/overview#source-code) with the TypeScript, PHP, and Swift SDKs — the same [SHA-256 v2 bucketing](/how-it-works#local-resolution), the same layered resolution engine, the same contextual-bandit scoring — so a given unit buckets identically on every platform.
+
+## Installation
+
+<CodeGroup>
+  ```bash uv
+  uv add traffical
+  ```
+
+  ```bash pip
+  pip install traffical
+  ```
+</CodeGroup>
+
+Requires Python 3.10+. The only runtime dependency is [httpx](https://www.python-httpx.org/).
+
+## Initialization
+
+```python
+from traffical import TrafficalClient, TrafficalClientOptions
+
+client = TrafficalClient(
+    TrafficalClientOptions(
+        api_key="traffical_sk_...",
+        project_id="proj_marketplace",
+        env="production",
+        org_id="org_acme",
+    )
+)
+client.wait_for_ready(timeout=5.0)
+```
+
+`TrafficalClientOptions` is an immutable frozen dataclass — construct it with keyword arguments. The client starts its background config poller and event flusher on construction; `wait_for_ready(timeout=...)` blocks until the first bundle is available (or the timeout elapses) and returns a `bool`. It **never hangs** — in server mode it returns immediately, and on an unavailable or malformed bundle it fails open so your defaults are used.
+
+`TrafficalClient` is also usable as a context manager; `close()` is idempotent and flushes the event queue.
+
+### Options
+
+`TrafficalClientOptions` follows the [cross-language design contract](/sdks/overview): duration options carry an explicit `_seconds` suffix (Python's idiomatic float-seconds variant of the canonical `*Ms` names).
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `api_key` | `str` | required | SDK key (`traffical_sk_...`) |
+| `project_id` | `str` | required | Project ID |
+| `env` | `str` | required | Environment name (`"production"`, `"staging"`, etc.) |
+| `org_id` | `str` | required | Organization ID |
+| `base_url` | `str` | `https://sdk.traffical.io` | SDK API base URL |
+| `evaluation_mode` | `"bundle" \| "server"` | `"bundle"` | Resolve locally from the bundle, or delegate to the edge per call |
+| `refresh_interval_seconds` | `float` | `60.0` | Bundle refresh cadence; `<= 0` fetches once with no background refresh |
+| `config_timeout_seconds` | `float` | `10.0` | HTTP timeout for the config-bundle fetch |
+| `events_timeout_seconds` | `float` | `10.0` | HTTP timeout for event delivery |
+| `resolve_timeout_seconds` | `float` | `5.0` | HTTP timeout for server-mode resolve calls (`POST /v1/resolve`) |
+| `track_decisions` | `bool` | `True` | Emit decision events on `decide()` |
+| `decision_dedup_ttl_seconds` | `float` | `3600.0` | Window in which the same unit + assignment won't re-emit a decision event |
+| `deduplicate_exposures` | `bool` | `True` | Session-dedup exposure events per (unit, policy, allocation) |
+| `exposure_session_ttl_seconds` | `float` | `1800.0` | Exposure-dedup session TTL (30 min) |
+| `batch_size` | `int` | `10` | Events per delivery batch before auto-flushing |
+| `flush_interval_seconds` | `float` | `30.0` | Background event flush cadence |
+| `max_event_queue_size` | `int` | `1000` | Bounded event queue; overflow drops the oldest event |
+| `event_max_retries` | `int` | `3` | Delivery retries per batch |
+| `assignment_logger` | `AssignmentLogger \| None` | `None` | BYO warehouse-native assignment logger, `(AssignmentLogEntry) -> None` |
+| `deduplicate_assignment_logger` | `bool` | `True` | Dedup logger rows per unit/policy/allocation/type |
+| `disable_cloud_events` | `bool` | `False` | Stop sending events to Traffical (config is still fetched) |
+| `local_config` | `ConfigBundle \| dict \| None` | `None` | Build-time baked fallback bundle for instant cold-start / offline |
+| `config_source` | `ConfigSource \| None` | `None` | Custom bundle source (`FileConfigSource`, `InlineConfigSource`, `CallableConfigSource`, or your own) |
+| `transport`, `async_transport` | httpx transport | `None` | httpx transport seams (e.g. `MockTransport` in tests) |
+
+## Resolving parameters
+
+```python
+params = client.get_params(
+    context={"userId": "user_789", "locale": "en-US", "plan": "pro"},
+    defaults={
+        "checkout.button.color": "#1E6EFB",
+        "checkout.headline": "Complete your order",
+        "checkout.show_trust_badges": False,
+        "pricing.discount_pct": 0,
+    },
+)
+
+params["checkout.button.color"]        # "#22C55E" if assigned to treatment
+params["checkout.show_trust_badges"]   # True if a policy overrides it
+params["pricing.discount_pct"]         # 0 (no policy → default)
+```
+
+Both `get_params(context, defaults)` and `decide(context, defaults)` take **context first, defaults second**, and return values for exactly the keys in `defaults`.
+
+### Context
+
+The `context` mapping is used for:
+
+- **Bucketing** — the unit key (typically `userId`, as configured on the [project](/concepts/projects-and-environments)) drives which allocation the user gets.
+- **Targeting** — every field is available for policy condition evaluation. A policy with the condition `plan in ["pro", "enterprise"]` only applies when `context["plan"]` is one of those values.
+
+### Defaults
+
+Always pass defaults for every parameter you read. They're the fallback when no policy matches, when the bundle isn't loaded yet, or when Traffical is unreachable — and they make your code's intent explicit even when there's no active experiment.
+
+## Decisions vs `get_params`
+
+`get_params` returns just the resolved values. `decide` returns a `Decision` (`decision_id`, resolved `assignments`, and `metadata` — unit key value, per-layer resolution rows, config version) — useful when you want to record an exposure only when the user actually sees the treatment, or pass the decision ID downstream.
+
+```python
+decision = client.decide(
+    {"userId": "user_789"},
+    {"recommendations.algorithm": "collaborative"},
+)
+
+algorithm = decision.assignments["recommendations.algorithm"]
+
+# ...render the variant, then record that the user actually saw it:
+client.track_exposure(decision)
+```
+
+`track_exposure(decision)` emits at most one exposure event per call (spec S4): it carries only newly-exposed, non-attribution-only layers, session-deduped by default, and emits nothing when everything is suppressed. See [decisions & attribution](/concepts/assignments) for when this matters.
+
+## Tracking events
+
+`track(event_name, properties=None, *, ...)` — the event name first, an optional `properties` mapping second, and keyword-only options (`decision_id`, `unit_key`, `value`, `values`, `event_timestamp`). Numeric metrics go in `value` / `values`, not in `properties`:
+
+```python
+# Conversion with a value, attributed to a decision
+client.track(
+    "checkout_completed",
+    {"currency": "USD"},
+    value=49.0,
+    decision_id=decision.decision_id,
+    unit_key="user_789",
+)
+
+# Multi-objective optimization: several named numeric rewards at once
+client.track(
+    "session_summary",
+    values={"revenue": 49.0, "items": 3.0},
+    unit_key="user_789",
+)
+
+# A delayed event with an explicit original time
+client.track(
+    "refund",
+    value=-49.0,
+    event_timestamp="2026-07-14T12:00:00Z",
+    unit_key="user_789",
+)
+```
+
+On the server there is no auto stable ID, so pass `unit_key` (or `decision_id`, which auto-attributes from the cached decision). If you're running an adaptive policy, the optimization engine uses `value` / `values` as reward signals to learn which variants perform best.
+
+## Async client
+
+`AsyncTrafficalClient` has the same surface with awaitable `wait_for_ready` / `get_params` / `decide` / `flush_events` / `close`. Background work runs on the event loop; enter the async context manager (or call `start()`) from a running loop, and create it **per process/loop** — not pre-fork.
+
+```python
+import asyncio
+
+from traffical import AsyncTrafficalClient, TrafficalClientOptions
+
+
+async def main() -> None:
+    async with AsyncTrafficalClient(
+        TrafficalClientOptions(
+            api_key="traffical_sk_...",
+            project_id="proj_marketplace",
+            env="production",
+            org_id="org_acme",
+        )
+    ) as client:
+        await client.wait_for_ready(timeout=5.0)
+        decision = await client.decide(
+            {"userId": "user_789"},
+            {"ui.primaryColor": "#000000"},
+        )
+        client.track_exposure(decision)
+
+
+asyncio.run(main())
+```
+
+## Server mode
+
+Delegate resolution to the edge worker instead of evaluating a local bundle. Each `get_params()` / `decide()` performs a `POST /v1/resolve`:
+
+```python
+options = TrafficalClientOptions(
+    api_key="traffical_sk_...",
+    project_id="proj_marketplace",
+    env="production",
+    org_id="org_acme",
+    evaluation_mode="server",
+)
+```
+
+In server mode `wait_for_ready()` returns immediately (there is no bundle to wait for) and resolve failures fall back to your defaults.
+
+## Baked & offline bundles
+
+Pass a `local_config` bundle to resolve instantly on cold start — before (or without) any network fetch. This is the build-time baked fallback: the SDK seeds from it immediately and upgrades to fresh config once a refresh succeeds. For fully offline or test setups, point `config_source` at a bundle you control:
+
+```python
+from traffical import TrafficalClient, TrafficalClientOptions
+from traffical.config import FileConfigSource
+
+client = TrafficalClient(
+    TrafficalClientOptions(
+        api_key="traffical_sk_...",
+        project_id="proj_marketplace",
+        env="production",
+        org_id="org_acme",
+        config_source=FileConfigSource("bundle.json"),
+    )
+)
+```
+
+`InlineConfigSource` (an in-memory bundle) and `CallableConfigSource` (a `() -> bundle` callable) are also available, or implement the `ConfigSource` protocol yourself.
+
+## Fork safety (gunicorn, Celery, …)
+
+Pre-fork servers `os.fork()` after your app module — and your client — are created. The SDK handles this automatically via `os.register_at_fork`:
+
+- locks in the event queue, flusher, dedup caches, and config poller are re-armed in the child;
+- dead background threads (event flusher, config poller) are dropped and restarted lazily on next use;
+- each child process flushes its own events; an `atexit` / `weakref.finalize` safety net stops flushers of clients garbage-collected without `close()`.
+
+In practice: creating the sync client at module import (pre-fork) is fine and recommended — workers share nothing at runtime. Call `close()` (or `flush_events()`) in worker shutdown hooks if you need a hard delivery guarantee. The asyncio client is bound to the loop it was started on — create it per process/loop, not pre-fork.
+
+## BYO warehouse-native assignment logging
+
+Pass an `assignment_logger` callable to route structured per-layer rows through your own pipeline (a DB, a queue, Segment, RudderStack) so assignment data never leaves your infrastructure. Combine with `disable_cloud_events=True` to keep it entirely on your own infra:
+
+```python
+from traffical import AssignmentLogEntry, TrafficalClient, TrafficalClientOptions
+
+
+def log_assignment(entry: AssignmentLogEntry) -> None:
+    my_warehouse.insert("assignments", entry.to_row())  # DB, queue, CDP, ...
+
+
+client = TrafficalClient(
+    TrafficalClientOptions(
+        api_key="traffical_sk_...",
+        project_id="proj_marketplace",
+        env="production",
+        org_id="org_acme",
+        assignment_logger=log_assignment,
+        disable_cloud_events=True,  # keep assignment data on your own infra
+    )
+)
+```
+
+The logger fires on every `decide()` (type `"decision"`) and `track_exposure()` (type `"exposure"`), independent of `track_decisions`, decision deduplication, and `disable_cloud_events`. Rows are deduplicated per `unit:policy:allocation:type` with a 1-hour TTL — set `deduplicate_assignment_logger=False` to receive every row. `AssignmentLogEntry.to_row()` maps the entry onto a flat, warehouse-friendly `snake_case` row with the stable `policy_key` / `allocation_key` used for warehouse joins. See [warehouse-native metrics](/concepts/warehouse-native) for how assignment rows join to your metrics.
+
+## Fail-open behavior
+
+Every public method is fail-open — your defaults always win on errors. The SDK never throws during resolution: if the bundle isn't loaded yet, or never loaded successfully, `get_params` returns your defaults and `decide` returns the default assignments. Transport and refresh errors are caught and logged via the standard `logging` module.
+
+## Shutdown
+
+Flush pending events and release background resources before your process exits:
+
+```python
+client.close()   # idempotent; also runs on context-manager exit
+```
+
+`flush_events(timeout=...)` performs a blocking flush without tearing the client down — useful at safe checkpoints in long-lived workers.
+
+## Cross-language conformance
+
+The Python SDK is gated on the spec's deterministic conformance vectors — the same SHA-256 v2 (UTF-8 byte) assignment hashing, the layered resolution engine, and contextual-bandit scoring as every other Traffical SDK. The pure engine (`traffical.engine`) is stdlib-only — no I/O, no clocks, no globals — and every release runs the full resolution fixture suites plus events-payload validation against `events.schema.json`, so a given unit buckets identically on every platform.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="A/B testing" icon="flask" href="/experimentation/ab-testing">
+    Run a static experiment.
+  </Card>
+  <Card title="Warehouse-native" icon="warehouse" href="/concepts/warehouse-native">
+    Compute metrics from your own data.
+  </Card>
+  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+    Patterns for backend, batch, and cross-surface tests.
+  </Card>
+  <Card title="API reference" icon="code" href="/api/overview">
+    The endpoints the SDK calls.
+  </Card>
+</CardGroup>
