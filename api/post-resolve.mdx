@@ -17,15 +17,17 @@ POST /v1/resolve
 
 | Header | Required | Description |
 |--------|----------|-------------|
-| `Authorization` | yes | `Bearer traffical_sk_...` (requires `sdk:read` scope) |
-| `Content-Type` | yes | `application/json` |
+| `Authorization` | Yes | `Bearer traffical_sk_...` (requires `sdk:read` scope) |
+| `Content-Type` | Yes | `application/json` |
+| `X-Project-Id` | Only for org-scoped keys | Selects the project when the key is not pinned to one. For project-pinned keys the header is unnecessary; a mismatching value is rejected with `403`. |
+| `X-Env` | No | Environment name. Defaults to `production`; the body `env` field takes precedence. |
+
+The project is identified by the API key, not the request body. Keys created for a specific project need no extra headers.
 
 ### Body
 
 ```json
 {
-  "projectId": "proj_marketplace",
-  "env": "production",
   "context": {
     "userId": "user_789",
     "locale": "en-US",
@@ -33,24 +35,18 @@ POST /v1/resolve
   },
   "parameters": [
     "checkout.button.color",
-    "checkout.show_trust_badges",
-    "pricing.discount_pct"
-  ],
-  "defaults": {
-    "checkout.button.color": "#1E6EFB",
-    "checkout.show_trust_badges": false,
-    "pricing.discount_pct": 0
-  }
+    "checkout.show_trust_badges"
+  ]
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `projectId` | `string` | yes | Project to resolve against |
-| `env` | `string` | yes | Environment |
-| `context` | `object` | yes | Must include the unit key (e.g. `userId`) |
-| `parameters` | `string[]` | yes | Parameters to resolve |
-| `defaults` | `object` | no | Fallback values for parameters not covered by any policy |
+| `context` | `object` | Yes | Must include the project's unit key (for example, `userId`). Other fields are available to policy conditions. |
+| `env` | `string` | No | Environment to resolve against. Defaults to the `X-Env` header, then `production`. |
+| `parameters` | `string[]` | No | Parameter keys to resolve. Omit to resolve all parameters in the project. |
+
+There is no `defaults` field: fallback values come from each parameter's configured default in the config bundle (with environment overrides applied). Parameters not covered by any matching policy resolve to those defaults.
 
 ## Response
 
@@ -61,38 +57,112 @@ POST /v1/resolve
   "decisionId": "dec_abc123",
   "assignments": {
     "checkout.button.color": "#22C55E",
-    "checkout.show_trust_badges": true,
-    "pricing.discount_pct": 0
+    "checkout.show_trust_badges": true
   },
-  "decisions": [
-    {
-      "layerId": "layer_checkout",
-      "policyId": "policy_color_test",
-      "allocationName": "treatment",
-      "bucket": 7420
-    }
-  ],
-  "bundleVersion": "2026-05-21T10:30:00Z"
+  "metadata": {
+    "timestamp": "2026-05-21T10:30:00Z",
+    "unitKeyValue": "user_789",
+    "layers": [
+      {
+        "layerId": "layer_checkout",
+        "bucket": 742,
+        "policyId": "policy_color_test",
+        "allocationId": "alloc_b",
+        "allocationName": "treatment"
+      }
+    ],
+    "configVersion": "2026-05-21T09:58:11Z"
+  },
+  "stateVersion": "2026-05-21T09:58:11Z",
+  "suggestedRefreshMs": 60000
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `decisionId` | `string` | Use this on subsequent track events for attribution |
-| `assignments` | `object` | Resolved parameter values keyed by parameter key |
-| `decisions` | `Decision[]` | Per-layer assignments (layerId, policyId, allocationName, bucket) |
-| `bundleVersion` | `string` | Version timestamp of the bundle used for this resolution |
+| `decisionId` | `string` | Unique ID for this resolution. Use it on subsequent track events for attribution. |
+| `assignments` | `object` | Resolved parameter values keyed by parameter key. |
+| `metadata.timestamp` | `string` | ISO 8601 timestamp of the decision. |
+| `metadata.unitKeyValue` | `string` | The unit key value used for bucket computation. |
+| `metadata.layers` | `object[]` | Per-layer resolution info (see below). |
+| `metadata.configVersion` | `string` | `version` of the config bundle this resolution used — mirrors the top-level `stateVersion`. |
+| `stateVersion` | `string` | `version` of the config bundle this resolution used. |
+| `suggestedRefreshMs` | `number` | How long the result stays fresh — re-resolve after this many milliseconds (currently always `60000`). |
+
+When a matched adaptive policy is configured to log context fields, the response also includes `metadata.filteredContext` containing just those fields.
+
+Each entry in `metadata.layers` describes one layer's resolution:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `layerId` | `string` | Layer ID |
+| `bucket` | `number` | Bucket computed for this layer (`0` to `bucketCount − 1`) |
+| `policyId` | `string` | Policy that matched, if any |
+| `allocationId` | `string` | Selected allocation ID, if a policy matched |
+| `allocationName` | `string` | Selected allocation name (for example, `control`, `treatment`) |
+| `attributionOnly` | `boolean` | Present and `true` when the layer was resolved for attribution only — none of its parameters were requested. Skip exposure tracking for these layers. |
+
+Every successful resolution automatically records a decision event — you don't need to send one through `POST /v1/events`.
+
+### 400 Bad request
+
+```json
+{
+  "error": {
+    "code": "BAD_REQUEST",
+    "message": "context is required"
+  }
+}
+```
+
+Also returned for an invalid JSON body, and for org-scoped keys that omit the `X-Project-Id` header.
 
 ### 401 Unauthorized
 
 ```json
-{ "error": "Unauthorized", "message": "Invalid or expired API key" }
+{
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Invalid API key"
+  }
+}
+```
+
+### 403 Forbidden
+
+Returned when the key lacks the `sdk:read` scope, or when an `X-Org-Id` or `X-Project-Id` header doesn't match the key:
+
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "SDK read scope required"
+  }
+}
 ```
 
 ### 404 Not found
 
 ```json
-{ "error": "Not Found", "message": "Project not found" }
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Bundle not found for proj_marketplace/production"
+  }
+}
+```
+
+### 503 Service unavailable
+
+The config store is temporarily unavailable. Fall back to local resolution or defaults and retry shortly.
+
+```json
+{
+  "error": {
+    "code": "SERVICE_UNAVAILABLE",
+    "message": "Config store temporarily unavailable, retry shortly"
+  }
+}
 ```
 
 ## When to use this

@@ -1,9 +1,9 @@
 ---
-title: "Events"
+title: "Events & metrics"
 description: "Exposure, decision, and track events — what gets captured and how it powers experiments and optimization."
 ---
 
-Events are how Traffical sees what happened in your application: which variants users were exposed to and what they did afterwards. Events power metric dashboards, statistical significance calculations, and the optimization engine that learns from user behaviour.
+Events are how Traffical sees what happened in your application: which variants users were exposed to and what they did afterwards. Events power metric dashboards, statistical significance calculations, and the optimizer that learns from user behaviour. Events are the raw material; [metrics](/dashboard/metrics) aggregate them into the numbers experiments are judged on, computed with the methods in the [statistics overview](/statistics/overview).
 
 There are three kinds of events.
 
@@ -24,7 +24,7 @@ There are three kinds of events.
           "layerId": "layer_checkout",
           "policyId": "policy_color_test",
           "allocationName": "treatment",
-          "bucket": 7420
+          "bucket": 742
         }
       ]
     }
@@ -191,8 +191,8 @@ This produces a `TrafficalEventProperties` map you can use to type your `track()
 
 SDKs batch events in memory and flush to Traffical in the background. They're used for:
 
-- **Metric computation** — for dashboards, significance tests, and the optimization engine.
-- **Bandit learning** — adaptive policies use track events as reward signals; the optimization engine periodically retrains and republishes allocations or coefficients into the bundle.
+- **Metric computation** — for dashboards, significance tests, and the optimizer.
+- **Bandit learning** — adaptive policies use track events as reward signals; the optimizer periodically retrains and republishes allocations or coefficients into the bundle.
 
 If you'd rather compute metrics from your own data warehouse instead of (or in addition to) Traffical-native events, see [warehouse-native](/concepts/warehouse-native).
 

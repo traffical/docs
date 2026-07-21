@@ -28,20 +28,20 @@ The effective rule is simply: **policy setting if set, otherwise the project def
 
 ## What it measures
 
-When CUPED is on, it adjusts by a **pre-experiment covariate** — the metric's own value over a window before each unit was exposed (for example, the two weeks before they first saw the experiment). Where a unit has no pre-period history, it's analysed without adjustment. CUPED only ever removes noise — enabling it never makes an interval wider or changes the lift in expectation.
+When CUPED is on, it adjusts by a **pre-experiment covariate** — the metric's own value over a window before each unit was exposed (for example, the two weeks before they first saw the experiment). A unit with no pre-period history simply carries a covariate of zero — the metric's true pre-period value. CUPED only ever removes noise — enabling it never makes an interval wider or changes the lift in expectation.
 
 ## Configuring it on a metric
 
 CUPED needs **two things** to take effect, by design:
 
-1. **A covariate on the metric.** On the metric itself, enable variance reduction and set the **lookback window** (how many days before exposure to measure the covariate). The covariate defaults to the metric's own value over that window. Available on **average (mean)** and **conversion-rate** metrics.
+1. **A covariate on the metric.** On the metric itself, enable variance reduction and set the **lookback window** (how many days before exposure to measure the covariate). The covariate defaults to the metric's own value over that window. Available on **Conversion** and **Sum** [metric types](/dashboard/metrics).
 2. **CUPED enabled on the policy** (or project default), as described above.
 
 If either is missing, the metric is analysed normally — so turning the project default on does nothing until your metrics also carry a covariate, and a metric's covariate is dormant until a policy enables CUPED.
 
 ## Where it applies
 
-CUPED works on **average (mean)** and **conversion-rate** metrics. It composes cleanly with the rest of the engine:
+CUPED works on **Conversion** and **Sum** metrics — a Sum metric is analysed as a per-unit average, which is what the adjustment operates on. Count and Ratio metrics aren't adjusted. It composes cleanly with the rest of the engine:
 
 <CardGroup cols={2}>
   <Card title="With sequential testing" icon="gauge-high" href="/statistics/sequential-testing">
@@ -58,4 +58,6 @@ CUPED works on **average (mean)** and **conversion-rate** metrics. It composes c
 - Experiments where users have **history** in your product, so the pre-period covariate is meaningful.
 - Any time you want a **decision sooner** without lowering your confidence level.
 
-For brand-new users with no pre-period history, the covariate is simply absent and they're analysed without adjustment — CUPED helps where it can and stays out of the way where it can't.
+For brand-new users with no pre-period history, the covariate is simply zero, so there's little predictable variation to remove — CUPED helps where history exists and costs nothing where it doesn't.
+
+For the underlying math — the pooled `θ` estimator, the adjusted mean and variance formulas, and precisely which metric types are adjusted — see the [technical companion](/statistics/cuped-technical).

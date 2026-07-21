@@ -1,135 +1,148 @@
 ---
 title: "Metrics in the dashboard"
-description: "Defining metrics, reading per-policy results, configuring goal metrics for adaptive policies and rollout health gates."
+description: "Define conversion, sum, count, ratio, and composite metrics, certify the ones your team trusts, attach them to policies, and read the results scorecard."
 ---
 
-The **Metrics** page is where you turn raw events or warehouse facts into measurable numbers — and where you read experiment results.
+The **Metrics** page is your project's metric catalog: every measurable definition, built once from an event or warehouse fact and reused across every [policy](/dashboard/layers-and-policies) that needs it.
 
-<Frame caption="Metrics list">
-  <img src="/images/placeholders/metrics-list.png" alt="Metrics list placeholder" />
+The page has two tabs. **Metrics** is the catalog described here; **Protocols** holds your [measurement protocols](/governance/measurement-protocols) — reusable, certifiable rule sets that decide how [changes](/concepts/changes) get measured.
+
+<Frame caption="The metrics catalog">
+  <img src="/images/placeholders/metrics-list.png" alt="Metrics list with type badges, source column, and filter chips" />
 </Frame>
 
-## The list
+## The metrics list
 
-Each metric:
+Each row shows the metric's name (plus its display alias and any **Synced** or **Certified** badge), its source — a Traffical-native event or a warehouse fact, linked to its definition — its type, unit, and desired direction. Click a row to open the [detail page](#the-metric-detail-page).
 
-- **Name** — human-readable
-- **Source** — a Traffical-native event or a warehouse fact
-- **Aggregation** — `conversion_rate`, `sum`, `count`, `ratio`
-- **Used by** — policies attached as goal or health metrics
-- **Current value** — the latest computed aggregate across all traffic
+Filter chips narrow the list by source (**Event** / **Warehouse**), by **Synced** (config-as-code metrics), by **Certified**, or show **Archived** metrics, which are hidden by default. Certified and synced metrics have no edit or delete actions in the list — they're read-only until [uncertified](#certification) or changed in your config file.
 
-The same metric can be used in many policies. Defining `revenue_per_user` once and attaching it to every checkout-related experiment is the common pattern.
+On Traffical-native projects, event-based metrics also show a one-click **Migrate to warehouse-native** row action (a banner above the list counts the candidates) — migrating re-links the metric to its matching fact so it's processed on the unified [pipeline](/dashboard/pipeline), without changing what it measures.
 
 ## Creating a metric
 
-<Frame caption="Metric editor">
-  <img src="/images/placeholders/metric-editor.png" alt="Metric editor placeholder" />
+Click **Create Metric**. The dialog puts configuration on the left and a live preview — including the auto-generated name — on the right.
+
+<Frame caption="Create metric dialog with live preview">
+  <img src="/images/placeholders/create-metric-dialog.png" alt="Create metric dialog: type picker and source configuration on the left, live preview card on the right" />
 </Frame>
 
-Pick a source first:
+Pick a metric type first:
 
-| Source | What it means |
-|--------|--------------|
-| **Event** | Aggregate a Traffical-native track event |
-| **Fact** | Aggregate a warehouse-native fact definition |
+| Type | What it measures |
+|------|------------------|
+| **Conversion** | Did the unit fire this event? A 0/1 outcome, reported as a proportion. |
+| **Sum** | Total value per unit — pick a measure column (e.g. `order_total`). |
+| **Count** | Total occurrences per unit. |
+| **Ratio** | Numerator ÷ denominator across totals (e.g. revenue per session). |
+| **Composite** | Weighted blend of components (e.g. revenue − returns cost). |
 
-Then pick an aggregation:
+Then pick the source. On Traffical-native projects that's an [event](/dashboard/events); on warehouse-connected projects it's a [fact definition](/dashboard/definitions#facts) — SDK-tracked events appear in the fact list with an **SDK Event** badge. For **Sum**, also choose the measure to total; event-sourced metrics default to the event's value.
 
-| Aggregation | Numerator | Denominator | Output |
-|-------------|-----------|-------------|--------|
-| `conversion_rate` | Unique users with ≥ 1 event | Unique users exposed | Proportion (0–1) |
-| `sum` | Sum of value column | Unique users exposed | Per-user average |
-| `count` | Count of events | Unique users exposed | Per-user rate |
-| `ratio` | Sum of a numerator measure | Sum of a denominator measure | Ratio of totals (e.g. revenue per session) |
-| `composite` | Weighted sum of component metrics | Unique users exposed | Per-user net value |
+### Ratio metrics
 
-For `sum`, you also pick the value column (e.g. `order_total`). For `count`, no column is needed. For `ratio`, you pick **two** fact + measure pairs — a numerator (the primary source above) and a denominator — and the engine uses a delta-method standard error. See [Ratio metrics](/statistics/ratio-metrics).
+A ratio compares two facts, so both sides come from the warehouse. The fact and measure you picked above are the **numerator**; the **Denominator** panel takes a second fact and measure. The auto-generated name spells out both sides — `purchase.revenue per click.sessions [ratio]` reads as "revenue per session." Standard errors use the delta method — see [Ratio metrics](/statistics/ratio-metrics).
 
 ### Composite metrics
 
-A **composite** metric is a weighted sum of components — the way to express a net objective like *revenue minus fulfilment cost*, *success per token*, or *engagement penalised by unsubscribes*. Each component is a fact + aggregation (`binary`/`count`/`sum`) with a **weight** (negative weights subtract — that's how a cost component works), an optional per-user **cap** (whale protection, applied before weighting), and an optional per-component **timeframe**. Per user, the metric is `Σ weight × cap(component)`, and it behaves as a per-user average everywhere downstream (significance, confidence intervals, and adaptive optimization).
+A composite is a weighted sum of components — the way to express a net objective like *revenue minus returns cost*. Instead of a single source, you build a list of component rows:
 
-Because a composite carries a single per-user reward, it can be an adaptive policy's **goal** — the optimizer maximises (or, with a decrease direction, minimises) the net weighted objective directly, rather than you hand-tuning one event. Components must be fact-backed count/sum/binary metrics; a composite can't nest another composite or use a ratio component.
+<Frame caption="Composite component rows">
+  <img src="/images/placeholders/metric-composite-components.png" alt="Composite metric editor with weighted component rows, per-component cap, and attribution window" />
+</Frame>
+
+Each component is either a **fact + measure** or an **existing metric** (fact-backed conversion, count, or sum metrics only — no ratios, and composites can't nest). Per component you set:
+
+- **Aggregation** — binary (fired ≥ 1 → 0/1), count, or sum of a measure.
+- **Weight** — a negative weight subtracts; that's how a cost component works.
+- **Cap** (optional) — clamps each unit's value before weighting, so one whale can't dominate the reward.
+- **Window** (optional) — a per-component attribution window, counting only value from *X* to *Y* days after exposure.
+
+Per unit, the metric is the sum of the weighted, capped components. It behaves as a per-unit average everywhere downstream — significance, confidence intervals, and [adaptive optimization](/experimentation/optimization) — which is what makes a composite a good goal metric: the optimizer maximizes the net objective directly instead of you hand-tuning one event.
+
+### Names
+
+Metric names follow a convention — `orders.order_total [sum]`, `purchase per click [ratio]` — and are generated as you configure, locked by default. Click **Edit** next to the name to customize it, **Reset** to return to the convention. Duplicates get a `#2` suffix; filters add a qualifier like `checkout/country=de`. An optional display alias shows a friendlier label in the UI without changing the name.
+
+### Filters, timeframe, and direction
+
+- **Filters** restrict which events count (e.g. only `status = completed`). Available columns come from properties marked as dimensions on the [event's property schema](/dashboard/events#properties), or from the fact's dimension columns. Operators: equals, not equals, in, not in.
+- **Timeframe** limits attribution to the first *N* days after exposure.
+- **Unit** is a display label (`USD`, `items`).
+- **Direction** declares whether the metric should **increase** or **decrease** — it colors results and sets the default guardrail direction when the metric is attached as one. Warehouse measures can carry a preferred direction, which pre-fills this field.
+- **Default MDE (%)** is the smallest change worth acting on — the default [measurement-progress](/statistics/measurement-progress) target wherever this metric is attached.
+
+### Variance reduction (CUPED)
+
+On **Conversion** and **Sum** metrics you can enable a pre-experiment covariate: the metric's own value over a lookback window (default 14 days) before each unit's exposure. It shrinks confidence intervals and takes effect only when [CUPED](/statistics/cuped) is also enabled on the policy or project. CUPED isn't available for count or ratio metrics.
+
+## Certification
+
+Certifying a metric marks it as a trusted, validated definition — the standard your team measures with. Click **Certify** on the metric's detail page. A certified metric:
+
+- becomes **read-only**, so the definition can't drift under running experiments, and
+- is eligible for [measurement protocols](/governance/measurement-protocols) — protocols pick from certified metrics only, and a protocol can itself only be certified when every metric it references is certified. That certified coverage is what lets low-risk changes [auto-approve their measurement plans](/governance/approvals-and-autonomy).
+
+Uncertifying is deliberate: it asks you to type `UNCERTIFY`, since colleagues and running experiments may rely on the definition. Once uncertified, the metric becomes editable again.
 
 <Note>
-On **average (mean)** and **conversion-rate** metrics you can also enable **CUPED variance reduction** — a pre-experiment covariate over a lookback window that shrinks confidence intervals. It applies when CUPED is turned on for the policy. See [Variance reduction (CUPED)](/statistics/cuped).
+Metric definitions can also live as config-as-code in a metrics file pushed via the [CLI](/tools/cli) — see the [config file reference](/tools/config-file). Synced metrics show a **Synced** badge, are read-only in the dashboard, and change (including their `certified` flag) only through your file and the next push.
 </Note>
 
-<Note>
-Metric **definitions** can also live as config-as-code in `.traffical/metrics.yaml` and be pushed via the CLI — see the [config file](/tools/config-file) and [CLI](/tools/cli) reference. Attaching a metric as a policy's goal or guardrail is done in the dashboard ([below](#attaching-to-policies)).
-</Note>
+## Attaching metrics to policies
 
-## Filters and dimensions
+On a policy's detail page, open the metrics panel and click **Attach Metrics**. The dialog is a catalog and a cart: browse and multi-select on the left (search with <kbd>⌘K</kbd>, filter by type, hide already-attached), and manage the attached set on the right, grouped by role.
 
-A metric can be filtered (e.g. "only completed orders") or grouped by a dimension (e.g. by `country`).
+<Frame caption="Attach metrics to a policy">
+  <img src="/images/placeholders/metric-attach.png" alt="Attach metrics dialog with searchable catalog on the left and role-grouped cart on the right" />
+</Frame>
 
-For event-sourced metrics, the available filters and dimensions come from properties marked `dimension: true` on the event's [property schema](/dashboard/events#properties).
+- **Primary** — exactly one, required whenever metrics are attached. It drives the decision. Promoting another metric demotes the current primary to secondary.
+- **Secondary** — any number, tracked alongside without driving decisions.
+- **Guardrail** — any number. Each needs a threshold (**above** or **below** a value, defaulted from the metric's desired direction); a breach blocks the rollout.
 
-For fact-sourced metrics, available filters are columns returned by the fact SQL.
+Primary and secondary attachments can carry a per-policy **target MDE** override; left empty, they inherit the metric's default. Guardrails don't take one — their threshold is the target.
 
-## Metric detail
+## Reading the results scorecard
+
+The policy's scorecard lists every attached metric grouped by role, with per-allocation lift, confidence interval, and a significance verdict; guardrails additionally show a status chip against their threshold.
+
+<Frame caption="Policy metrics scorecard">
+  <img src="/images/placeholders/policy-metrics-scorecard.png" alt="Policy scorecard grouped into primary, secondary, and guardrail sections with per-allocation confidence intervals" />
+</Frame>
+
+Right after attaching, the scorecard is in a **pending** state: a banner confirms the metrics are attached and ready, and each cell reads "awaiting data" until the first measurement computes. Significance, lift, and confidence intervals fill in from the first refresh onward. For how the numbers are computed — including anytime-valid [sequential testing](/statistics/sequential-testing) and time-to-significance estimates on the [measurement progress](/statistics/measurement-progress) card — see the [Statistics](/statistics/overview) section.
+
+## The metric detail page
 
 <Frame caption="Metric detail">
-  <img src="/images/placeholders/metric-detail.png" alt="Metric detail placeholder" />
+  <img src="/images/placeholders/metric-detail.png" alt="Metric detail page with volume chart, definition rail, and policies using this metric" />
 </Frame>
 
-The detail page shows:
+The detail page shows the metric's volume over time with a date-range picker (last 30 days by default), and every policy using the metric with its role in each. For conversion metrics the chart shows raw conversions — a *rate* needs an exposed population, so rates live on the per-policy scorecard.
 
-- Current value with trend over time
-- Top breakdowns by configured dimensions
-- All policies using this metric as a goal or health gate
+The **Definition** rail summarizes the source (linked to its event or fact), unit, default MDE, measure column, timeframe, and filters, alongside a metadata card with IDs and timestamps.
 
-Use the time-range selector to look at any window.
+### Editing, archiving, and deleting
 
-## Attaching to policies
+A metric is editable while it's neither certified, synced, nor archived — **Uncertify** makes a certified metric editable again. Two ways to retire one:
 
-Open a policy → **Metrics** → **Add metric**.
-
-<Frame caption="Attach metric to policy">
-  <img src="/images/placeholders/metric-attach.png" alt="Attach metric placeholder" />
-</Frame>
-
-A policy can have:
-
-- **One goal metric.** What the experiment is optimizing for (drives adaptive allocation shifts, surfaces as the primary result).
-- **Any number of guardrail metrics.** Side effects you want to watch.
-- **Rollout health metrics.** For policies with a rollout, metrics that gate ramp progression.
-
-For adaptive policies, only the goal metric drives the engine. Guardrails are surfaced in the UI but don't influence allocations.
-
-## Reading per-policy results
-
-On a policy's detail page, each metric shows per-allocation:
-
-- The point estimate (e.g. conversion rate = 0.087)
-- A confidence interval
-- A significance indicator (when the experiment has enough data to make a confident call)
-
-<Frame caption="Policy metric results">
-  <img src="/images/placeholders/policy-metric-results.png" alt="Policy metric results placeholder" />
-</Frame>
-
-Significance is computed using cluster-robust standard errors when the metric is measured at a different level than the randomization (e.g. randomized by company, measured per user). The dashboard handles this automatically based on entity definitions.
-
-For how the numbers are computed — confidence intervals, the metric types, **anytime-valid sequential testing** (peek as often as you like), and **CUPED** variance reduction — see the [Statistics](/statistics/overview) section.
-
-## Best practices
-
-- **Pick metrics carefully.** A metric that's noisy at your traffic level will say "no significant effect" forever. Use a more direct outcome where possible.
-- **Don't add too many guardrails.** Three is plenty. Twenty is paralyzing.
-- **Match metric to randomization level.** If your project is keyed on `companyId`, prefer company-level metrics for goals. User-level metrics are still valid with cluster-robust analysis but slow to converge.
+- **Archive** hides the metric from the catalog and blocks new attachments while preserving every past policy reference. Archiving is refused while a running or paused policy still uses the metric; unarchive restores it any time.
+- **Delete** is only allowed if the metric has never shipped in a non-draft policy. Once it has, the definition is part of the evidence record for those experiments — the server refuses and points you to archive instead.
 
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="Experiment design" icon="lightbulb" href="/guides/experiment-design">
-    Picking goal metrics and guardrails.
+  <Card title="Measurement protocols" icon="clipboard-check" href="/governance/measurement-protocols">
+    Turn certified metrics into reusable measurement rules for changes.
   </Card>
   <Card title="Definitions" icon="database" href="/dashboard/definitions">
     Where warehouse-native fact definitions live.
   </Card>
-  <Card title="Rollouts" icon="forward" href="/experimentation/rollouts">
-    Health-gated progressive delivery.
+  <Card title="Experiment design" icon="lightbulb" href="/guides/experiment-design">
+    Picking a primary metric and guardrails.
+  </Card>
+  <Card title="Statistics" icon="chart-line" href="/statistics/overview">
+    Significance, sequential testing, CUPED, and ratio metrics.
   </Card>
 </CardGroup>

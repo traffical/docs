@@ -1,0 +1,145 @@
+---
+title: "Notifications"
+description: "Your notification feed, the bell, acknowledgements, email and Slack delivery, routing rules, and the delivery audit log."
+---
+
+Traffical keeps working when you're not looking — experiments reach significance, health checks trip, agents propose transitions. Notifications are how that reaches you: an in-app feed and bell for everyone, email delivery you opt into, org-wide routing to shared Slack channels and inboxes, and an audit log of every delivery.
+
+<Frame caption="Notifications feed">
+  <img src="/images/placeholders/notifications-feed.png" alt="Notifications feed with All, Unread, and Needs ack tabs" />
+</Frame>
+
+## What generates notifications
+
+Every notification belongs to one of four categories:
+
+| Category | What's in it |
+|----------|--------------|
+| **Policy** | A [policy health check](/dashboard/policy-health) changes status — a guardrail or SRM check starts failing, or recovers — and policy configuration changes. |
+| **Experiment** | Measurement readouts: a metric reaches [significance](/statistics/significance) (win or loss), or an experiment is ready to resolve. |
+| **Data** | Data-quality alerts — ingested event volume drops well below what's expected. |
+| **System** | Operational and governance events: a [workflow run](/dashboard/pipeline) fails, an agent proposes or executes a transition on a [change](/concepts/changes) (see [approvals & autonomy](/governance/approvals-and-autonomy)), and platform announcements. |
+
+Categories are the unit you route and subscribe at — you turn a whole category on or off per channel, or route it to a Slack channel, rather than managing individual event types (though [routing rules](#shared-destinations-and-routing-rules) can go event-type-fine when you want them to).
+
+Two behaviors keep the feed quiet:
+
+- **You aren't notified about your own actions.** Editing a policy notifies the other people who care about it, not you.
+- **Repeats are deduplicated.** The same alert firing again within a day doesn't produce a new notification.
+
+## The bell
+
+The bell in the top nav is your quickest read on what's new. It shows a badge with your unread count (capped at **99+**) and refreshes automatically while the tab is open.
+
+Click it to see your most recent notifications. From the dropdown you can:
+
+- **Click a notification** to mark it read and jump straight to the object it's about — the change, policy, metric, or run.
+- **Acknowledge** a critical alert inline.
+- **Mark all read**, or **View all** to open the full feed.
+
+## The feed
+
+The full feed lives on your organization's **Notifications** page (in the sidebar's **Organization** section), newest first. It's *your* feed: each notification is addressed to the people its event concerns — the policy's creator, the change's owner, org admins — so what you see is what was sent to you, not everything that happened in the org. Three tabs filter it:
+
+- **All** — everything, with a total and unread count.
+- **Unread** — what you haven't read yet.
+- **Needs ack** — critical alerts waiting for you to acknowledge them.
+
+Each row shows the notification, the object it's about, and when it happened. Unacknowledged critical alerts carry a **Needs ack** badge, and significant-metric rows show a result chip with the measured lift; the category badge appears on items in the bell dropdown. Clicking a row marks it read and deep-links to the object; the **…** menu on each row offers **Mark as read**, **Acknowledge** (where required), and **Open**. The feed loads 50 at a time — **Load more** appends the next page — and **Mark all read** clears the backlog in one click.
+
+## Reading vs. acknowledging
+
+These are two different signals:
+
+- **Read** means you've seen it. Reading is personal and low-ceremony — clicking a notification, or **Mark all read**, is enough.
+- **Acknowledged** means you've taken responsibility for it. A small set of serious alerts — an event-volume drop, a failed workflow run, anything critical — carries a **Needs ack** badge and stays highlighted in your feed and bell until you acknowledge it.
+
+Acknowledgement is per recipient: each person the alert was sent to acknowledges their own copy, so acking it yourself doesn't clear it from a teammate's **Needs ack** tab. Acknowledging also marks the notification read. Until you acknowledge it, it keeps showing under your **Needs ack** tab — so a tripped alert can't quietly scroll out of view.
+
+## Where notifications are delivered
+
+Three channels carry notifications:
+
+| Channel | Default | Who configures it |
+|---------|---------|-------------------|
+| **In-app** (feed + bell) | Always on | Nobody — every recipient always gets a feed entry |
+| **Email** | Off | Each person, per category, in their own preferences |
+| **Slack** | Off | Org admins, via shared destinations and routing rules |
+
+Delivery is layered: you control your own email delivery in [personal preferences](#your-personal-preferences), and org admins mirror categories to [shared destinations](#shared-destinations-and-routing-rules) — a team Slack channel or a mailing list. The two layers are independent; a routing rule never turns off anyone's personal delivery. Per-person Slack delivery isn't available yet — Slack messages go to shared destinations only.
+
+## Your personal preferences
+
+Open your account settings and go to **Notifications** to control which channels deliver each category to you.
+
+<Frame caption="Personal notification preferences">
+  <img src="/images/placeholders/notification-preferences.png" alt="Notification preferences matrix of categories by channel" />
+</Frame>
+
+The page is a matrix — one row per category, one column per channel:
+
+- **In-app is locked on.** Every notification addressed to you always lands in your feed.
+- **Email is off by default.** Turn on exactly the categories you want in your inbox.
+- **The Slack column doesn't deliver yet.** Per-person Slack delivery isn't available; Slack messages reach channels through [shared destinations](#shared-destinations-and-routing-rules) that org admins configure.
+
+Enabled email and Slack cells also carry a delivery frequency: **Standard** — prompt delivery with a short [bundling](#bundling) window — or a scheduled **Hourly** or **Daily** digest that collects the period's notifications into one combined message. In-app has no frequency control: feed entries always appear immediately.
+
+Preferences narrow delivery; they never widen it. You can stop a category from reaching your inbox, but you can't subscribe to events that weren't addressed to you in the first place.
+
+## Shared destinations and routing rules
+
+Org-wide delivery is configured on the **Settings** tab of the organization's **Notifications** page. The tab is visible to organization admins and owners (it requires the `notifications:manage` permission — see [roles & permissions](/governance/roles-and-permissions)).
+
+<Frame caption="Shared destinations and routing rules">
+  <img src="/images/placeholders/notifications-routing.png" alt="Shared destinations list and routing-rule builder" />
+</Frame>
+
+### Shared destinations
+
+A shared destination is a place notifications go that isn't a person:
+
+- **A Slack channel** — paste a Slack incoming-webhook URL and name the channel (e.g. `#ops-alerts`).
+- **An email address** — typically a mailing list or shared inbox.
+
+Each destination can be toggled off without deleting it; removing one stops every routing rule that points at it.
+
+### Routing rules
+
+A routing rule mirrors a slice of the org's notifications to a shared destination. Each rule reads like a sentence: *when* **all categories** / **one category** / **a single event type** *happens, send to* **a destination**.
+
+Use the catch-all (**All categories**) to give an ops channel full visibility, a category rule to send everything experiment-related to the growth team's channel, or an event-type rule to route just "event volume dropped" to the on-call channel. Rules stack — add as many as you need. Each rule also carries a delivery frequency — **Standard**, **Hourly**, or **Daily** — with the same meaning as in personal preferences.
+
+## Bundling
+
+Notification delivery is designed to never spam a channel:
+
+- **Bursts coalesce.** When several related events about the same object fire in quick succession — a policy whose health checks flip in a cascade, say — email and Slack delivery at the **Standard** frequency waits briefly (about a minute) and sends **one** combined message: a subject naming the object and the update count, one line per event, one link. In-app is exempt: feed entries always appear individually and immediately.
+- **Scheduled digests collect a period.** A preference cell or routing rule set to **Hourly** or **Daily** holds its notifications and sends one combined digest shortly after the hour or day closes.
+- **Critical alerts skip the queue.** Anything with critical severity, and everything in the **System** category, bypasses bundling and is always delivered immediately — even to recipients on an hourly or daily digest. A failed workflow run never waits.
+
+The [audit log](#the-delivery-audit) makes bundling visible: coalesced deliveries carry a **bundled** badge showing how many events went out as one message.
+
+## The delivery audit
+
+The **Audit** tab of the organization's **Notifications** page is the delivery log — who received what, when, and on which channel. Like the Settings tab, it's visible only with the `notifications:manage` permission (organization admins and owners).
+
+Each row is one delivery: the recipient (a user or a shared destination), the channel, the event type, the target object (deep-linked), the delivery status, when it went out, and the source — the person, agent, or system process whose action triggered it. Failed deliveries are flagged with the error detail, and bundled rows are grouped so you can see that, say, six health-check events reached Slack as a single message.
+
+Use the audit when someone asks "why didn't I get that alert?" — you can see whether the notification was generated, where it was sent, and whether the send succeeded. For broader diagnosis, see [troubleshooting](/reference/troubleshooting).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Policy health" icon="heart-pulse" href="/dashboard/policy-health">
+    The health checks behind policy notifications.
+  </Card>
+  <Card title="Approvals & autonomy" icon="user-check" href="/governance/approvals-and-autonomy">
+    The approval flow that proposed-transition notifications feed.
+  </Card>
+  <Card title="Changes" icon="git-branch" href="/dashboard/changes">
+    Where experiment and lifecycle notifications link to.
+  </Card>
+  <Card title="Roles & permissions" icon="lock" href="/governance/roles-and-permissions">
+    Who can manage destinations, routing, and the audit log.
+  </Card>
+</CardGroup>

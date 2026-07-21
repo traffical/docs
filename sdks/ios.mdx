@@ -17,7 +17,7 @@ Or in `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/traffical/ios-sdk", from: "0.5.0"),
+    .package(url: "https://github.com/traffical/ios-sdk", from: "0.6.0"),
 ],
 ```
 
@@ -198,7 +198,7 @@ The provider's fields are merged into the context on every resolution, so a poli
 
 ## Server vs bundle mode
 
-In the default `.bundle` mode the SDK fetches the config bundle and resolves every parameter locally — sub-millisecond, no per-decision network call. In `.server` mode each resolution delegates to the edge worker via `POST /v1/resolve` (cached per context), for when you want zero client-side evaluation logic:
+In the default `.bundle` mode the SDK fetches the config bundle and resolves every parameter locally — sub-millisecond, no per-decision network call. In `.server` mode each resolution delegates to Traffical's edge via `POST /v1/resolve` (cached per context), for when you want zero client-side evaluation logic:
 
 ```swift
 traffical = TrafficalClient(options: .init(

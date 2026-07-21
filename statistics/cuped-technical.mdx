@@ -1,0 +1,74 @@
+---
+title: "CUPED: statistical details"
+description: "The estimator behind variance reduction — the pooled θ, the adjusted mean and variance, the covariate window, and which metric types are adjusted."
+---
+
+This page is the technical companion to [Variance reduction (CUPED)](/statistics/cuped). The method is from Deng, Xu, Kohavi & Walker, *Improving the Sensitivity of Online Controlled Experiments by Utilizing Pre-Experiment Data*, WSDM 2013.
+
+## The adjustment
+
+For each unit, CUPED replaces the in-experiment outcome `Y` with:
+
+```
+Y_adj = Y − θ · (X − X̄)
+```
+
+where `X` is the unit's pre-experiment covariate, `X̄` is the covariate mean over all units, and:
+
+```
+θ = Cov(Y, X) / Var(X)
+```
+
+This is the variance-minimizing choice of `θ`, and at that value:
+
+```
+Var(Y_adj) = Var(Y) · (1 − ρ²)        # ρ = corr(Y, X)
+```
+
+The stronger the correlation between past and present, the more variance comes out.
+
+## Why θ is pooled across arms
+
+Traffical estimates `θ` and `X̄` once, pooling the data from **all arms together**, rather than fitting a coefficient per arm. This is what keeps the adjustment unbiased. A per-arm `θ` would itself depend on the treatment assignment, and the adjustment could then absorb part of a real treatment effect. The pooled `θ` is a single constant applied identically to every unit, and because `X` is measured before exposure, randomization makes the expected covariate equal across arms — so the term `θ · (X − X̄)` has the same expectation in every arm and cancels from the expected lift. The adjustment can shift each arm only by its *chance* imbalance in `X`; it removes noise and cannot manufacture or hide an effect.
+
+## Arm-level formulas
+
+Everything is computed from per-arm sufficient statistics — `n, Σy, Σy², Σx, Σx², Σxy` — so no row-level data leaves your warehouse. With the pooled `θ` and global mean `X̄`:
+
+```
+mean_adj  = Ȳ_arm − θ · (X̄_arm − X̄)
+Var(Y_adj) = Var(Y) − 2·θ·Cov(Y, X) + θ²·Var(X)      # per arm
+SE_adj    = √( Var(Y_adj) / n )
+```
+
+The adjusted mean subtracts the outcome shift predicted by the arm's chance covariate imbalance; the lift is the difference of adjusted means. The per-arm **absolute** value and its interval shown in results stay unadjusted — the adjustment applies to the comparison, not to the reported metric level. Degenerate inputs fall back safely: a constant covariate (`Var(X) = 0`) or an empty arm yields `θ = 0`, i.e. the unadjusted analysis.
+
+## The covariate
+
+By default the covariate is the **same metric's own value before exposure**. Its window is fixed at experiment start: `[start − lookback, start)`, where the lookback is the day count you configure on the metric. Anchoring to the experiment's start (rather than to each analysis run) means the pre-period never moves as results refresh. Within that window, only events from before the unit's **own first exposure** count — a unit that entered mid-experiment can never have post-exposure behavior leak into its covariate.
+
+A unit with no pre-period activity gets a covariate of **zero** — for a same-metric covariate that is the true value of the metric over the window, not missing data, and the adjustment applies to it like any other unit.
+
+## Supported metric types
+
+- **Conversion rate** — the outcome is the 0/1 converted flag, so `Σy² = Σy` (the converter count). The covariate stays continuous (the pre-period value), which is fine: the regression behind `θ` doesn't need `X` to be binary.
+- **Average (mean)** — the outcome is the unit's summed value. With winsorization, the cap is applied to the outcome before adjustment; the covariate is not capped.
+- **Composite** — a composite emits the same sum-style per-unit outcome as an average metric and takes the identical adjustment path.
+
+**Count metrics are not adjusted today.** The count aggregation carries only per-arm event totals — not the per-unit sum of squares and covariate cross-products (`Σy²`, `Σxy`) that fitting `θ` and computing the adjusted variance require — and its standard error uses a Poisson-style approximation rather than a sample variance. Until count metrics carry full sufficient statistics, they're analysed unadjusted.
+
+**Ratio metrics are not adjusted today.** A ratio's estimand is a ratio of two means, with a standard error from the delta method over the joint statistics of numerator and denominator. A single linear shift of a per-unit outcome doesn't map onto that estimator — correct variance reduction for a ratio means adjusting numerator and denominator jointly inside the delta method, which is its own estimator and isn't wired yet.
+
+If the metric type is unsupported, or any arm is missing the covariate statistics, the whole metric is analysed unadjusted — the adjustment is never applied to only some arms.
+
+## Downstream of the adjustment
+
+CUPED runs **upstream of the test**. It replaces each arm's (mean, standard error) before the treatment-versus-control difference is assembled, so both the fixed-horizon test and the [anytime-valid confidence sequence](/statistics/sequential-testing-technical) consume the adjusted estimates without change. Under sequential testing, the smaller standard error narrows the sequence at every look while the time-uniform guarantee is untouched.
+
+## What to expect
+
+The variance shrinks by the factor `1 − ρ²`, and required sample size scales with it: `ρ = 0.5` cuts variance by 25%, `ρ = 0.7` roughly halves the runtime to a powered decision, and `ρ = 0.8` cuts variance by 64% (40% narrower intervals). Revenue-like metrics with stable per-user behavior sit at the high end; metrics dominated by brand-new users gain little, because their covariates are mostly zero.
+
+## Reference
+
+Deng, A., Xu, Y., Kohavi, R., & Walker, T. (2013). Improving the sensitivity of online controlled experiments by utilizing pre-experiment data. *Proceedings of the Sixth ACM International Conference on Web Search and Data Mining (WSDM '13)*.

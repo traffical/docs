@@ -7,13 +7,13 @@ A **layer** is a pool of mutually exclusive policies over a disjoint set of para
 
 ```mermaid
 flowchart TB
-    Project["Project (unitKey: userId, bucketCount: 10000)"]
+    Project["Project (unitKey: userId, bucketCount: 1000)"]
 
     subgraph L1["Layer: Checkout"]
         direction TB
         L1P1["Policy: color_test (running)"]
-        L1P1A1["control · buckets 0–4999<br/>checkout.button.color = #1E6EFB"]
-        L1P1A2["treatment · buckets 5000–9999<br/>checkout.button.color = #22C55E"]
+        L1P1A1["control · buckets 0–499<br/>checkout.button.color = #1E6EFB"]
+        L1P1A2["treatment · buckets 500–999<br/>checkout.button.color = #22C55E"]
         L1P1 --- L1P1A1
         L1P1 --- L1P1A2
     end
@@ -21,9 +21,9 @@ flowchart TB
     subgraph L2["Layer: Pricing"]
         direction TB
         L2P1["Policy: discount_test (running)"]
-        L2P1A1["low · buckets 0–3332<br/>pricing.discount_pct = 5"]
-        L2P1A2["mid · buckets 3333–6665<br/>pricing.discount_pct = 10"]
-        L2P1A3["high · buckets 6666–9999<br/>pricing.discount_pct = 20"]
+        L2P1A1["low · buckets 0–332<br/>pricing.discount_pct = 5"]
+        L2P1A2["mid · buckets 333–665<br/>pricing.discount_pct = 10"]
+        L2P1A3["high · buckets 666–999<br/>pricing.discount_pct = 20"]
         L2P1 --- L2P1A1
         L2P1 --- L2P1A2
         L2P1 --- L2P1A3
@@ -58,7 +58,7 @@ bucket = hash(unitKey + layerId) % bucketCount
 
 Because the layer ID is mixed into the hash, a user's bucket in Layer A carries no information about its bucket in Layer B. The two assignments are statistically independent. This is what makes concurrent experiments safe.
 
-`bucketCount` is a project-level setting (default `10000`). A higher count gives finer-grained allocation ranges and smoother rollouts.
+`bucketCount` is a project-level setting (default `1000`). A higher count gives finer-grained allocation ranges and smoother rollouts.
 
 ### Example
 
@@ -70,25 +70,25 @@ Two concurrent experiments in different layers:
 | Layer 2 | Pricing experiment | `pricing.discount_pct` |
 
 User `user_789` gets:
-- **Layer 1**: `hash("user_789" + "layer_1") % 10000 = 3420` → Control (range 0–4999)
-- **Layer 2**: `hash("user_789" + "layer_2") % 10000 = 8170` → Treatment (range 5000–9999)
+- **Layer 1**: `hash("user_789" + "layer_1") % 1000 = 342` → Control (range 0–499)
+- **Layer 2**: `hash("user_789" + "layer_2") % 1000 = 817` → Treatment (range 500–999)
 
 The two assignments are independent. Measuring the effect of the color change isn't confounded by the pricing change.
 
 ## Bucket ranges
 
-Each layer has `bucketCount` buckets (typically 10000). The policies within a layer divide that space into non-overlapping allocation ranges:
+Each layer has `bucketCount` buckets (typically 1000). The policies within a layer divide that space into non-overlapping allocation ranges:
 
 ```
-Layer: Checkout experiments  (bucketCount: 10000)
+Layer: Checkout experiments  (bucketCount: 1000)
 ├── Policy: color_test (running)
-│   ├── control:   buckets 0–4999    → button.color = "#1E6EFB"
-│   └── treatment: buckets 5000–9999 → button.color = "#22C55E"
+│   ├── control:   buckets 0–499   → button.color = "#1E6EFB"
+│   └── treatment: buckets 500–999 → button.color = "#22C55E"
 │
 └── (remaining parameters get default values)
 ```
 
-For static A/B tests the ranges are fixed. For adaptive policies the optimization engine adjusts the ranges over time, shifting traffic toward better-performing allocations. For [rollouts](/experimentation/rollouts) the ranges expand in increments during forward ramping, and can shrink again on rollback or a manual percentage decrease.
+For static A/B tests the ranges are fixed. For adaptive policies the optimizer adjusts the ranges over time, shifting traffic toward better-performing allocations. For [rollouts](/experimentation/rollouts) the ranges expand in increments during forward ramping, and can shrink again on rollback or a manual percentage decrease.
 
 ## Organising parameters into layers
 
@@ -107,9 +107,9 @@ A parameter belongs to exactly one layer. You can move a parameter between layer
 A policy can optionally narrow itself to a sub-range of the layer (an **eligible bucket range**). This is how you fit several non-overlapping experiments inside a single layer:
 
 ```
-Layer: Marketing experiments  (bucketCount: 10000)
-├── Policy: hero_test         eligible range 0–4999
-└── Policy: cta_test          eligible range 5000–9999
+Layer: Marketing experiments  (bucketCount: 1000)
+├── Policy: hero_test         eligible range 0–499
+└── Policy: cta_test          eligible range 500–999
 ```
 
 Users outside a policy's eligible range skip it entirely.

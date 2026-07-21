@@ -12,7 +12,7 @@ description: "Log in, link a project, and sync parameters, events, and metrics b
 - **Typed events** — generate TypeScript types from your event schemas so invalid `track()` calls fail at compile time.
 - **CI-enforceable** — `traffical status` exits non-zero on drift, so you can gate merges on the repo and platform being in sync.
 
-Policies, allocations, and experiment decisions still live in the [dashboard](/dashboard/overview) — the CLI owns the *definitions*, not the rollout state.
+Policies, allocations, and experiment lifecycle decisions still live in the [dashboard](/dashboard/overview) — the CLI owns the *definitions*, not the rollout state.
 
 ## Installation
 
@@ -34,7 +34,7 @@ Requires Node.js 18+.
     traffical init
     ```
 
-    `init` logs you in, lets you pick an org and project, writes [`config.yaml`](/tools/config-file#config-yaml) and [`project.yaml`](/tools/config-file#project-yaml), creates a public SDK key, and drops example code for your framework.
+    `init` logs you in, lets you pick an org and project, writes [`config.yaml`](/tools/config-file#configyaml) and [`project.yaml`](/tools/config-file#projectyaml), creates a public SDK key, and drops example code for your framework.
   </Step>
   <Step title="Edit your config">
     Add or change parameters and events in `.traffical/config.yaml`. See the [configuration file reference](/tools/config-file) for every field.
@@ -92,7 +92,7 @@ traffical login --no-browser
 
 ## Selecting a project
 
-A repo is linked to exactly one Traffical project, recorded in [`.traffical/project.yaml`](/tools/config-file#project-yaml).
+A repo is linked to exactly one Traffical project, recorded in [`.traffical/project.yaml`](/tools/config-file#projectyaml).
 
 ```bash
 traffical link                      # interactive org + project picker

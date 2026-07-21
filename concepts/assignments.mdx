@@ -7,7 +7,7 @@ A **decision** is the SDK's record of resolving parameters for a user. Every tim
 
 Decisions are the backbone of attribution — they're how a `purchase` track event ends up tied to the `treatment` variant of the `pricing_test` policy that the user saw fifteen minutes earlier.
 
-## The decision record
+## The decision object
 
 Conceptually:
 
@@ -18,8 +18,8 @@ Decision {
   timestamp:     "2026-05-21T10:30:00Z"
   assignments:   { "checkout.button.color": "#22C55E", ... }
   layers: [
-    { layerId: "layer_checkout", policyId: "policy_color_test", allocationName: "treatment", bucket: 7420 },
-    { layerId: "layer_pricing",  policyId: "policy_discount",   allocationName: "low",       bucket: 1280 }
+    { layerId: "layer_checkout", policyId: "policy_color_test", allocationName: "treatment", bucket: 742 },
+    { layerId: "layer_pricing",  policyId: "policy_discount",   allocationName: "low",       bucket: 128 }
   ]
 }
 ```

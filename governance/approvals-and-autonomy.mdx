@@ -1,0 +1,145 @@
+---
+title: "Risk, approvals & autonomy"
+description: "How Traffical decides who — or what — may do what to a change, based on its computed risk class."
+---
+
+Every [change](/concepts/changes) carries a **risk class**. Traffical computes it from what the change actually touches, then uses it to answer three questions: how should this change run, when must a human approve, and what may an AI agent do on its own. This page explains the model and the levers you control.
+
+<Note>
+The Changes surface is enabled per organization. If you don't see **Changes** in the sidebar, it isn't enabled for your organization yet.
+</Note>
+
+## Risk classes
+
+There are four classes: **low**, **medium**, **high**, and **critical**. Traffical computes a baseline from the [surfaces](/concepts/surfaces) a change touches — its primary surface plus any impacted ones:
+
+| Surface kind | Base risk |
+|--------------|-----------|
+| Frontend, email, notification | Low |
+| Backend, data, other | Medium |
+| Ranking, AI | High |
+
+When a change touches several surfaces, the highest-risk one sets the base. Two adjustments apply on top:
+
+- **Behavior-altering bindings bump risk one level.** If any parameter in the change is bound to a surface with a `decision`, `write`, or `side_effect` role, the class moves up a rung — a backend change that drives a decision is high, not medium. Read-and-render bindings don't bump.
+- **No surface signal defaults to medium.** A change whose parameters have no surface bindings gets no discount — Traffical assumes medium rather than guessing low.
+
+The wizard shows the computed class with a one-line reason, like *"high — AI surface, decision binding"*, so you can see exactly which surface and binding drove it.
+
+<Frame caption="The computed risk class in the wizard">
+  <img src="/images/placeholders/change-wizard-risk-class.png" alt="Strategy step of the New change wizard showing the computed risk class badge with its one-line reason" />
+</Frame>
+
+### Overriding the computed class
+
+The computed class is a baseline, not a verdict — you know things about the change that surface metadata can't capture.
+
+- **Raising risk is free.** Pick a higher class from the selector and it applies immediately.
+- **Lowering risk requires a recorded reason.** If you set the class below the computed baseline, the wizard requires a written justification before you can continue. The reason is recorded in the audit trail, and the risk rationale keeps both readings — *"low — set manually (computed medium — backend surface)"* — so an auditor can always see what was overridden and why.
+
+## What the risk class controls
+
+Risk isn't a label; it gates three concrete things.
+
+**The recommended lifecycle template.** A low-risk change gets the gradual-rollout template — canary, then ramp, no experiment phase. Medium and above recommend the full canary → experiment → rollout lifecycle. Adaptive optimization is never auto-recommended; you choose it deliberately. The recommendation is exactly that — you can pick any template. The recommended one carries a **Recommended** badge, and if the computed risk rises after you've chosen a lighter template — say a surface added later bumps the class — the wizard prompts you to switch to a canary-first lifecycle.
+
+**Whether traffic needs human sign-off.** No change exposes traffic without an approved [measurement plan](/governance/measurement-protocols). The plan is approved automatically only when *all* of these hold: the risk class is **low**, the plan was resolved from **certified** measurement protocols, and it carries **zero unresolved risks**. Everything else — any medium, high, or critical change, any plan with a coverage gap, any change with no certified protocol at all — is blocked until a human reviews and approves the plan in the change's **Plan** tab. High- and critical-risk changes therefore never begin traffic without a person signing off.
+
+**What agents may do autonomously.** The risk class sets the default answer to "may an agent execute this, or only propose it?" — covered [below](#autonomy-for-ai-agents).
+
+## Approvals in the dashboard
+
+Lifecycle transitions run through the transition console on the [change's detail page](/dashboard/changes). Every transition after the initial start carries an **Approval** card showing the expected approver role — **Product owner** for an advance, **Admin** for a promote, an explicit human confirmation for completing a change and updating defaults — and the current status.
+
+From the console you can:
+
+- **Request approval** — parks the transition as pending and records who asked. Someone with the right access reviews and approves.
+- **Approve & run** — if you hold the required permission, approve and run the transition in one step. The button is labeled with the transition itself — **Approve & Advance to experiment**, **Approve & Promote winner** — and the decision record captures you as the approver.
+
+The role shown on the card is guidance; enforcement is by permission — see [Roles and permissions](/governance/roles-and-permissions) for who can operate and approve changes.
+
+<Frame caption="The Approval card in the transition console">
+  <img src="/images/placeholders/transition-console-approval-card.png" alt="Transition console Approval card showing the approver role, status badge, and the Request approval button next to the transition-labeled approve button reading Approve and Advance to experiment" />
+</Frame>
+
+Two principles hold throughout:
+
+- **Approvals are human decisions.** Proposals raised by agents, by Traffical's own monitoring, and by teammates all land in the same queue with the same approve path — a person reviews the reasoning and the cited evidence in the console.
+- **Approval is intent; gates still apply at execution.** When you approve an agent's proposal, you're approving what should happen. The proposal binds the evidence snapshot it was decided against, and executing the transition still runs the standard checks — traffic never starts without an approved measurement plan, readiness checks apply as usual, and completing a phase that a breach paused requires an explicit override.
+
+## Autonomy for AI agents
+
+Agents connect through the [MCP server](/tools/mcp-server) and operate under governance: every write action resolves to either **execute** (it happens now) or **propose** (it becomes a pending item for a human). The resolution is deterministic and fully explained — the agent receives the same reasoning a human sees.
+
+### What executes and what proposes
+
+The defaults follow the direction of the action and the change's risk class:
+
+- **Risk-reducing actions execute.** Pausing, reverting, and dialing traffic *down* are always auto-eligible — you must be able to stop fast, so safety actions are never held for approval by default.
+- **Risk-increasing actions execute only at low risk.** Starting traffic, advancing a phase, and dialing traffic *up* auto-execute for a low-risk change and become proposals for medium and above.
+- **Changing a default is a proposal at every risk class.** Promoting a winner or completing a change with a default update ships a new value to everyone, so the default is a human checkpoint regardless of risk. Unlike safety actions — which a policy can never remove, only add a checkpoint to — this default can be relaxed by an [autonomy policy](#autonomy-policies).
+
+Three further gates can turn an otherwise-executable action into a proposal:
+
+- **An unresolved blocking guardrail breach** vetoes all risk-increasing actions until a human investigates. Safety actions are never vetoed.
+- **Evidence minimums.** An automatic advance or promote fires only when *measured* evidence — canary health, experiment results — meets the plan's minimum runtime and sample requirements. An agent's own written assessment never satisfies this gate.
+- **Missing risk class fails closed.** If a change has no resolvable measurement plan, everything risk-increasing degrades to propose-only; only safety actions stay automatic.
+
+### Per-phase automation
+
+On a change's **Settings** tab, each traffic-bearing phase (canary, experiment, rollout, adaptive) has three automation controls governing what Traffical's own monitoring may do on the phase's behalf:
+
+| Control | Options | Default |
+|---------|---------|---------|
+| On advance recommendation | Manual · Propose · Auto | Propose |
+| On blocking guardrail breach | Pause · Revert · None | Pause |
+| On warning guardrail breach | Flag · Pause | Flag |
+
+**Manual** means Traffical only surfaces the recommendation in the UI. **Propose** writes a proposal into the approval queue. **Auto** lets the monitor execute the transition itself when the evidence supports it. Unset fields use the defaults, marked *default* in the selector.
+
+Adaptive phases differ in two ways. When the advance control is unset, its default follows the approved measurement plan's adaptive approval mode — a plan set to automatic makes the default **Auto** rather than Propose. And in the current version an adaptive phase is never auto-completed: **Auto** on an adaptive phase behaves as **Propose**, so ending adaptive optimization always goes through a human.
+
+<Frame caption="Phase automation on the change's Settings tab">
+  <img src="/images/placeholders/change-phase-automation.png" alt="Phase automation section of the change Settings tab with the three per-phase automation selectors" />
+</Frame>
+
+### Autonomy policies
+
+The risk-class defaults above can be adjusted with **autonomy policies** — rules scoped to a project and optionally narrowed to a risk class, a transition direction, or a single change, so an organization can say things like "agents may auto-advance medium-risk changes in this project" or "nothing on this change runs without a human." These policies aren't self-serve yet — there's no editor in the dashboard, so contact Traffical to set them up. Safety keeps its guarantee either way: a policy can require a checkpoint on pause and revert, but can never remove them.
+
+### The write mode
+
+Above all per-change and per-project rules sits an organization-wide **write mode** for agent write access as a whole:
+
+| Mode | Effect |
+|------|--------|
+| **Off** | Transitions and anything else that moves traffic are rejected outright. Scope-bounded advisory writes — drafting changes, assessments, annotations — still work. The default. |
+| **Advisory** | Every action caps at propose — agents can draft and suggest, nothing executes. |
+| **Execute** | Resolver-approved actions actually run. |
+
+Write access starts off and is enabled per organization, typically stepping through advisory before execute. Whatever the mode, read access is unaffected.
+
+### Agents never approve
+
+There is deliberately **no approve capability on the agent surface**. An agent acts with a person's credentials, so an agent-driven approval would be indistinguishable from a human one — instead, approval lives only in the dashboard console, which an agent cannot drive. When an agent's action becomes a proposal, it hands back a deep link to the console; a person decides there. See [MCP server](/tools/mcp-server) for the full tool surface.
+
+## Decision records
+
+Every transition, approval, proposal, and verdict produces a decision record: **who or what** decided (a named person, an agent acting on someone's behalf, or Traffical itself), the reason given, and a snapshot of the evidence the decision was based on. That makes the whole model auditable — you can reconstruct not just what happened but what the decider knew at the time. See the [Decision log](/dashboard/decisions).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Measurement protocols" icon="clipboard-check" href="/governance/measurement-protocols">
+    Certified metrics and guardrails — the coverage that plan approval checks.
+  </Card>
+  <Card title="Roles and permissions" icon="user-lock" href="/governance/roles-and-permissions">
+    Who can operate, approve, and administer changes.
+  </Card>
+  <Card title="Changes in the dashboard" icon="table-columns" href="/dashboard/changes">
+    The change detail page, transition console, and Settings tab.
+  </Card>
+  <Card title="MCP server" icon="robot" href="/tools/mcp-server">
+    Connect an agent and see the governance surface it operates under.
+  </Card>
+</CardGroup>

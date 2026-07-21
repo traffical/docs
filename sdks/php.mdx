@@ -129,11 +129,11 @@ $client->track(
 $client->track('add_to_cart', ['sku' => 'ABC-123'], new TrackOptions(unitKey: 'user_789'));
 ```
 
-If you're running an adaptive policy, the optimization engine uses these events as reward signals to learn which variants perform best.
+If you're running an adaptive policy, the optimizer uses these events as reward signals to learn which variants perform best.
 
 ## Server mode
 
-Delegate resolution to the edge worker instead of evaluating a local bundle. Each `getParams()`/`decide()` performs (and caches per request) a `POST /v1/resolve`. Use it when caching a full bundle isn't reasonable or you want zero client-side evaluation logic.
+Delegate resolution to Traffical's edge instead of evaluating a local bundle. Each `getParams()`/`decide()` performs (and caches per request) a `POST /v1/resolve`. Use it when caching a full bundle isn't reasonable or you want zero client-side evaluation logic.
 
 ```php
 $client = new Client(new ClientOptions(

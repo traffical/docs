@@ -1,25 +1,31 @@
 ---
 title: "MCP server"
-description: "Connect AI agents to Traffical's MCP server — check change status, read evidence and decision logs, preview transitions, and (under governance) propose or execute lifecycle transitions. Least-privilege by scope; humans own approvals."
+description: "Connect AI agents to Traffical over MCP — authentication, scopes, and the complete read and write tool reference."
 ---
 
-Traffical exposes an **[MCP](https://modelcontextprotocol.io) server** at `https://api.traffical.io/mcp`. Connect an AI agent and it can answer operate-time questions about your **changes** — product initiatives moving through a measured lifecycle (canary → experiment → rollout): where a change is, what the evidence says, what was decided and why, and what should happen next — and, where governance permits, **act**: author draft changes, propose or execute transitions, record assessments and annotations, and request approval.
+Traffical exposes an **[MCP](https://modelcontextprotocol.io) server**. Connect an AI agent and it can read your [changes](/concepts/changes) — state, evidence, decision records — and, where governance permits, act: draft changes, propose or execute lifecycle transitions, and record assessments.
 
-The server is **least-privilege by scope**, not read-only. What an agent can do is bounded by its token's scope, then narrowed again at runtime by an **autonomy resolver**, then by a global/per-org **write mode**. A read-only token sees and does exactly what it did before. Crucially, **approvals stay with humans**: there is no `approve` tool, so when an action needs a checkpoint the agent creates a *proposal* and points you at the transition console on the change's page in the [dashboard](https://app.traffical.io) — that's where humans act.
+The server is **least-privilege by scope**, not read-only: a token's scopes bound what it can do, the [autonomy resolver](/governance/approvals-and-autonomy) narrows that at runtime, and a write mode that defaults to off gates every lifecycle transition. **Approvals stay with humans** — there is no `approve` tool; when an action needs a checkpoint, the agent raises a proposal and links you to the transition console in the [dashboard](/dashboard/changes).
+
+<Note>
+The Changes surface is enabled per organization — if you don't see **Changes** in the dashboard sidebar, it isn't enabled for your organization yet.
+</Note>
 
 ## Connect
+
+Traffical provides your organization's MCP endpoint during onboarding — reach out if you don't have it yet.
 
 ### Claude Code
 
 ```bash
-claude mcp add --transport http traffical-changes https://api.traffical.io/mcp
+claude mcp add --transport http traffical-changes <your-mcp-endpoint>
 ```
 
-That's it — no key to paste. Claude Code discovers the authorization server via OAuth discovery and opens a browser sign-in (Traffical uses WorkOS AuthKit). Run `/mcp` inside Claude Code to authenticate or check connection status.
+That's it — no key to paste. Claude Code discovers the authorization server via standard OAuth discovery and opens a browser sign-in with your Traffical account. Run `/mcp` inside Claude Code to authenticate or check connection status.
 
 ### Other MCP clients
 
-Any MCP client that supports **streamable HTTP with OAuth discovery** works zero-config. Point it at `https://api.traffical.io/mcp`; the first 401 response carries a `WWW-Authenticate` header pointing at `https://api.traffical.io/.well-known/oauth-protected-resource`, which names the authorization server, and the client runs the standard OAuth flow from there.
+Any MCP client that supports **streamable HTTP with OAuth discovery** works zero-config. Point it at your organization's MCP endpoint; the first 401 response carries a `WWW-Authenticate` header pointing at the server's OAuth discovery document (`/.well-known/oauth-protected-resource` on the endpoint's origin), which names the authorization server, and the client runs the standard OAuth flow from there.
 
 Two transport details for client authors:
 
@@ -34,7 +40,7 @@ For agents that can't run a browser flow, use a **management API key** as a plai
 Authorization: Bearer traffical_sk_...
 ```
 
-Create one in the dashboard under **Settings → API keys**. A read-only management key is exactly the `mgmt:read` scope; write scopes are granted deliberately. See [API key types](/api/overview#api-key-types) for how scopes work.
+Create one on your organization's **API Keys** page in the dashboard (in the sidebar when viewing your organization, or from the account menu). A read-only management key is exactly the `mgmt:read` scope; write scopes are granted deliberately. See [API key types](/api/overview#api-key-types) for how scopes work.
 
 <Warning>
 SDK keys (scopes `sdk:read`/`sdk:write`) — including the key the CLI provisions into `.traffical/.env` — cannot read changes and will get a `403`. You need a management key with `mgmt:read` (read-only) or a write scope.
@@ -42,16 +48,18 @@ SDK keys (scopes `sdk:read`/`sdk:write`) — including the key the CLI provision
 
 ## Scopes
 
-The MCP surface is governed by three write scopes on top of the read scopes. `tools/list` is **scope-filtered**, so a token only sees the tools its scopes permit.
+Three write scopes sit on top of the read scopes. `tools/list` is **scope-filtered**, so a token only sees the tools its scopes permit.
 
-| Scope | Grants | Notes |
-|-------|--------|-------|
-| `mgmt:read` (and the `:read` scopes) | every read tool below | a read-only connection — unchanged from before |
-| `changes:propose` | **author** draft changes, write **proposals**, **assessments**, **annotations**, request-approval | the conservative ceiling — can draft and suggest, but never starts traffic |
-| `changes:operate` | execute transitions (resolver-gated); refresh evidence | reused existing scope |
-| `defaults:promote` | promote-to-default / complete-with-default | the highest-risk action keeps its own scope |
+| Scope | Grants |
+|-------|--------|
+| `mgmt:read` (and the `:read` scopes) | every read tool below — a read-only connection |
+| `changes:propose` | author draft changes, write proposals, assessments, annotations, request approval — can suggest, but never starts traffic |
+| `changes:operate` | execute transitions (resolver-gated); refresh evidence |
+| `defaults:promote` | promote-to-default / complete-with-default — the highest-risk action keeps its own scope |
 
-Scope is the **durable ceiling**; the [autonomy resolver](#the-autonomy-resolver) is the **runtime gate**. The effective autonomy is always ≤ the scope.
+You never mint these fine-grained scopes directly — they come from the coarse scope on the key, or from your role over OAuth. `mgmt:read` grants every `:read` scope; `mgmt:operate` (the **Lifecycle Operate Key** preset) grants all three write scopes; `admin` (**Full Access**) grants everything. A plain `mgmt:write` key grants none of the write scopes, and over OAuth only admins and owners carry them — members and viewers connect read-only. See [API key scopes](/governance/roles-and-permissions#api-key-scopes).
+
+Scope is the durable ceiling; the [autonomy resolver](/governance/approvals-and-autonomy) narrows it again at runtime, per action.
 
 ## Tools
 
@@ -59,24 +67,24 @@ Scope is the **durable ceiling**; the [autonomy resolver](#the-autonomy-resolver
 
 | Tool | Required scope | Returns |
 |------|----------------|---------|
-| `whoami` | _any token_ | The caller's identity, the org their token is scoped to, and the projects they can reach in it. Call it first to get a `projectId` for every other tool — it's the one tool that needs no id and no scope. |
+| `whoami` | _any token_ | The caller's identity, org, and reachable projects. Call it first to get a `projectId` for the other tools. |
 | `list_changes` | `changes:read` | Changes in the project — key, name, state, intent, lifecycle template, current phase |
 | `get_change` | `changes:read` | One change in full: its phases, parameters, and executing policies |
-| `get_change_evidence` | `changes:read` | Evidence records (newest first): durable analysis artifacts with a recommendation, rationale, and provenance |
-| `get_change_decisions` | `changes:read` | The decision log: who or what decided each transition or annotation, why, and which evidence it cites |
-| `get_measurement_plan` | `changes:read` | The resolved measurement plan: primary metric(s), guardrails, diagnostics, per-phase rules, source protocols |
+| `get_change_evidence` | `changes:read` | Evidence records (newest first): analysis artifacts with a recommendation, rationale, and provenance |
+| `get_change_decisions` | `changes:read` | The change's decision log: who decided each transition or annotation, why, and the evidence cited |
+| `get_measurement_plan` | `changes:read` | The resolved measurement plan: primary metrics, guardrails, diagnostics, per-phase rules, source protocols |
 | `preview_transition` | `changes:read` | The next lifecycle transition: availability, blockers, readiness checks, ranked plan options with runtime estimates |
-| `get_change_stats` | `changes:read` | The project's "four numbers": time to exposure, clean activation rate, guardrail catch rate, decision-log completeness |
-| `get_autonomy` | `changes:read` | The resolver's read face: per transition kind, whether you may `execute` or `propose` *now*, and the full reasoning why |
-| `list_attention` | `changes:read` | The project queue — stalled canaries, degraded rollouts, actionable recommendations, and pending proposals/approvals |
+| `get_change_stats` | `changes:read` | Process health over a trailing window: time to exposure, clean activation rate, guardrail catch rate, decision-log completeness |
+| `get_autonomy` | `changes:read` | Per transition kind, whether the caller may `execute` or `propose` right now, with the full reasoning |
+| `list_attention` | `changes:read` | Changes that need attention: pending approvals, actionable evidence recommendations, paused changes |
 | `get_project_decisions` | `changes:read` | Project-wide decision log |
-| `resolve_change_preview` | `changes:read` | Plan a change **before** creating it: from the parameters it would control (+ optional surfaces/template), returns the **computed risk class** (with reason), the recommended lifecycle template, the derived measurement template, matched certified protocols, and a plan preview. Call it first so `create_change`'s `lifecycleTemplate` is an informed choice. |
-| `get_ai_overview` | `projects:read` | Program-level state: changes by state, adaptive policy counts, recent decisions |
-| `list_parameters` / `get_parameter` | `parameters:read` | Parameters and their surface bindings |
+| `resolve_change_preview` | `changes:read` | Plan a change before creating it: the computed risk class, recommended lifecycle template, matched certified protocols, and a plan preview. Call it before `create_change`. |
+| `get_ai_overview` | `projects:read` | Program-level state: changes by state, adaptive policy counts, recent decision records |
+| `list_parameters` / `get_parameter` | `parameters:read` | Parameters and their [surface](/concepts/surfaces) bindings |
 | `list_metrics` / `get_metric` | `metrics:read` | Metric definitions and results |
 | `get_policy_health` | `policies:read` | Rollout health for a policy |
-| `list_surfaces` | `surfaces:read` | Placement surfaces |
-| `list_measurement_protocols` / `get_measurement_protocol` | `protocols:read` | Measurement protocols |
+| `list_surfaces` | `surfaces:read` | Placement [surfaces](/concepts/surfaces) |
+| `list_measurement_protocols` / `get_measurement_protocol` | `protocols:read` | [Measurement protocols](/governance/measurement-protocols) |
 
 `preview_transition` and `get_autonomy` are advisory — they show what *would* happen and why, but change nothing. Omit `kind` on `preview_transition` to preview the natural next step.
 
@@ -86,64 +94,40 @@ These appear in `tools/list` only when the token carries the scope.
 
 | Tool | Required scope | Effect |
 |------|----------------|--------|
-| `create_change` | `changes:propose` (start needs `changes:operate`) | Author a **new change as a draft** from **existing** parameters/layers — declare parameters by id, override them by key in variants. It cannot create new parameters, layers, or policies (config-as-code stays with humans/CLI). Primary/impacted **surfaces are derived from the declared params' bindings** (pass `primarySurfaceId` to override) so risk is computed accurately. A draft serves no traffic. Pass `start:true` to also begin the canary: that runs the resolver, which executes only a green low-risk start and otherwise raises a proposal — and a change with **no certified protocol** cannot start until a human approves a plan. Returns the new `changeId`, a console link, and (when `start:true`) the start outcome. |
-| `request_transition` | `changes:operate` (`defaults:promote` for promote / complete-with-default) | The single transition tool. The resolver decides `execute` vs `propose`; pass `mode:'propose'` to force a checkpoint. Returns `outcome` (`executed`/`proposed`/`blocked`), the decision id, the full resolver reasoning, and (when proposed) a console deep link. Idempotent on retry. |
-| `submit_assessment` | `changes:propose` | Records an `agent_assessment` evidence record (advisory; cites the measured evidence it interprets) |
+| `create_change` | `changes:propose` (start needs `changes:operate`) | Author a **new change as a draft** from **existing** parameters — it cannot create parameters, layers, or policies. A draft serves no traffic; pass `start: true` to also request the canary start through the resolver. Returns the new `changeId` and a console link. |
+| `request_transition` | `changes:operate` (`defaults:promote` for promote / complete-with-default) | The single transition tool (start, advance, promote, complete, revert). The resolver decides `execute` vs `propose`; pass `mode: 'propose'` to force a checkpoint. Returns the outcome, the full resolver reasoning, and (when proposed) a console deep link. Proposals are idempotent on retry — a repeat returns the existing pending proposal instead of double-proposing. Executed transitions are not: a retry with `kind` omitted targets the *next* available transition. |
+| `submit_assessment` | `changes:propose` | Records an advisory `agent_assessment` evidence record, citing the measured evidence it interprets |
 | `annotate_change` | `changes:propose` | Writes an `annotation` decision record |
-| `refresh_evidence` | `changes:operate` | Recomputes the change's evidence |
+| `refresh_evidence` | `changes:operate` | Recomputes the change's evidence from the latest stored analysis results |
 | `request_approval` | `changes:propose` | Parks a transition in the human approval queue without proposing a specific auto-execution |
 
-Every MCP-originated write is recorded on the decision spine as *"Agent, on behalf of `<human>`, via MCP."*
+## How writes are governed
 
-## The autonomy resolver
+Even with a write scope, no transition executes unconditionally. The **autonomy resolver** evaluates each request and returns `execute` or `propose`, weighing the caller's scope, the change's computed risk class, the action's direction (risk-decreasing actions like revert are always auto-eligible), guardrail breaches, and whether measured evidence meets the plan's minimums — agent assessments never satisfy that gate. [Approvals and autonomy](/governance/approvals-and-autonomy) covers the full model.
 
-Even with `changes:operate`, no transition is executed unconditionally. A pure **autonomy resolver** evaluates each requested transition and returns `execute` or `propose`:
+Three connection-level guarantees:
 
-- **Direction** — *safe* actions (revert, pause, rollback, reduce-%) are auto-eligible so you can always stop fast; *risk-increasing* actions (start, advance, increase-%) and the highest-risk *promote / complete-with-default* are gated.
-- **Risk class** — **computed** from the change's surface kind + binding role (frontend/email → low; backend/data → medium; ranking/ai → high; a decision/write/side-effect binding bumps one rung) and snapshotted on the measurement plan. At `low` risk an expand may auto-execute; at `medium`+ it becomes a proposal. Promote / complete-with-default are **always** a proposal. Because risk is now computed (not a static `medium`), expect **fewer auto-starts** — only genuinely low-risk changes auto-execute.
-- **Guardrail veto** — an unresolved blocking breach downgrades all risk-increasing actions to `propose`. Safety actions are never vetoed.
-- **Evidence sufficiency** — an auto risk-increasing action fires only when *measured* evidence meets the plan's minimums (runtime / sample / freshness). Agent-authored assessments never satisfy this gate. The **initial `start`** is exempt: a brand-new canary has no measured evidence by definition, so a `low`-risk start auto-executes on the strength of its risk class, an empty guardrail state, and a clean placement — the gate guards evidence-driven `advance`/`promote`, not first exposure.
-- **No-certified-protocol start gate** — a change whose resolved plan matches **no certified protocol** cannot begin traffic (canary included) until a human approves a measurement plan. This is a hard block on the shared start path, enforced identically for `create_change(start=true)` and `request_transition` — there are no certified metrics or guardrails to enforce, so the system refuses to expose traffic blind.
-- **Fail-closed** — no measurement plan ⇒ no risk class ⇒ safety stays auto, everything risk-increasing (including `start`) degrades to propose-only.
+- **No `approve` tool.** Approval happens only in the dashboard transition console, which makes it structurally human. A `proposed` result carries a `consoleUrl` deep link for review.
+- **No certified protocol, no traffic.** A change whose plan matches no certified [measurement protocol](/governance/measurement-protocols) cannot begin serving traffic until a human approves a measurement plan.
+- **Everything is audited.** Every MCP-originated write lands on the decision log as *"Agent, on behalf of `<human>`, via MCP."*
 
-`request_transition` returns this whole chain in its `autonomy` block so the agent can explain the decision; `get_autonomy` exposes it as a read.
+## Write mode
 
-An agent never picks a placement that **masks** another running policy: a `start` only auto-resolves a clean (non-overlapping) bucket placement. When the only way in would mask lower-priority policies, the start is unavailable to the agent and that choice stays a human one in the console.
-
-## Approval is dashboard-only
-
-There is **no `approve` MCP tool** — by design. In the harness the agent acts through the signed-in human's token, so a credential can't distinguish a human approval from an agent one. The dashboard transition console is a GUI the agent cannot drive, which makes approval **structurally human**. When a transition comes back `proposed`, the response carries a `consoleUrl` deep link; a person reviews the resolver's reasoning and cited evidence there, and the system re-checks safety at the moment of execution.
-
-Agent, system-monitor, and human proposals all land in **one queue with one approve path**.
-
-## Write mode & rollout
-
-A global **`MCP_WRITE_MODE`** master gates the write surface, with per-org enablement on top:
+Lifecycle transitions are **off by default**. A global write mode gates every transition — `request_transition`, and `create_change`'s optional start — with per-organization enablement on top; the effective mode is the lower of the two:
 
 | Mode | Effect |
 |------|--------|
-| `off` | All write tools rejected (global incident switch) |
-| `advisory` | Every action caps at `propose` — nothing executes; the propose path and notifications are live |
+| `off` | Transitions rejected outright — `create_change` still authors the draft, but its `start` leg is refused |
+| `advisory` | The resolver caps every transition at `propose` — nothing executes, but proposals and notifications flow |
 | `execute` | The resolver's `execute` decisions actually fire |
 
-Writes roll out per-org from `advisory` to `execute`. The **least-privilege guarantee** still holds structurally: OAuth tokens minted for the MCP server are bounded by their scopes, and existing read-only tokens carry no write scope, so they cannot be replayed against write endpoints. Every tool enforces the same per-project access checks as the management API.
+Write mode governs the actions that move traffic. The advisory writes — drafting changes, assessments, annotations, evidence refreshes, approval requests — serve no traffic and are bounded by their scopes instead, so they work in any mode.
 
-## What agents typically do
-
-A typical operate-time loop:
-
-1. **Orient** — `whoami` to discover the org and a `projectId`, then `get_ai_overview` (or `list_changes`) for what's going on in it.
-2. **Check status** — `get_change` for the state and current phase, then `get_change_evidence` for the latest recommendation and rationale.
-3. **Summarize the evidence** — lead with the recommendation, pass the rationale through (which gate, which guardrail, which threshold), and flag any data-quality evidence.
-4. **Act under governance** — with a write scope, check `get_autonomy`, then call `request_transition`: if the resolver returns `execute` (and write mode allows) the transition fires; otherwise it becomes a *proposal* and the agent links the human to the console. Either way the response carries the full reasoning.
-
-Agents can also **author** the work, not just operate it: read `list_parameters` to find the building blocks, then `create_change` to draft a change from those existing parameters — optionally `start:true` to begin the canary under the same resolver. A human still owns every approval and every masking placement.
-
-Plus the standing questions: "what needs me?" (`list_attention`), "what changed while I was asleep?" (`get_change_decisions` / `get_project_decisions`), "how much longer does this experiment need?" (`preview_transition`), and "how healthy is our change process?" (`get_change_stats`).
+Read-only tokens carry no write scope and cannot be replayed against write tools; every tool enforces the same per-project access checks as the management API.
 
 ## Companion agent skill
 
-For Claude-family agents, the open-source **`traffical-changes`** skill ([github.com/traffical/skills](https://github.com/traffical/skills)) teaches the agent how to use these tools well — how to read evidence kinds and recommendation semantics, quote runtime estimates with their basis, interpret the resolver's reasoning, and respect the boundary (read and propose; execute only what the resolver permits; humans own approvals):
+For Claude-family agents, the open-source **`traffical-changes`** skill ([github.com/traffical/skills](https://github.com/traffical/skills)) teaches the agent to use these tools well — and to respect the boundary that humans own approvals:
 
 ```bash
 npx skills add traffical/skills
@@ -154,16 +138,16 @@ It's the operate-time sibling of the build-time [Agent Skill](/tools/agent-skill
 ## Next steps
 
 <CardGroup cols={2}>
+  <Card title="Changes" icon="diagram-project" href="/concepts/changes">
+    What a change is and how its measured lifecycle works.
+  </Card>
+  <Card title="Approvals and autonomy" icon="scale-balanced" href="/governance/approvals-and-autonomy">
+    The full governance model behind execute vs propose.
+  </Card>
   <Card title="Agent Skill" icon="robot" href="/tools/agent-skill">
     The build-time skill: setup, parametrizing code, SDK wiring, events.
   </Card>
   <Card title="API overview" icon="book-open" href="/api/overview">
     API key scopes and how authentication works.
-  </Card>
-  <Card title="Decision log" icon="list-check" href="/dashboard/decisions">
-    The audit trail agents read through `get_change_decisions`.
-  </Card>
-  <Card title="Rollouts" icon="forward" href="/experimentation/rollouts">
-    The lifecycle machinery behind phases and health checks.
   </Card>
 </CardGroup>

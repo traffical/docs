@@ -31,6 +31,8 @@
               "concepts/parameters",
               "concepts/layers",
               "concepts/policies",
+              "concepts/surfaces",
+              "concepts/changes",
               "concepts/projects-and-environments",
               "concepts/events-and-metrics",
               "concepts/assignments",
@@ -55,8 +57,12 @@
               "statistics/overview",
               "statistics/significance",
               "statistics/sequential-testing",
+              "statistics/sequential-testing-technical",
               "statistics/cuped",
-              "statistics/ratio-metrics"
+              "statistics/cuped-technical",
+              "statistics/ratio-metrics",
+              "statistics/measurement-progress",
+              "statistics/impact-methodology"
             ]
           },
           {
@@ -75,13 +81,25 @@
               "dashboard/overview",
               "dashboard/parameters",
               "dashboard/layers-and-policies",
+              "dashboard/changes",
               "dashboard/events",
               "dashboard/definitions",
               "dashboard/metrics",
               "dashboard/policy-health",
               "dashboard/pipeline",
               "dashboard/decisions",
-              "dashboard/settings"
+              "dashboard/notifications",
+              "dashboard/settings",
+              "dashboard/usage-and-billing"
+            ]
+          },
+          {
+            "group": "Governance",
+            "icon": "shield-halved",
+            "pages": [
+              "governance/measurement-protocols",
+              "governance/approvals-and-autonomy",
+              "governance/roles-and-permissions"
             ]
           },
           {
@@ -104,7 +122,7 @@
           {
             "group": "Reference",
             "icon": "book-open",
-            "pages": ["reference/glossary"]
+            "pages": ["reference/troubleshooting", "reference/faq", "reference/glossary"]
           }
         ]
       },

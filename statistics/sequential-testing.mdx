@@ -23,7 +23,7 @@ More precisely: the probability that the sequence *ever* shows a significant res
 
 Anytime-validity isn't free — the protection comes from a **wider interval**. At any single look, a confidence sequence is broader than the fixed-horizon interval for the same data, because it has to stay valid at every other look too.
 
-The width is tuned by a **target sample size**: the sequence is at its tightest around the sample size you expect the experiment to reach, and looser far from it. Set that target from your power analysis when you have one; otherwise a sensible default is used.
+The width is tuned by a **target sample size**: the sequence is at its tightest around the sample size you expect the experiment to reach, and looser far from it. Traffical derives that target from your experiment's power analysis — the sample required at your target MDE and power — and falls back to a sensible default when there isn't one.
 
 <Tabs>
   <Tab title="Early in the experiment">
@@ -63,3 +63,5 @@ Sequential mode is **opt-in**. If your team genuinely pre-commits to a sample si
 <Tip>
   Rule of thumb: if anyone — a person or an automated policy — will look at the experiment more than once before it ends, use sequential testing.
 </Tip>
+
+For the underlying math — the half-width formula, the tuning parameter, and why there's no sequential p-value — see the [technical companion](/statistics/sequential-testing-technical).

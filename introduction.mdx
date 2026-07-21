@@ -5,7 +5,7 @@ description: "Traffical is parameter-first experimentation, feature flags, and a
 
 Traffical is a platform for experimentation, feature management, and adaptive optimization. It is built on a single primitive — the **typed parameter** — that unifies A/B testing, feature flags, gradual rollouts, and contextual bandits.
 
-SDKs resolve parameters locally in sub-milliseconds. The optimization engine learns from user behaviour and continuously refines allocations. Metrics are computed either from Traffical-native events or directly from your own data warehouse.
+SDKs resolve parameters locally in sub-milliseconds. The optimizer learns from user behaviour and continuously refines allocations. Metrics are computed either from Traffical-native events or directly from your own data warehouse.
 
 ## Key capabilities
 
@@ -14,7 +14,9 @@ SDKs resolve parameters locally in sub-milliseconds. The optimization engine lea
 - **Local resolution.** SDKs fetch a config bundle and resolve in-process. Sub-millisecond, works offline, graceful degradation if Traffical is unreachable.
 - **Adaptive optimization.** Thompson Sampling, Epsilon-Greedy, UCB1, per-entity bandits, and linear contextual bandits that personalize per user.
 - **Warehouse-native metrics.** Define metrics as SQL against your own warehouse — Postgres, BigQuery, Snowflake, Databricks, ClickHouse — or use Traffical-native events. Or both.
-- **Config-as-code.** Manage parameters and events in version-controlled YAML. Push, pull, sync, integrate with CI/CD. Type-safe event tracking via generated TypeScript types.
+- **Governed changes.** Move product initiatives through a measured lifecycle with [Changes](/concepts/changes) — stated intent, computed risk class, approval gates, and a decision record for every transition. Enabled per organization.
+- **Honest statistics.** Sequential (anytime-valid) testing, [CUPED](/statistics/cuped) variance reduction, a [measurement progress](/statistics/measurement-progress) readout that estimates how much longer an experiment needs, and a deliberately conservative [program-level impact estimate](/statistics/impact-methodology).
+- **Config-as-code.** Manage parameters, events, and metrics in version-controlled YAML — `push`, `pull`, and a `status` check that gates CI on drift. Type-safe event tracking via generated TypeScript types.
 - **Visual editor and DevTools.** Author no-code UI experiments via a bookmarklet; inspect SDK state and override parameters live in any browser.
 
 ## Who is Traffical for?
@@ -34,14 +36,16 @@ Engineering teams who want to:
 | Package | Environment |
 |---------|-------------|
 | [`@traffical/node`](/sdks/node) | Server-side Node.js / Bun |
+| [`traffical`](/sdks/python) | Server-side Python 3.10+ (sync and asyncio) |
 | [`traffical/sdk`](/sdks/php) | Server-side PHP 8.1+ |
 | [`@traffical/js-client`](/sdks/javascript) | Browser, framework-free |
 | [`@traffical/react`](/sdks/react) | React (browser, RSC, Next.js) |
 | [`@traffical/svelte`](/sdks/svelte) | Svelte 5 and SvelteKit |
+| [`Traffical`](/sdks/ios) | iOS, macOS, tvOS, watchOS (Swift) |
 | [`@traffical/react-native`](/sdks/react-native) | iOS / Android via React Native |
 | [`@traffical/cli`](/tools/cli) | Config-as-code CLI |
 
-Every SDK shares the same bucketing, condition evaluation, and resolution logic — the TypeScript SDKs via [`@traffical/core`](https://github.com/traffical/js-sdk), with the [PHP SDK](/sdks/php) mirroring it against a shared, language-agnostic conformance spec. Whichever SDK you use, the same user always resolves to the same allocation.
+Every SDK shares the same bucketing, condition evaluation, and resolution logic — the TypeScript SDKs via [`@traffical/core`](https://github.com/traffical/js-sdk), with the [PHP](/sdks/php), [Python](/sdks/python), and [Swift](/sdks/ios) SDKs mirroring it against a shared, language-agnostic conformance spec. Whichever SDK you use, the same user always resolves to the same allocation.
 
 ## Next steps
 

@@ -3,14 +3,14 @@
 Internal log of doc edits during the docs revamp. Each entry records what was there before, what changed, and which source-of-truth files informed the change.
 
 Sources of truth:
-- SDK (open source): `/Users/marcel/Code/traffical/sdk/{js-sdk/packages/*, cli, sdk-spec}`
-- Platform (closed source — concepts only, no internals): `/Users/marcel/Code/traffical/ng/{OVERVIEW.md, docs/design/*, platform/, edge/}`
+- SDK (open source): the `sdk` repo — `js-sdk/packages/*`, `cli`, `sdk-spec`
+- Platform (closed source — concepts only, no internals): the private platform monorepo. Maintainers keep a local, untracked source map at `.agents/source-map.md` (gitignored).
 
-Sensitive info policy (must not leak):
-- Infrastructure: Cloudflare, Workers, Containers, D1, KV, R2, Pipelines, Iceberg, Parquet, DuckDB
-- Vendors: WorkOS (auth), Stripe (billing)
-- Control plane: any `api.traffical.io` endpoints, bundle build internals, cron tiers
-- Internal repo structure, KV key patterns, training pipeline cadence
+Sensitive info policy (must not leak — note this repo itself is public, so it applies to this file too):
+- Names of hosting or infrastructure providers, and any of their product names
+- Names of third-party vendors (auth, billing)
+- The management API's host or any of its endpoints, bundle build internals, scheduling internals
+- Internal repo structure and file paths, storage key patterns, training pipeline cadence
 
 What is fair game:
 - Concepts: parameters, layers, policies, allocations, projects, environments, assignments, definitions, warehouse-native mode
@@ -24,7 +24,7 @@ What is fair game:
 
 ### Goals
 - Fix critical correctness errors (SDK init signature is wrong in every SDK page — missing `orgId` and `env`)
-- Scrub infrastructure leakage (Cloudflare CDN, 200+ edge locations, control-plane internals)
+- Scrub infrastructure leakage (CDN vendor name, 200+ edge locations, management-API internals)
 - Bring the docs in line with the actual public SDK surface
 - Add the missing React Native SDK page and the missing concept pages
 - Restructure navigation around the user (not the internal product organisation)
@@ -41,13 +41,13 @@ What is fair game:
 ---
 
 #### `how-it-works.mdx`
-**Before:** Architecture diagram explicitly described "Edge API on global CDN with 200+ edge locations" and named "Control Plane" with its responsibilities. Mentioned `api.traffical.io`. Implementation details leaked through.
+**Before:** Architecture diagram explicitly described "Edge API on global CDN with 200+ edge locations" and named "Control Plane" with its responsibilities. Mentioned the internal API host. Implementation details leaked through.
 
-**After:** Reframed around what the user sees: SDK + the Traffical service. Hashing formula uses `bucketCount` (configurable) not the hardcoded 1000. Removed CDN claim, edge-location count, and any mention of `api.traffical.io`. Added evaluation modes (`bundle` vs `server`) since this is in the public SDK surface. Removed prescriptive POST endpoints (those are documented in API reference, not in concept overview).
+**After:** Reframed around what the user sees: SDK + the Traffical service. Hashing formula uses `bucketCount` (configurable) not the hardcoded 1000. Removed CDN claim, edge-location count, and any mention of the internal API host. Added evaluation modes (`bundle` vs `server`) since this is in the public SDK surface. Removed prescriptive POST endpoints (those are documented in API reference, not in concept overview).
 
 **Why:** User wanted internal architecture reduced to a minimum. The hosting infra is not part of the product surface — only the conceptual model matters.
 
-**Sources:** `/Users/marcel/Code/traffical/sdk/js-sdk/packages/js-client/src/client.ts:50-120` (evaluation modes, defaults). `ng/OVERVIEW.md` (concept of bucketCount being configurable, not just 1000).
+**Sources:** `sdk/js-sdk/packages/js-client/src/client.ts:50-120` (evaluation modes, defaults); the platform overview doc (concept of bucketCount being configurable, not just 1000).
 
 ---
 
@@ -80,7 +80,7 @@ What is fair game:
 
 **Why:** The platform uses a configurable `bucketCount`. The choice affects allocation granularity.
 
-**Sources:** `ng/OVERVIEW.md` (config bundle structure section).
+**Sources:** the platform overview doc (config bundle structure section).
 
 ---
 
@@ -91,7 +91,7 @@ What is fair game:
 
 **Why:** The current page implies only static + plain adaptive. The platform supports more shapes — per-entity bandits and contextual bandits are real product capabilities, not just buzzwords.
 
-**Sources:** `ng/docs/design/canonical-experiment-types.md` (Type 7, Type 10). SDK types: `sdk/js-sdk/packages/core/src/types.ts` (BundleAllocationCoefficients, EntityConfig).
+**Sources:** the internal experiment-types design doc (Type 7, Type 10). SDK types: `sdk/js-sdk/packages/core/src/types.ts` (BundleAllocationCoefficients, EntityConfig).
 
 ---
 
@@ -117,21 +117,21 @@ Concept-level page on assignments: a user-allocation record. Explains decision I
 #### NEW — `concepts/warehouse-native.mdx`
 Introduces entity definitions, assignment definitions, fact definitions, and metric definitions. Covers the two modes (Traffical-native events vs warehouse-native) and when to choose which. Includes the SQL template/column mapping pattern.
 
-**Sources:** `ng/OVERVIEW.md` warehouse-native section; `ng/docs/design/canonical-experiment-types.md` Type 11.
+**Sources:** the platform overview doc's warehouse-native section; the internal experiment-types design doc, Type 11.
 
 ---
 
 #### NEW — `sdks/react-native.mdx`
 Default `evaluationMode: "server"` with AsyncStorage cache. Covers cold-start strategy (localConfig → caller defaults → cached). Device-info enrichment via `DeviceInfoProvider`.
 
-**Sources:** `sdk/js-sdk/packages/react-native/src/`; `ng/docs/design/canonical-experiment-types.md` Type 3.
+**Sources:** `sdk/js-sdk/packages/react-native/src/`; the internal experiment-types design doc, Type 3.
 
 ---
 
 #### NEW — `sdks/ssr.mdx`
 SSR patterns for SvelteKit and Next.js. Server fetches bundle once via `loadTrafficalBundle()`, passes via load function, client hydrates without a second fetch. No FOOC.
 
-**Sources:** `ng/docs/design/canonical-experiment-types.md` Type 4.
+**Sources:** the internal experiment-types design doc, Type 4.
 
 ---
 
@@ -176,11 +176,11 @@ Brief intro to the DevTools bookmarklet: live inspection of SDK state, current a
 ---
 
 #### `experimentation/rollouts.mdx`
-**Before:** Documented control-plane `POST /v1/policies/:policyId/rollout/start` and friends as if they were public.
+**Before:** Documented the internal rollout-management endpoints as if they were public.
 
-**After:** Reframed as a dashboard feature with a brief mention that rollouts are also automatable. Removed the raw control-plane endpoint documentation. Kept the conceptual model (proportional scaling, health checks, rollback strategies) since those are user-visible behaviours.
+**After:** Reframed as a dashboard feature with a brief mention that rollouts are also automatable. Removed the raw endpoint documentation. Kept the conceptual model (proportional scaling, health checks, rollback strategies) since those are user-visible behaviours.
 
-**Why:** User explicitly said the control-plane API is internal-only.
+**Why:** User explicitly said the management API is internal-only.
 
 ---
 
@@ -199,7 +199,7 @@ Many users come from a feature-flag mental model. This page positions feature fl
 #### NEW — `guides/canonical-experiments.mdx`
 The big one. Pattern catalog covering: backend algorithm test, web UI test, mobile app test, SSR + hydration, cross-surface flag, backend → frontends, per-entity bandit, email/batch, progressive rollout, contextual bandit, warehouse-native external assignments, multi-tenant SaaS. Each pattern has: use case, project shape (layer/policy/allocation diagram), SDK integration sketch, metric setup.
 
-**Sources:** `ng/docs/design/canonical-experiment-types.md` (the design doc). Adapted into user-facing content with internals scrubbed.
+**Sources:** the internal experiment-types design doc. Adapted into user-facing content with internals scrubbed.
 
 ---
 
@@ -226,11 +226,11 @@ Documents `POST /v1/resolve` — server-side full-bundle resolution for SDKs run
 ---
 
 ### Sensitivity audit (pass-through)
-Grep'd every edited file for: `cloudflare`, `worker`, `kv`, `r2`, `d1`, `iceberg`, `parquet`, `duckdb`, `workos`, `stripe`, `pipelines`, `api.traffical.io`, `200+ edge locations`. Removed all hits.
+Grep'd every edited file against the sensitive-info term list (infrastructure product names, vendor names, the internal API host, "200+ edge locations"). Removed all hits.
 
 ### Iteration 1 status: complete
 
-33 .mdx files total. Sensitivity grep clean (no Cloudflare/Workers/D1/KV/R2/Iceberg/Parquet/DuckDB/WorkOS/Stripe/api.traffical.io/control-plane references). `docs.json` validated. All internal links resolve.
+33 .mdx files total. Sensitivity grep clean (no infrastructure, vendor, internal-API-host, or internal-component references). `docs.json` validated. All internal links resolve.
 
 ### Pages touched
 - Rewritten: index, introduction, quickstart, how-it-works, concepts/parameters, concepts/layers, concepts/policies, concepts/events-and-metrics, sdks/overview, sdks/node, sdks/javascript, sdks/react, sdks/svelte, tools/cli, tools/visual-editor, experimentation/ab-testing, experimentation/rollouts, experimentation/optimization, api/overview, api/get-config, api/post-events, api/post-decide
@@ -259,7 +259,7 @@ Grep'd every edited file for: `cloudflare`, `worker`, `kv`, `r2`, `d1`, `iceberg
 
 ### Open questions for the user before iteration 2
 - Is there a per-policy "experiment lifecycle" model worth documenting beyond what's already covered? The current OVERVIEW.md mentions "archive, complete" — should there be a dedicated lifecycle page?
-- Are there features in `ng/docs/design/*.md` beyond what was surfaced via the survey agent that you'd want me to document? (I read `canonical-experiment-types.md`; the others were only referenced indirectly.)
+- Are there features in the internal design docs beyond what was surfaced via the survey agent that you'd want me to document? (I read the experiment-types doc; the others were only referenced indirectly.)
 - The `/v1/resolve` endpoint shape — confirmed conceptually but I didn't dig into the wire schema. Worth verifying before publishing the API page.
 - Self-hosting / private-deployment — is that on the near roadmap, or skip it for now?
 
@@ -277,11 +277,11 @@ Grep'd every edited file for: `cloudflare`, `worker`, `kv`, `r2`, `d1`, `iceberg
 - Visual diagrams (mermaid) for the layer/policy/allocation hierarchy and the warehouse-native pipeline
 
 ### New sources I drew on this iteration
-- `/Users/marcel/Code/traffical/.cursor/plans/` — the 20 most recent plans, especially the **event schema** series (7 plans, all completed). These showed me the type-safe events surface is *substantially* deeper than the survey agent's report. Property schemas, property groups, schema enforcement modes, `onSchemaWarnings` callback, generic `TEvents` on every SDK client — all real and shipped.
-- `/Users/marcel/Code/traffical/ng/ui/src/routes` — the dashboard route structure mapped 1:1 to the walkthrough pages I wrote.
-- `/Users/marcel/Code/traffical/ng/warehouse-native-pipeline/src/warehouse/{postgres,bigquery,snowflake,databricks,clickhouse}/index.ts` — connection field shapes (host, account, projectId, httpPath, etc.) verified from source.
-- `/Users/marcel/Code/traffical/ng/web/src/routes/features/+page.svelte` — landing page features section (used for tone calibration; nothing copied directly). Noted the marketing site says "200+ edge locations" — kept that out of the docs as discussed.
-- `decision_log_feature_2afa9716.plan.md` — this is a real shipped feature (5 endpoints, 4 actor types, audit-trail use cases) and informed `dashboard/decisions.mdx`.
+- The 20 most recent internal planning notes, especially the **event schema** series (7 plans, all completed). These showed me the type-safe events surface is *substantially* deeper than the survey agent's report. Property schemas, property groups, schema enforcement modes, `onSchemaWarnings` callback, generic `TEvents` on every SDK client — all real and shipped.
+- The dashboard route structure — mapped 1:1 to the walkthrough pages I wrote.
+- The per-warehouse connector source (postgres, bigquery, snowflake, databricks, clickhouse) — connection field shapes (host, account, projectId, httpPath, etc.) verified from source.
+- The marketing site's features page (used for tone calibration; nothing copied directly). Noted the marketing site says "200+ edge locations" — kept that out of the docs as discussed.
+- The decision-log feature plan — this is a real shipped feature (5 endpoints, 4 actor types, audit-trail use cases) and informed `dashboard/decisions.mdx`.
 
 ### Pages new in this iteration
 
@@ -331,7 +331,7 @@ Grep'd every edited file for: `cloudflare`, `worker`, `kv`, `r2`, `d1`, `iceberg
 - 5 existing files updated this iteration
 
 **Audits:**
-- Sensitivity grep clean (no Cloudflare / Workers / D1 / KV / R2 / Iceberg / Parquet / DuckDB / DuckLake / WorkOS / Stripe / api.traffical.io / 200+ edge locations references in published content). Note: `placeholders/README.md` is internal and references `/Users/marcel/Code/traffical/ng/ui`, which is fine — that file isn't part of the published site.
+- Sensitivity grep clean (no infrastructure, vendor, internal-API-host, or "200+ edge locations" references in published content). Note: `placeholders/README.md` is internal to the docs workflow, but since this repo is public it must follow the sensitive-info policy too.
 - `docs.json` validates as JSON
 - Cross-link check passes (no broken internal links)
 
@@ -356,12 +356,11 @@ Two correctness errors flagged by the user and fixed against the code.
 
 **What I wrote:** every connector page said the role "should be read-only" and the overview said "Traffical needs a read-only connection". The implication was that Traffical only `SELECT`s.
 
-**The truth:** the pipeline writes substantial intermediate data into the warehouse. Confirmed in:
-- `ng/warehouse-native-pipeline/src/pipeline/persistent/ddl.ts` — `CREATE TABLE IF NOT EXISTS` for per-policy materialized tables and staging tables.
-- `ng/warehouse-native-pipeline/src/pipeline/persistent/ingest.ts` — overlap pattern: `DELETE FROM ... WHERE batch_date >= ...`, `INSERT INTO ... SELECT * FROM staging`, plus `DROP TABLE IF EXISTS` for staging cleanup.
-- `ng/warehouse-native-pipeline/src/pipeline/transpile.ts` — `ensureTrafficalSchema()` issues `CREATE DATABASE IF NOT EXISTS` (ClickHouse) or `CREATE SCHEMA IF NOT EXISTS` (Postgres) on first run.
-- `ng/warehouse-native-pipeline/src/sdk-sync/writer.ts` — `INSERT INTO ${schema}.sdk_assignments` and `INSERT INTO ${schema}.sdk_tracks`.
-- `ng/warehouse-native-pipeline/src/sdk-sync/ddl.ts` — `CREATE TABLE IF NOT EXISTS pipeline.sdk_assignments` / `pipeline.sdk_tracks`.
+**The truth:** the pipeline writes substantial intermediate data into the warehouse. Confirmed in the pipeline source (all of this is user-visible behavior in the customer's own warehouse):
+- DDL — `CREATE TABLE IF NOT EXISTS` for per-policy materialized tables and staging tables.
+- Ingest — overlap pattern: `DELETE FROM ... WHERE batch_date >= ...`, `INSERT INTO ... SELECT * FROM staging`, plus `DROP TABLE IF EXISTS` for staging cleanup.
+- First-run bootstrap — `CREATE DATABASE IF NOT EXISTS` (ClickHouse) or `CREATE SCHEMA IF NOT EXISTS` (Postgres).
+- SDK sync — `INSERT INTO` the `sdk_assignments` and `sdk_tracks` tables it creates in the same Traffical schema.
 
 So Traffical owns a schema/database/dataset (the "Traffical schema") in your warehouse where it freely creates, writes, deletes, and drops. The role needs:
 - `SELECT` on your source schemas
@@ -381,10 +380,10 @@ So Traffical owns a schema/database/dataset (the "Traffical schema") in your war
 
 **What I wrote:** "You can pause a policy in `staging` without affecting `production`" (in `concepts/projects-and-environments.mdx` and `dashboard/settings.mdx`).
 
-**The truth:** policies live at the project level — not the environment level. Confirmed in:
-- `ng/control-plane/src/types/domain.ts:665+` — the `Policy` interface has `projectId` and `layerId` but no `envId` field. The `state` field (`running`/`paused`/`completed`/`draft`) is on the policy itself.
-- `ng/control-plane/src/config/bundle-builder.ts:122-128` — the bundle builder fetches policies by layer (`policies.listByLayer(layer.id)`) and filters by `state === "running"`. There's no environment filter on policy lookup.
-- `ng/control-plane/src/types/domain.ts:943+` — `EnvironmentOverride` exists but it specifically overrides **parameter default values** per environment ("per-environment parameter value override"), not policy state.
+**The truth:** policies live at the project level — not the environment level. Confirmed in the platform source:
+- The `Policy` type has `projectId` and `layerId` but no `envId` field. The `state` field (`running`/`paused`/`completed`/`draft`) is on the policy itself.
+- The bundle builder fetches policies by layer and filters by `state === "running"`. There's no environment filter on policy lookup.
+- `EnvironmentOverride` exists but it specifically overrides **parameter default values** per environment ("per-environment parameter value override"), not policy state.
 
 So what environments *actually* let you do per-env is:
 - Override a parameter's default value (via `EnvironmentOverride`)
@@ -410,12 +409,12 @@ Three more claims the user flagged, all wrong against the code.
 
 **What I wrote:** in five places, that track events without a `decisionId` get attributed by a time-window match against recent decisions for the same unit key, gated by an `attributionWindowHours` setting.
 
-**The truth:** that field exists on `OptimizationConfig` (`ng/control-plane/src/types/domain.ts:476`) but is never consumed anywhere outside type declarations. The actual attribution model has two layers:
+**The truth:** that field exists on the optimization-config type but is never consumed anywhere outside type declarations. The actual attribution model has two layers:
 
 1. **SDK-side, per track event.** `_buildAttribution` in `sdk/js-sdk/packages/js-client/src/client.ts:1104-1132` builds an `attribution` array and embeds it on each track event. Two modes:
    - `cumulative` (default) — includes every layer/policy/allocation the unit has been exposed to during the session, deduplicated by `layerId:policyId` last-write-wins. This is what the dashboard rollup reads from `attribution.$[0]` columns.
    - `decision` — only includes layers from the named `decisionId` (looked up in the SDK's `_decisionCache`).
-2. **Pipeline-side, per metric.** `event-aggregator/src/steps/build-assignments.ts` builds an `assignments` table per (unit_key, allocation_name) ordered by `assignment_at`, with `first_exposure_at` per allocation. `temporal-join.ts` then joins track events to that table: `JOIN tracks e ON a.unit_key = e.unit_key WHERE e.event_name = '...' AND e.timestamp >= a.first_exposure_at`. The join key is `unit_key`, not `decisionId`. There's no time-window cap.
+2. **Pipeline-side, per metric.** The aggregation pipeline builds an `assignments` table per (unit_key, allocation_name) ordered by `assignment_at`, with `first_exposure_at` per allocation. Its temporal join then joins track events to that table: `JOIN tracks e ON a.unit_key = e.unit_key WHERE e.event_name = '...' AND e.timestamp >= a.first_exposure_at`. The join key is `unit_key`, not `decisionId`. There's no time-window cap.
 
 So:
 - Events from outside the SDK still attribute via `unit_key` + first-exposure ordering — no `decisionId` needed for pipeline-computed metrics.
@@ -433,7 +432,7 @@ So:
 
 **The truth:** `_enrichContext` in `sdk/js-sdk/packages/js-client/src/client.ts:868-881` reads `bundle.hashing.unitKey` (typically `userId`) and, if `context[unitKey]` is missing, fills it with `this._stableId.getId()`. So the stable ID *is* the unit-key value — there's no separate identity slot. `identify(value)` (line 742) sets the stable ID directly to `value`. After login, the unit-key field carries the real `userId`, the bucket hash changes, and the user almost always lands in a different allocation. There's no continuity mechanism — the SDK doesn't remember the anonymous bucket and reapply it under the new identity.
 
-The diversion-types design (`ng/docs/design/diversion-types.md`) is about supporting *different entity types* per layer (a customer-keyed layer next to a merchant-keyed layer in the same project). It doesn't change how the anonymous-to-identified transition works for any one entity.
+The diversion-types design work is about supporting *different entity types* per layer (a customer-keyed layer next to a merchant-keyed layer in the same project). It doesn't change how the anonymous-to-identified transition works for any one entity.
 
 **Pages updated:**
 - `sdks/javascript.mdx` — rewrote "Anonymous users and `identify`" to make explicit that the stable ID *is* the unit-key value, and added a `<Warning>` block calling out that bucketing changes at login with no continuity.
@@ -443,7 +442,7 @@ The diversion-types design (`ng/docs/design/diversion-types.md`) is about suppor
 
 **What I wrote:** in three places, that rollouts only grow bucket ranges and users in the variant at 5% stay in it at 10%, 25%, 100%.
 
-**The truth:** rollouts support both forward ramps and rollbacks. `ng/control-plane/src/scheduled/tasks/rollout-ramps.ts:79-90` shows that on a health violation the scheduler can run `rollback_one_step` (decrement by `incrementPercentage`) or `full_rollback` (set to 0%). Manual `set-percentage` to a lower value is also supported. When the percentage decreases, allocation bucket ranges shrink proportionally — and users near the edge of the new smaller range fall *out* of the variant and revert to the fallback policy or parameter defaults. The user pointed out that's intentional and correct: a rollback should actually pull users back.
+**The truth:** rollouts support both forward ramps and rollbacks. The rollout scheduler source shows that on a health violation it can run `rollback_one_step` (decrement by `incrementPercentage`) or `full_rollback` (set to 0%). Manual `set-percentage` to a lower value is also supported. When the percentage decreases, allocation bucket ranges shrink proportionally — and users near the edge of the new smaller range fall *out* of the variant and revert to the fallback policy or parameter defaults. The user pointed out that's intentional and correct: a rollback should actually pull users back.
 
 So "only grow, never shrink" is true only for monotonic forward auto-ramps. It's wrong as a general property of rollouts.
 
@@ -454,10 +453,83 @@ So "only grow, never shrink" is true only for monotonic forward auto-ramps. It's
 
 #### Why these slipped past two earlier audits
 
-All three are paraphrases of `ng/docs/design/canonical-experiment-types.md`, which I treated as the spec when it's actually aspirational design. Lesson for iteration 3: design docs in `ng/docs/design/` describe intent, not necessarily what shipped. When a claim in a design doc is operationally consequential ("can shrink", "falls back to X", "preserves Y"), verify it against the consumer in code — not just the type declaration. I've been over-trusting type declarations as evidence the behavior is wired up. The lesson is: a type without a consumer is a TODO, not a feature.
+All three are paraphrases of the internal experiment-types design doc, which I treated as the spec when it's actually aspirational design. Lesson for iteration 3: internal design docs describe intent, not necessarily what shipped. When a claim in a design doc is operationally consequential ("can shrink", "falls back to X", "preserves Y"), verify it against the consumer in code — not just the type declaration. I've been over-trusting type declarations as evidence the behavior is wired up. The lesson is: a type without a consumer is a TODO, not a feature.
 
 ### Open questions before iteration 3
 - Is there a separate audit/compliance story (SOC 2, GDPR, data residency) worth its own page? The landing-page features section mentions "data residency options"; if there's a real story there, docs should reflect it.
-- The rollout endpoint documentation (`POST /v1/policies/:id/rollout/*`) was scrubbed in iteration 1 because they're control-plane endpoints. If teams want to script rollouts via CI, they'll need *some* documented API surface for it. Worth deciding what the supported automation story is.
+- The rollout endpoint documentation was scrubbed in iteration 1 because those endpoints are internal. If teams want to script rollouts via CI, they'll need *some* documented API surface for it. Worth deciding what the supported automation story is.
 - For the dashboard walkthrough pages: there's a `/{orgKey}/{projectKey}/ai` route I noticed but didn't document. What's that for? If it's the AI-optimization views referenced in OVERVIEW.md, that's worth surfacing.
 - The `/{orgKey}/{projectKey}/editor` route — is that the visual editor target? If so, a screenshot on the existing visual-editor page would help.
+
+---
+
+## Iteration 3 — 2026-07-21
+
+Governance docs + API corrections revamp. Fixes the four prod-test discrepancies
+(D1–D4, logged 2026-06-24 from the production test log), documents the
+governed-changes surface, and refreshes the dashboard walkthrough against
+the current UI.
+
+### Edits
+
+#### API reference corrections (D1–D4, batch endpoints, error contract)
+`api/{overview,get-config,post-resolve,post-decide,post-events}.mdx`.
+- **D1** — `get-config` example now matches prod: `bucketCount: 1000` and `hashing.algorithm: "sha256-v2"`; added a key-fields table (version/ETag basis, running-policies-only note).
+- **D2** — `post-resolve` response documented as it actually returns: per-layer resolution under `metadata.layers` (the doc previously showed a top-level `decisions[]` that doesn't exist).
+- **D3** — `post-decide`: `entityId` marked required; `allocationName` documented as the stringified allocation index; allocation-count fallback (stored weights → `400`) and uniform-weights cold start documented.
+- **Batch** — `/v1/decide/batch` fully documented (per-request `policyId`, ordered `responses` array, per-policy state-lookup grouping); `/v1/events/batch` surfaced in the endpoint table as the browser-SDK flush path.
+- **Error contract** — real envelope `{ "error": { "code", "message" } }` with stable machine-readable codes; per-endpoint Errors sections; `503` retry semantics + `Retry-After`; tenant headers (`X-Project-Id` for org-scoped keys, mismatch ⇒ `403`); events validated individually with `validationErrors`.
+
+**Sources:** the SDK-facing API route source (config, resolve, decide, events) and its auth middleware; the production test log.
+
+#### Switchback removal (design-only)
+Switchback experiments are not part of the shipped product surface. Removed the Switchback pattern and its summary-matrix row from `guides/canonical-experiments.mdx` and the Switchback entry from `reference/glossary.mdx`. No published page mentions switchbacks anymore.
+
+#### Bucket-count sweep: 10000 → 1000
+Iteration 1 standardized on a 10000-bucket default; prod uses `bucketCount: 1000` (verified against a live bundle, 2026-06-24 — the D1 finding). Swept every page showing bucket math or ranges and rescaled examples proportionally (`0–4999`/`5000–9999` → `0–499`/`500–999`): `how-it-works`, `concepts/layers`, `concepts/projects-and-environments`, `experimentation/ab-testing`, `experimentation/optimization`, `guides/first-experiment`, `guides/canonical-experiments`, `api/get-config`.
+
+#### Endpoint/vendor scrub
+Per the sensitive-info policy above: `tools/mcp-server.mdx` no longer prints the real MCP endpoint host (now "your workspace's MCP endpoint", provided during onboarding) or the auth vendor's name (now "standard OAuth discovery" / "your Traffical account"); `dashboard/policy-health.mdx` dropped the storage-infrastructure internals from its "how it's computed" walkthrough (stops at observable behavior now). Policy grep clean across published pages.
+
+#### New governance docs
+`concepts/changes.mdx`, `concepts/surfaces.mdx`, `dashboard/changes.mdx`, `governance/{measurement-protocols,approvals-and-autonomy,roles-and-permissions}.mdx`, plus a new **Governance** nav group in `docs.json`. Covers: the governed change lifecycle (draft → canary → experiment → rollout → promote) with policies/layers as execution machinery; surfaces and bindings as the anchor for protocol matching and risk; measurement protocols resolving into approved plans; the computed risk class + autonomy resolver + approval checkpoints; org roles, team ownership, and API-key scopes; the Changes list, six-step New Change wizard, change detail page, and transition console. Consistently flagged as enabled per workspace. Cross-linked from `index`, `introduction`, `concepts/policies`, `experimentation/rollouts`, `dashboard/decisions`, and `tools/mcp-server` (which now delegates its governance model to these pages instead of restating it).
+
+**Sources:** platform source (changes domain, autonomy resolver, protocols, MCP surface); dashboard changes routes; internal governance design docs.
+
+#### Dashboard refreshes
+Rewritten against the current UI: `dashboard/overview` (project overview with Impact section, AI optimization page), `dashboard/parameters` (two-pane editor — Basics/Constraints/Environments + live preview — namespaces, synced parameters, bulk actions), `dashboard/layers-and-policies` (swim-lanes bucket view, Create Policy modal, goal selector with Event/Metric toggle, verdict banner, Overview/Setup/Measurement policy tabs), `dashboard/metrics` (ratio and composite metrics, per-component caps, certification, CUPED, results scorecard), `dashboard/settings` (project basics, Change defaults, analysis defaults, serving mode, pipeline scheduling, SDK configuration, warehouse), `dashboard/pipeline` (what runs, workflow runs with restart/terminate/trigger-again, data freshness, scheduling). Smaller: `dashboard/decisions` (change transitions write to the same decision log; agent actor via MCP), `experimentation/choosing-an-algorithm` (goal-type suggestions incl. conversion-rate defaults, event↔metric goal toggle, composite-cap winsorization pointer). Placeholder manifest (`images/placeholders/README.md`) updated to match the new shots.
+
+**Sources:** dashboard route source and the read-model source behind it.
+
+#### New statistics pages
+`statistics/measurement-progress.mdx` — how "how much longer does this need?" is answered: target effect, detectable-now vs target MDE, ETA with as-of stamp, what-if planner on drafts, retrospective sentence on completed policies. `statistics/impact-methodology.mdx` — how the Impact view builds a program-level number: rollout projection off frozen decision evidence, false-positive discounting, honest intervals, guardrail labeling. Both added to the Statistics nav group.
+
+**Sources:** the statistics engine source (progress estimation); internal design docs for measurement progress and aggregated impact.
+
+#### New reference pages
+`reference/troubleshooting.mdx` — symptom-first fixes across integration, data, measurement, and governance issues. `reference/faq.mdx` — short answers on getting started, statistics, optimization, warehouse setup, governance. Both in the Reference nav group; two FAQ screenshots added to the placeholder manifest.
+
+#### Notifications + usage & billing
+`dashboard/notifications.mdx` — the feed (All/Unread/Needs-ack), acknowledgements, personal preference matrix, email/Slack delivery, shared destinations + routing rules, delivery audit log. `dashboard/usage-and-billing.mdx` — how monthly tracked units (MTU) are counted, per-project usage, plan management.
+
+**Sources:** dashboard notification and billing routes; platform source (notification routing, usage counting).
+
+#### Glossary governance vocabulary
+`reference/glossary.mdx` — added: Autonomy, Certified, Change, Change phase, Decision record, Evidence record, Lifecycle template, Measurement plan, Measurement protocol, Risk class, Surface, Surface binding. Removed: Switchback (design-only, see above).
+
+### Iteration 3 status: complete
+
+77 `.mdx` files total (was 65 before this pass); 12 new pages, ~28 files touched. Sensitivity grep clean on published pages. `docs.json` validates; nav gains Governance group and the new Statistics/Dashboard/Reference pages. Per-page verification recorded in the audit ledger (D1–D4 marked resolved; the ledger has since moved out of the tracked tree — see below).
+
+### Fix-up — public-repo scrub (2026-07-21)
+
+This repo is public and this file is tracked — yet earlier entries enumerated exactly
+what the sensitive-info policy exists to keep out of published pages: infrastructure
+product names, vendor names, the internal API host, internal endpoints, and platform
+file paths with line numbers. This pass rewrote the policy list above in abstract
+terms and replaced every internal path, host, and endpoint citation in the log with
+an abstract description; the per-page audit ledger was removed from the tracked tree,
+and the source-of-truth map now lives untracked at `.agents/source-map.md` (gitignored).
+Because earlier versions of these files were committed publicly, scrubbing the tip is
+not sufficient on its own — rewriting the repo history (or making the repo private)
+remains a follow-up for a maintainer.

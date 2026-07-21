@@ -1,75 +1,148 @@
 ---
 title: "Parameters in the dashboard"
-description: "The parameters list, parameter detail page, layer assignment, sync status, and dashboard-only vs synced parameters."
+description: "The parameters list, the two-pane parameter editor, environment overrides, synced parameters, and the parameter detail page."
 ---
 
-The **Parameters** page lists every parameter in the project. Use it to inspect what exists, where it's used, and how it's currently being overridden.
+The **Parameters** page lists every parameter in the project — what exists, what type it is, which [layer](/concepts/layers) it lives in, and whether it's managed in the dashboard or synced from code. This page walks through the UI; for what parameters *are* — types, defaults, namespaces, constraints — see the [parameters concept](/concepts/parameters).
 
 <Frame caption="Parameters list">
-  <img src="/images/placeholders/parameters-list.png" alt="Parameters list placeholder" />
+  <img src="/images/placeholders/parameters-list.png" alt="Parameters list grouped by namespace" />
 </Frame>
 
 ## The list
 
 Each row shows:
 
-- **Key** — the dot-namespaced name (`checkout.button.color`)
-- **Type** — `string`, `number`, `boolean`, `json`
-- **Layer** — the layer this parameter belongs to
-- **Default** — the canonical default value
-- **Status** — `synced` (managed by CLI) or `dashboard-only`
-- **Active policies** — how many running policies are currently overriding this parameter
+- **Parameter** — the key (`checkout.button.color`), with its description underneath
+- **Type** — `string`, `number`, `boolean`, or `json`
+- **Default** — the current base default value
+- **Layer** — the layer the parameter belongs to
 
-Filter by layer, type, status, or name. The status filter is useful when you're cleaning up — `dashboard-only` parameters can be `import`ed into your repo via the CLI.
+Two indicators can appear next to a key:
 
-## Synced vs dashboard-only
+- A **sync icon** — the definition is managed in [`.traffical/config.yaml`](/tools/config-file) and pushed via the [CLI](/tools/cli); its tooltip shows the source file and when it was last synced. See [synced parameters](#synced-parameters).
+- An **Orphaned** badge — a synced parameter that was removed from the config file. Re-add it to the config, or archive it with `traffical push --prune`.
 
-Synced parameters are defined in `.traffical/config.yaml` and pushed via the CLI. Their definitions are read-only in the dashboard — the default, type, description, and constraints are managed in code. The dashboard lets you create policies on top of them but won't let you edit their definitions.
+Click any row to open the [detail page](#parameter-detail).
 
-Dashboard-only parameters are created in the UI. They're editable in both directions. To bring one into code, run `traffical import param <key>` — the CLI pulls the definition into your `.traffical/config.yaml` and marks it as synced going forward.
+### Filtering and views
+
+The filter tabs split the list into **Active**, **Synced**, **Dashboard** (created in the UI), and **Archived**, each with a count. Search matches keys, descriptions, namespace names, and layer names; the namespace dropdown narrows the list to a single namespace.
+
+There are two view modes:
+
+- **Grouped** — parameters under collapsible namespace headers (the default)
+- **Flat** — one table, sortable by namespace, key, type, or layer
+
+### Managing namespaces
+
+The gear icon next to the namespace filter opens the namespace manager. From there you can create a namespace, edit its description, and assign an owning team. A namespace can only be deleted when it's empty, and the `main` namespace can't be deleted.
+
+## Creating a parameter
+
+Click **Create Parameter**. Creating and editing parameters requires the parameter write permission — see [roles and permissions](/governance/roles-and-permissions).
+
+The editor opens as a two-pane dialog: a form on the left, a preview on the right.
+
+<Frame caption="Parameter editor">
+  <img src="/images/placeholders/parameter-editor.png" alt="Two-pane parameter editor with Basics, Constraints, and Environments tabs and a live preview" />
+</Frame>
+
+The form has three tabs — **Basics**, **Constraints**, and **Environments**. The last two carry a count badge showing how many constraint rules and environment overrides are configured, so you can see what's set without switching tabs.
+
+### Basics
+
+- **Parameter name** — the local name. If the namespace isn't `main`, the namespace prefix is shown in front of the input and the helper text shows the full key your code resolves (`checkout.buttonColor`). Keys start with a letter and can contain letters, numbers, dots, underscores, and dashes.
+- **Type** — `string`, `number`, `boolean`, or `json`. The type is locked after creation.
+- **Default value** — required. When the constraints include allowed values, the free-text input becomes a dropdown.
+- **Namespace** — pick an existing namespace or choose **Create namespace...** inline.
+- **Layer** — required; every parameter belongs to exactly one layer. See [layers and policies](/dashboard/layers-and-policies).
+- **Description** — optional, up to 500 characters.
+
+### Constraints
+
+Constraints validate values before they reach the SDK. They apply to `string` and `number` parameters, and they check both the default value and every environment override — a violating value blocks saving.
+
+- **Range** (`number`) — a minimum, a maximum, or both.
+- **Regex pattern** (`string`) — values must match. The **Templates** button opens a searchable list of common patterns (hex color, email, HTTPS URL, semver, and more) so you don't have to write the regex yourself.
+- **Allowed values** (both) — restrict the parameter to an explicit set. Adding any switches the value fields from free text to a dropdown.
+
+### Environments
+
+Toggle an [environment](/concepts/projects-and-environments) on and enter a value to override the default there — a lower `timeout` in staging, a test key in development. Overrides sit between the base default and policy overrides: a running policy still wins at resolve time.
+
+### The preview pane
+
+On create, the right pane is a **live preview** that updates as you type: the full resolved key, type, namespace, layer, the default value, and counters for constraint rules and environment overrides. When you edit an existing parameter the pane is headed **Current value**, but it still reflects the form as you change it — only the header differs from create.
+
+The pane also reminds you how resolution behaves: values resolve from the SDK's local cache in sub-milliseconds (no network call per lookup), constraints validate every value, and policy overrides take precedence.
+
+## Editing a parameter
+
+The pencil icon on the detail page opens the same dialog in edit mode. Two differences from create:
+
+- The **type is locked** — it can't change after creation.
+- The footer shows **No changes yet** until you actually change something, and the save button stays disabled.
+
+Moving a parameter to a different namespace renames its key (`buttonColor` → `checkout.buttonColor`), and the editor warns you: that's a breaking change for any code resolving the old key.
+
+## Synced parameters
+
+Parameters whose definitions live in [`.traffical/config.yaml`](/tools/config-file) are marked **Synced**, and the dashboard treats the config file as the source of truth. Opening one in the editor shows **Edit parameter (synced)**: the name, type, default value, namespace, description, constraints, and environment overrides are all read-only — the name, type, and namespace carry a lock, and the default value points at the config file it's synced from. Only the **layer** can be changed from the dashboard.
+
+To change anything else, edit the config file and run `traffical push` — the editor shows exactly which file the parameter is synced from.
+
+To move a dashboard-only parameter into code, run `traffical import param <key>` to write the definition into your config file, then `traffical push` to mark it as synced.
 
 ## Parameter detail
 
-Clicking a parameter opens the detail page.
+Clicking a parameter opens its detail page, with **Overview** and **History** tabs.
 
 <Frame caption="Parameter detail">
-  <img src="/images/placeholders/parameter-detail.png" alt="Parameter detail placeholder" />
+  <img src="/images/placeholders/parameter-detail.png" alt="Parameter detail page with configuration, overrides, policies, and surfaces" />
 </Frame>
 
-You'll see:
+The overview shows:
 
-- The full definition (key, type, default, constraints, description)
-- The layer it belongs to
-- A history of value changes
-- All policies that override this parameter, with their current state and allocations
-- Recent exposure volume per allocation (if there are any active policies)
+- **Configuration** — type, default value, namespace, layer, and constraints. For synced parameters, the default is labeled read-only.
+- **Environment overrides** — every environment, with its override value or "Using default".
+- **Policies overriding this parameter** — each policy with its current state, linked to its detail page. This is where you see what's actively changing the value in production.
+- **Surfaces using this parameter** — the [surfaces](/concepts/surfaces) this parameter is bound to, with a role badge per binding: **read**, **write**, **render**, **decision**, or **side effect**. Bindings describe how a surface uses the value, which feeds risk classification and measurement context for [changes](/concepts/changes).
+- **DOM binding** — if the parameter was bound to a page element with the [visual editor](/tools/visual-editor), the CSS selector, property, and URL pattern it's bound to.
 
-If the parameter is dashboard-only, you can edit the default, change the description, add or update constraints, and move it to a different layer. If it's synced, you can do those things via `.traffical/config.yaml` and `traffical push`.
+The rail on the right pins the **resolution order** — base default, then environment override, then policy override (highest) — so you always know which value wins. Synced parameters get an extra config-as-code card pointing at the source file.
 
-## Moving a parameter to a different layer
+The **History** tab is the parameter's change history: who changed what, and when.
 
-Open the parameter detail page → **Move to layer** → pick the destination. Moving a parameter reshuffles its bucket assignments — users that were in `treatment` for an active experiment may move to `control` (or vice versa). Don't move parameters mid-experiment.
+## Bulk actions
 
-## Archiving and deleting
+Select parameters with the row checkboxes and a floating action bar appears. You can:
 
-A synced parameter that gets removed from `.traffical/config.yaml` stays in the platform unless you `traffical push --prune`, which archives it. Archived parameters don't appear in the default list — filter by `Archived` to see them.
+- **Move to Layer**
+- **Change Namespace** (renames the keys)
+- **Archive** — or **unarchive**, when you're in the Archived view
 
-Dashboard-only parameters can be archived from the detail page. Archived parameters can be restored within 30 days; after that they're permanently deleted.
+Every bulk action shows a preview before executing: which parameters will be updated, which are blocked and why, and any warnings. A parameter referenced by a **running** policy is blocked from moving, archiving, or changing namespace; references from draft or paused policies only produce a warning. Synced parameters can't be archived (unless orphaned) or change namespace from the dashboard — that's managed in config.
 
-## The base layer
+## Archiving
 
-Every project has a base layer that holds parameters not assigned to any other layer. New CLI-pushed parameters land here by default. The base layer can't be deleted.
+Archiving hides a parameter from the active list without deleting it. Switch the filter to **Archived** to see archived parameters and restore them at any time.
+
+For synced parameters, archiving happens from code: remove the parameter from your config file and run `traffical push --prune`.
 
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="Layers & policies" icon="layer-group" href="/dashboard/layers-and-policies">
-    Where you actually configure experiments.
-  </Card>
   <Card title="Parameters concept" icon="sliders" href="/concepts/parameters">
     Types, defaults, namespaces, constraints.
   </Card>
+  <Card title="Layers & policies" icon="layer-group" href="/dashboard/layers-and-policies">
+    Where you configure experiments on top of parameters.
+  </Card>
+  <Card title="Surfaces" icon="app-window" href="/concepts/surfaces">
+    Binding parameters to the surfaces that consume them.
+  </Card>
   <Card title="CLI" icon="terminal" href="/tools/cli">
-    Manage parameters as code.
+    Manage parameter definitions as code.
   </Card>
 </CardGroup>

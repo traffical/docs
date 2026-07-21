@@ -1,0 +1,104 @@
+---
+title: "FAQ"
+description: "Short answers to the questions teams actually ask — getting started, statistics, optimization, warehouse setup, and governance."
+---
+
+Quick answers, with links to the full story. If a term is unfamiliar, check the [glossary](/reference/glossary); if something is broken rather than unclear, start with [troubleshooting](/reference/troubleshooting).
+
+## Getting started
+
+### Do I need a data warehouse to start?
+
+No. Traffical-native events work out of the box: install an [SDK](/sdks/overview), resolve a parameter, and call `track()` — the platform stores and aggregates everything, and you can run your [first experiment](/guides/first-experiment) in minutes. A warehouse connection is optional, for when the outcomes you care about live in your own tables — see [warehouse-native](/concepts/warehouse-native). You can mix both sources in one project; the dashboard treats them identically.
+
+### What's the difference between a layer and a policy?
+
+A [layer](/concepts/layers) is a traffic container: a pool of mutually exclusive policies over a disjoint set of parameters. A [policy](/concepts/policies) is the rule inside it that assigns parameter values to users — every A/B test, rollout, and adaptive optimizer is a policy. Within a layer, a user is in at most one policy at a time; across layers, assignments are statistically independent thanks to [orthogonal bucketing](/concepts/layers#orthogonal-bucketing), which is what makes concurrent experiments safe.
+
+### What is a bucket, and why are there 1000 of them?
+
+A bucket is a deterministic hash slot: each layer computes `hash(unitKey + layerId) % bucketCount`, so the same unit always lands in the same bucket with no lookup table — that's why [assignments](/concepts/assignments) are stable across requests. Policies divide the bucket space into allocation ranges, and 1000 buckets gives you 0.1% granularity — fine enough for precise splits and smooth [rollout](/experimentation/rollouts) ramps. It's a project-level setting; projects that want finer control can use 10,000 instead.
+
+## Experiments & statistics
+
+### Can I change allocations mid-experiment?
+
+For adaptive policies, that's the whole point — the engine shifts ranges continuously, and the analysis is built for it. For a static A/B test it's mechanically possible but usually a mistake: bucketing is deterministic, so resizing ranges moves users between variants and mixes their exposure histories. If you need more exposure, scale both arms proportionally so the split ratio never drifts — [change](/concepts/changes) transitions do exactly this with ramp-to-target, and A/B canaries reserve the full experiment allocation up front so advancing reuses the same buckets with no re-randomization. After any manual edit, watch the **Sample ratio mismatch** check in [policy health](/dashboard/policy-health).
+
+### Does sequential testing let me peek at results?
+
+Yes — that's precisely what it's for. With [sequential testing](/statistics/sequential-testing) enabled, results are reported as an anytime-valid confidence sequence: you can check after every batch of data and stop the moment the interval excludes zero, and the false-positive rate still holds across every look combined. The price is a wider interval than a fixed-horizon test at any single look. It's off by default — turn it on per project or per policy.
+
+### When does CUPED help, and which metric types support it?
+
+[CUPED](/statistics/cuped) helps when pre-experiment behavior predicts in-experiment behavior — high-variance metrics like revenue or engagement, measured on units that have history in your product. It's available on **average (mean)** and **conversion-rate** metrics, and it needs two switches: a covariate lookback window on the [metric](/dashboard/metrics) itself, and CUPED enabled on the policy (or as the project default). Units with no pre-period history are analysed without adjustment, so it helps where it can and stays out of the way where it can't.
+
+### How do I know how much longer an experiment needs?
+
+The [measurement progress](/statistics/measurement-progress) card on the policy page answers exactly this: the effect size you set out to detect, the effect detectable right now, and an estimated time remaining derived from each arm's recent accrual. The target resolves from your [measurement protocol](/governance/measurement-protocols), policy, metric, or project defaults — a 5% relative MDE is assumed if nothing is set. On a draft policy the same card becomes a what-if planner for sample-size estimates before launch.
+
+### How do holdouts work?
+
+Model a holdout with [eligible bucket ranges](/concepts/layers#eligible-bucket-ranges): for a 5% holdout, every policy in the layer gets an eligible range covering buckets 50–999, so buckets 0–49 never match any policy and always receive parameter defaults. Comparing the holdout against everyone else measures the *cumulative* impact of all your experiments — the full pattern is in [canonical experiments](/guides/canonical-experiments#holdout-group). Rotate the holdout every 6–12 months so it doesn't drift for unrelated reasons. If you want a program-level number without reserving traffic, [impact methodology](/statistics/impact-methodology) is the modeled alternative.
+
+## Optimization
+
+### When should I use an adaptive policy instead of an A/B test?
+
+Use an [adaptive policy](/experimentation/optimization) when regret matters — you want to stop paying for the losing variant as soon as possible, optimize continuously, or the best variant may change over time. Stick with a static [A/B test](/experimentation/ab-testing) when you need a clean point-in-time verdict for stakeholders, or when the goal metric is delayed or noisy. The trade-off is explicit: bandits concentrate traffic on the leader, so the losing arms accrue data more slowly and statistical significance arrives later than in a fixed 50/50 test — see [choosing an algorithm](/experimentation/choosing-an-algorithm) for the full decision guide.
+
+### Why does my winning variant say "winning traffic" instead of "winning"?
+
+The wording is deliberate. On an adaptive policy, "winning traffic" means the optimizer has shifted traffic toward that variant — but the *measured* lift on the primary metric isn't statistically significant yet. Bandit convergence is a weaker statistical claim than a significant confidence interval, so "winning" is reserved for the [measured verdict](/statistics/significance), and the dashboard will tell you to keep the policy running before promoting. See [what to expect while it runs](/experimentation/choosing-an-algorithm#what-to-expect-while-it-runs).
+
+<Frame caption="An adaptive policy where the optimizer leads but measurement is still pending">
+  <img src="/images/placeholders/faq-winning-traffic-banner.png" alt="Adaptive policy verdict banner reading 'treatment is winning traffic' with the measured lift still pending significance" />
+</Frame>
+
+### What can an adaptive policy optimize?
+
+The optimizer's reward is the policy's **primary metric** — picking a goal event simply resolves to one. Any fact-backed conversion, count, or sum metric works, including on [warehouse-only projects](/experimentation/optimization#optimizing-with-your-warehouse) with no event definitions at all, and a [composite metric](/dashboard/metrics#composite-metrics) lets it maximize a net objective like revenue minus cost. A goal with a *decrease* direction (error rate, time-to-complete) makes the optimizer minimize. Ratio metrics can't be goals — the reward would use only the numerator.
+
+### Why hasn't my adaptive policy shifted traffic yet?
+
+By design, the optimizer is careful: it won't move traffic until the policy reaches the minimum total exposures across all allocations (100 by default), it only re-evaluates once per window (hourly by default), and each update caps how much traffic can move. Check the **Optimization eligible** pill in [policy health](/dashboard/policy-health) — it distinguishes "not enough exposures yet" and "too soon since the last run" from an actual error. If it's failing rather than warning, see [troubleshooting](/reference/troubleshooting).
+
+## Data & warehouse
+
+### Which warehouses does Traffical support?
+
+Postgres, BigQuery, Snowflake, Databricks, and ClickHouse — see the [connectors overview](/connectors/overview). A connection needs read access to your source tables and read + write access to a Traffical-owned schema for intermediate results, configured per project in the dashboard.
+
+### Can I run experiments without sending Traffical any events?
+
+Yes. In a warehouse-only setup, an [assignment definition](/concepts/warehouse-native#the-four-definition-types) (SQL over your own assignment table) tells Traffical who saw what, facts and metrics aggregate outcomes from your tables, and the pipeline joins them and runs the same significance tests. This is also the standard [migration pattern](/guides/canonical-experiments#warehouse-native-external-assignments) when another tool's assignments already live in your warehouse. Adaptive optimization works too — on projects with no events, the goal step becomes a [metric picker](/experimentation/choosing-an-algorithm#no-events-pick-a-goal-metric).
+
+### What is external serving mode?
+
+It's the setting for measurement-only deployments: something other than Traffical decides who sees what, and Traffical purely analyzes. Marking the project **externally served** in project settings blocks [adaptive policies](/experimentation/optimization) from starting and makes the optimizer skip the project — nothing would read the traffic splits it writes. Routing assignment data through your own pipeline is *not* external serving: the SDK still serves the traffic there, and adaptive optimization works end to end.
+
+## Governance & teams
+
+### What's a certified metric or protocol?
+
+Certification marks a definition as reviewed and binding. A certified [measurement protocol](/governance/measurement-protocols) is an immutable version that automatically matches the changes it covers — by [surface](/concepts/surfaces), template, risk class, or parameter — and resolves into each change's measurement plan; editing requires cutting a new version. A protocol can only be certified when every metric it references is itself certified, and certifying is a separate [permission](/governance/roles-and-permissions) from editing. Certified coverage is what unlocks auto-approval for low-risk changes — anything uncertified needs a human sign-off.
+
+### Why can't my change start traffic?
+
+The most common reason: no approved measurement plan. Traffic — canary included — requires one, and it's only auto-approved when the change is low risk, the plan is built entirely from certified protocols, and it carries zero unresolved risks; anything else waits for approval in the change's **Plan** tab. Other blockers: the change's parameters span multiple layers, a readiness check failed, or you lack the `changes:operate` permission. Every blocker explains itself in the [transition console](/dashboard/changes#the-transition-console) — and [troubleshooting](/reference/troubleshooting) covers the rest.
+
+<Frame caption="A traffic start blocked on plan approval">
+  <img src="/images/placeholders/faq-start-blocked-measurement-plan.png" alt="Transition console showing the 'Measurement plan not approved' panel blocking a traffic start" />
+</Frame>
+
+### Can AI agents make changes autonomously?
+
+Yes — under the same governance as humans, not around it. Agents connect through the [MCP server](/tools/mcp-server), and organization write access starts **off**, typically stepping through advisory (propose-only) before execute. When writes are enabled, each action resolves from the change's risk class: safety actions (pause, revert, dial traffic down) always execute, risk-increasing actions execute only on low-risk changes and become proposals otherwise, and promoting a winner into the product default is a human checkpoint at every risk class by default — an [autonomy policy](/governance/approvals-and-autonomy#autonomy-policies) can relax that default, but can never remove the safety actions. Agents can never approve — that lives only in the dashboard. See [approvals and autonomy](/governance/approvals-and-autonomy).
+
+### What happens when a guardrail breaches?
+
+It depends on the guardrail's severity and the phase's armed response: a **warning** breach flags the change for review (or pauses, if configured), while a **blocking** breach pauses the phase's policy by default — reverting or recording only when configured. A pause takes effect immediately: affected users fall through to the next policy or the parameter defaults. The breach writes a [decision record](/dashboard/decisions) citing the evidence and lands in your [notifications](/dashboard/notifications); a blocking breach additionally vetoes agents' risk-increasing actions until a human investigates. Guardrail rules and thresholds come from your [measurement protocols](/governance/measurement-protocols#guardrail-rules).
+
+### How is billing measured?
+
+Usage is metered in **monthly tracked units (MTU)**: the distinct units — users, companies, devices — that received at least one policy assignment in a calendar month (UTC), counted per project and summed across the organization. Units that only receive parameter defaults don't count, events alone don't count, and a unit assigned a thousand times is still one MTU. The rule is the same whether Traffical stores your data or you [bring your own warehouse](/concepts/warehouse-native). The **Billing** page is Owner-only — details in [usage & billing](/dashboard/usage-and-billing).

@@ -1,0 +1,171 @@
+---
+title: "Troubleshooting"
+description: "Symptom-first fixes for the most common integration, data, measurement, and governance issues."
+---
+
+Find your symptom, work through the likely causes in order, apply the fix. Every error message and state quoted here is the real one — search this page for the exact text you're seeing.
+
+## SDK requests fail with 401 or 403
+
+**Symptom** — every SDK call (or a direct API call) returns `401` or `403`. All API errors share one shape, so start by reading the `code` and `message`:
+
+```json
+{
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Invalid API key"
+  }
+}
+```
+
+**Likely causes**
+
+| Status | Message | Cause |
+|--------|---------|-------|
+| `401` | `Missing Authorization header` | No `Authorization: Bearer traffical_sk_...` header on the request |
+| `401` | `Invalid API key` | The key doesn't exist — typo, truncation, or the wrong environment variable |
+| `401` | `API key has expired` / `API key has been revoked` | The key was expired or revoked on the **API Keys** page |
+| `403` | `SDK read scope required` | The key lacks `sdk:read` — you're probably using a management key in an SDK |
+| `403` | `SDK write scope required` | The key lacks `sdk:write`, so it can fetch config but not send events |
+| `403` | Tenant mismatch | An `X-Org-Id` or `X-Project-Id` header doesn't match the key's organization or pinned project |
+
+**Fix** — open your organization's **API Keys** page (from the account menu) and check the key's scopes. SDKs need both `sdk:read` and `sdk:write`; management scopes (`mgmt:read`, `mgmt:write`, `admin`) don't grant SDK access, and SDK scopes don't grant management access — the [key types table](/api/overview#api-key-types) shows the split. If the key is expired or revoked, mint a new one; keys are cheap, and can be pinned to a single project.
+
+## Parameters resolve to their defaults
+
+**Symptom** — `get()` returns the default value for everyone; no one sees a variation.
+
+**Likely causes**, in the order to check them:
+
+1. **The bundle was never fetched.** If the config request fails, SDKs fall back to code defaults silently. Check the network tab (or server logs) for `GET /v1/config/:projectId`. A `404` with `Bundle not found for <projectId>/<env>` means the project ID or environment name is wrong — the env defaults to `production`, so a typo'd or unpublished environment 404s.
+2. **Wrong environment.** Bundles are per project *and* environment. If you configured overrides in one environment but the SDK fetches another, you'll see that other environment's defaults.
+3. **The served bundle is a stale copy.** A `200` response carrying the `X-Traffical-Bundle-Stale: true` header means the config store was briefly unavailable and Traffical served the last known bundle — a change you *just* published may not be in it. This resolves itself within moments; the stale response carries a shorter cache TTL so clients revalidate aggressively.
+4. **The policy isn't running.** Only policies in the `running` state — and inside their start/end schedule window, if one is set — are included in the bundle. Draft, paused, and completed policies resolve to defaults. Check the policy's state badge on [its detail page](/dashboard/layers-and-policies).
+5. **The unit key is missing from the context.** If the evaluation context doesn't include the project's unit key field (for example `userId`), the layer is skipped entirely: no bucket, no policy match, defaults for every parameter in it — and no exposure is recorded. In multi-entity projects, a layer randomizing on a different entity needs *that* entity's key in the context.
+6. **Targeting conditions don't match.** A policy whose conditions don't match the context is passed over. Test with a context you know should qualify.
+
+**Fix** — fetch the bundle yourself (`curl` the config endpoint with your SDK key) and look inside: is the parameter there with the value you expect, and is the policy present in its layer? If the policy is missing, it isn't running. If it's present, the problem is on the client side — context, environment, or a failed fetch.
+
+## Events aren't showing up
+
+**Symptom** — your code calls `track()`, but the Events page shows no volume and metrics stay flat.
+
+**Likely causes**
+
+1. **The key can't write.** Sending events needs `sdk:write`; without it the whole batch is refused with `403` and `SDK write scope required`.
+2. **Schema enforcement rejected them.** If the event's definition has `schemaEnforcement: reject`, an event violating the property schema is dropped and reported in the response's `validationErrors` array with `Schema validation failed: ...`. In `warn` mode the event is stored and the violations appear in `schemaWarnings` instead — so "warn shows data, reject shows nothing" is the tell. See [property schemas](/concepts/events-and-metrics#property-schemas).
+3. **The event name doesn't match its definition.** Metrics aggregate a specific event definition by exact name. A typo'd name (`purchase_completed` vs `purchase`) doesn't error — it accumulates as a separate auto-discovered event while the metric it was meant to feed stays flat.
+4. **The event is structurally invalid.** Events missing `type` or `unitKey` are skipped individually and reported in `validationErrors`; the rest of the batch is still accepted.
+
+**Fix** — read the [`POST /v1/events`](/api/post-events) response, which tells you exactly what happened: `accepted` is the count that passed validation, `validationErrors` lists dropped events by batch index, `schemaWarnings` lists stored-but-violating track events. Then open the **Events** page sorted by recent volume — a misspelled event shows up there as an unexpected auto-discovered row.
+
+## A policy shows no results
+
+**Symptom** — the policy is running and exposures are flowing, but the results section is empty or never reaches a verdict.
+
+**Likely causes**
+
+1. **No goal metric attached.** Results are computed per attached metric; a policy with none has nothing to analyze. For adaptive policies this also stalls optimization — the health view reports `Optimizer has no reward source: no primary metric attached`. On the policy's detail page, open the metrics panel and click **Attach Metrics** ([how](/dashboard/metrics#attaching-metrics-to-policies)).
+2. **Not enough sample yet.** Guardrail evaluation reports `insufficient_data` for any treatment allocation with fewer than 30 users, and early confidence intervals — especially [sequential](/statistics/sequential-testing) ones — are wide by design. This is the system refusing to call it early, not a malfunction. [Measurement progress](/statistics/measurement-progress) shows how far along the experiment is and a runtime estimate.
+3. **You're ahead of the analysis schedule.** Health and SRM checks refresh on a fast lane (every 5–15 minutes), but metric results — significance, lifts — are recomputed on the full analysis run, typically every two hours. An event sent seconds ago won't move a result yet, and flat results half an hour after launch are normal. Check freshness and recent runs on the [Pipeline page](/dashboard/pipeline).
+
+**Fix** — confirm a goal metric is attached, then check the policy's health view: if **Data freshness** passes and exposures are flowing, the answer is almost always "wait for sample." If freshness is failing, debug the pipeline, not the experiment.
+
+<Frame caption="Policy health surfaces most measurement problems before you go digging">
+  <img src="/images/placeholders/troubleshooting-policy-health-warning.png" alt="Policy health hero with a warning pill expanded to show check detail" />
+</Frame>
+
+## A sample-ratio mismatch (SRM) warning
+
+**Symptom** — the policy health view warns `Sample ratio drifting` or fails with `Sample ratio mismatch`.
+
+**What it means** — the observed traffic split across allocations doesn't match the configured split, tested with a chi-squared check. Warn fires at p < 0.01; fail requires p < 0.001 *and* an absolute deviation over 0.1 percentage points, so huge-sample statistical blips don't page you. An SRM is serious: it means assignment or exposure logging is selectively losing users, and **results computed on top of it are not trustworthy**.
+
+**Likely causes**
+
+- **Targeting or allocation edits mid-flight.** Changing weights or conditions on a running policy shifts who lands where from that moment on, while the window still contains the old regime. (Adaptive policies are handled for you: the check re-baselines at each optimizer rebalance, so a legitimate rebalance won't trip it.)
+- **Caching.** Clients holding an old config bundle keep serving the old split. Long-lived server processes that never refresh, or an aggressive CDN in front of your own config fan-out, are the usual suspects.
+- **Differential exposure loss.** One variant loses its exposure events more than the other — a redirect variant dropping users before the SDK flushes, a variant that crashes a webview, ad-blockers firing on one page layout but not the other.
+
+**Fix** — first check the policy's change history for mid-flight edits (the **Diagnostics** tab shows the SRM history and transition log — see [Policy health](/dashboard/policy-health)). If the split was edited, the mismatch window is explained; let the re-baselined window accumulate. If not, find the mechanism that loses users asymmetrically before trusting any number. When assignment itself was broken, the clean fix is restarting the experiment — biased sample can't be repaired after the fact.
+
+## A guardrail is breaching
+
+**Symptom** — the health view shows `N guardrail breach(es)`, or a change was paused and you didn't do it.
+
+**What the severities do** — a guardrail's severity is set in the [measurement protocol](/governance/measurement-protocols#guardrail-rules) and decides what a breach triggers:
+
+- **`warning`** flags the change for human review. Nothing is stopped automatically.
+- **`blocking`** is enforced: when a blocking guardrail turns failing on a running phase, the monitor applies the phase's armed breach action — pausing the policy by default; reverting or merely recording only when configured — and writes a [decision record](/dashboard/decisions) citing the evidence. If a change paused itself, this is why; the decision record names the guardrail.
+
+A third state, `insufficient_data`, means the allocation has fewer than 30 users — the guardrail hasn't been evaluated yet and surfaces as a health warning, not a breach.
+
+**Fix** — open the decision record to see the metric, threshold, and measured value. If the regression is real, the system did its job — revert or iterate. If the guardrail is misconfigured (wrong direction, a threshold entered as `50` when you meant `0.5%`), fix the protocol: certify a new version and re-resolve affected plans.
+
+## Warehouse connection failures
+
+**Symptom** — **Test Connection** fails in **Settings → Warehouse**, or pipeline runs start failing after working fine.
+
+**Likely causes**
+
+| Error | Cause |
+|-------|-------|
+| Connection refused / timeout on connect | Network reachability — a firewall or IP allowlist on the warehouse side is blocking the connection |
+| Authentication failed | Wrong credentials, an expired/rotated key, or insufficient role privileges |
+| Permission denied on a table | The role can read some schemas but not the one your SQL references |
+| Works, then breaks later | Credential rotated, a table renamed, or a column changed type — check recent runs on the [Pipeline page](/dashboard/pipeline) |
+| Test passes but the pipeline fails writing | The Traffical schema is missing — BigQuery, Snowflake, and Databricks need it created before the first run |
+
+**Fix** — **Test Connection** opens a real session and runs a trivial query, so it isolates credentials and network from SQL problems: if the test fails, fix access first; if the test passes but runs fail, the problem is in a definition's SQL or in permissions on a specific schema. The credentials need read on your source tables plus read + write on the dedicated Traffical schema — the exact grants per warehouse are on each [connector page](/connectors/overview).
+
+<Frame caption="Test Connection isolates credential and network problems from SQL problems">
+  <img src="/images/placeholders/troubleshooting-test-connection.png" alt="Warehouse settings with a Test Connection result" />
+</Frame>
+
+## A change can't start traffic
+
+**Symptom** — the start action on a [change](/concepts/changes) is blocked in the dashboard, or an agent's `request_transition` comes back refused.
+
+**What's happening** — every path that starts traffic passes the same [start gate](/governance/measurement-protocols#the-start-gate): a change cannot expose traffic without an approved measurement plan. Three cases:
+
+1. **No certified protocol covers the change.** The start is blocked with: *"No certified measurement protocol matches this change — a human must approve a measurement plan before exposing traffic."*
+2. **Certified coverage, but not auto-approvable.** Auto-approval requires **all** of: low risk class, a plan resolved entirely from certified protocols, and zero unresolved risks. Any medium, high, or critical change — and any plan carrying a coverage gap — waits for a human. High- and critical-risk changes never start without a person signing off; see [risk classes](/governance/approvals-and-autonomy).
+3. **The plan is structurally invalid.** Multiple primary metrics with no designated objective is a hard block even for a human approver — the plan must be disambiguated first.
+
+**Fix** — open the change's **Plan** tab ([where it lives](/dashboard/changes)). If no plan is resolved, click **Resolve plan**; if no protocol contributed a primary metric, **Create a basic plan** lets you pick one manually. Then approve the plan — approval is a [permission](/governance/roles-and-permissions), so you may need someone who holds it. To make the *next* change frictionless, [certify a protocol](/governance/measurement-protocols#protocol-lifecycle) covering that [surface](/concepts/surfaces): clean low-risk changes under certified coverage auto-approve at start.
+
+<Frame caption="The Plan tab shows exactly why a start is blocked and what approving it requires">
+  <img src="/images/placeholders/troubleshooting-plan-tab-blocked.png" alt="Change Plan tab with a draft plan, unresolved risks, and the Approve plan button" />
+</Frame>
+
+## MCP client can't connect
+
+**Symptom** — an agent can't reach the [MCP server](/tools/mcp-server), sees fewer tools than expected, or has its transitions refused.
+
+**Likely causes**
+
+1. **Wrong key type.** SDK keys (`sdk:read`/`sdk:write`) — including the key the CLI provisions into `.traffical/.env` — cannot access the MCP server and get a `403 FORBIDDEN` naming the missing management scope. Use a management key with `mgmt:read` (read-only) or a write scope, or the OAuth flow.
+2. **OAuth token minted for the wrong resource.** Tokens are audience-bound: a token minted for anything other than the MCP resource gets a `401` whose `WWW-Authenticate` header points at the OAuth discovery document. Clients that follow standard discovery recover automatically; re-run your client's auth flow (`/mcp` in Claude Code).
+3. **Write tools missing from `tools/list`.** The tool list is scope-filtered — a token without `changes:propose` / `changes:operate` / `defaults:promote` simply never sees the write tools. This is a token-scope issue, not a server outage.
+4. **Transitions rejected outright.** MCP write mode is off (the default) or set to `advisory`. In `off`, `create_change` still authors drafts but its start leg is refused; in `advisory`, every transition is capped at a proposal for human review. That's [governance working as designed](/governance/approvals-and-autonomy), not a failure.
+
+**Fix** — call `whoami` first: it confirms the token works and which projects it can reach. If it fails, fix the key or the OAuth flow before anything else. If read tools work but writes don't, check the key's scopes on the **API Keys** page, then the organization's write mode.
+
+## Still stuck?
+
+<CardGroup cols={2}>
+  <Card title="FAQ" icon="circle-question" href="/reference/faq">
+    Short answers to the questions that aren't failures.
+  </Card>
+  <Card title="Policy health" icon="heart-pulse" href="/dashboard/policy-health">
+    The six runtime checks and how each is computed.
+  </Card>
+  <Card title="Notifications" icon="bell" href="/dashboard/notifications">
+    Get told about breaches and stalls before users notice.
+  </Card>
+  <Card title="API overview" icon="book-open" href="/api/overview">
+    Key scopes, error codes, and rate limits in one place.
+  </Card>
+</CardGroup>
+
+If none of this matches, email [info@traffical.io](mailto:info@traffical.io) with the failing request's error body and timestamps — the `code` and `message` usually identify the problem immediately.

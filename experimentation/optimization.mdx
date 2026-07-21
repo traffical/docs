@@ -3,7 +3,7 @@ title: "Optimization"
 description: "Adaptive policies that learn from rewards: Thompson Sampling, UCB1, Epsilon-Greedy, per-entity bandits, and contextual bandits."
 ---
 
-Adaptive policies go beyond static A/B tests. Instead of fixed allocations, the optimization engine shifts traffic toward better-performing variants based on observed rewards — automatically, continuously, and without code changes.
+Adaptive policies go beyond static A/B tests. Instead of fixed allocations, the optimizer shifts traffic toward better-performing variants based on observed rewards — automatically, continuously, and without code changes.
 
 ## When to use adaptive policies
 
@@ -54,9 +54,9 @@ Not sure which to pick — or how the goal event shapes what the optimizer learn
 
    | Allocation | Initial range | Override |
    |-----------|--------------|---------|
-   | `low_price` | `0–3332` | `pricing.discount_pct: 5` |
-   | `mid_price` | `3333–6665` | `pricing.discount_pct: 10` |
-   | `high_price` | `6666–9999` | `pricing.discount_pct: 20` |
+   | `low_price` | `0–332` | `pricing.discount_pct: 5` |
+   | `mid_price` | `333–665` | `pricing.discount_pct: 10` |
+   | `high_price` | `666–999` | `pricing.discount_pct: 20` |
 
 4. **Implement in code** — same as a static policy:
 
@@ -68,25 +68,24 @@ Not sure which to pick — or how the goal event shapes what the optimizer learn
 
    applyDiscount(params["pricing.discount_pct"]);
 
-   traffical.track("purchase", {
-     unitKey: "user_789",
-     properties: { order_total: orderTotal },
-   });
+   traffical.track("purchase", { order_total: orderTotal }, { unitKey: "user_789" });
    ```
 
 The SDK resolves from the bundle. The engine periodically retrains and republishes the bundle with updated bucket ranges. Your code never changes.
+
+As data accrues, the policy page tracks progress through four phases — *exploring* → *learning* → *converging* → *converged*. See [What to expect while it runs](/experimentation/choosing-an-algorithm#what-to-expect-while-it-runs) for what each phase means and why "converged" still defers to measured significance.
 
 ## Tuning knobs
 
 | Knob | What it does |
 |------|--------------|
-| `minExposuresBeforeShift` | The engine won't change allocations until each allocation has seen at least this many exposures. Prevents premature shifts on noisy early data. |
+| `minExposuresBeforeShift` | The engine won't change allocations until the policy has seen at least this many total exposures across all allocations. Prevents premature shifts on noisy early data. |
 | `maxShiftPerUpdate` | Caps how much traffic can move in a single update (e.g. 0.1 = at most 10% of traffic shifts per cycle). |
 | `windowSizeMinutes` | How often the engine re-evaluates. Shorter windows = faster reaction, but noisier. |
 
 ## Optimizing with your warehouse
 
-The optimizer's reward source is the policy's **primary metric** — its warehouse aggregates feed the bandit on every tick. On projects with defined events, the goal event you pick simply resolves to that metric for you. On BYO-warehouse projects with no event definitions at all, you declare the goal directly as a metric:
+The optimizer's reward source is the policy's **primary metric** — its warehouse aggregates feed the bandit on every tick. On projects with defined events, the goal event you pick simply resolves to that metric for you — and the goal step also lets you switch to picking a metric directly, so you can optimize any fact-backed metric even when native events exist. On BYO-warehouse projects with no event definitions at all, the metric is the only way to declare the goal:
 
 1. **Define a fact** over your own tables (SQL in your warehouse's dialect) — one row per goal action, with the entity key, a timestamp, and an optional value column.
 2. **Create a metric** on that fact — conversion, count, or sum. Ratio metrics can't be optimization goals (the reward would use only the numerator).
@@ -183,9 +182,9 @@ A plain string entry lets the pipeline infer the field's type from the data. You
 | `string` | Top-K most frequent values + `other` (set `topK`, default 20). |
 | `number` | Fed to the model directly; the trainer standardizes scale internally, so a 0–100 score sits comfortably next to 0/1 indicators. `range` and quantile `binning` are available for bounded or non-monotonic features. |
 | `boolean` | 0/1. |
-| `timestamp` | Never used raw — expanded into day-of-week, hour-of-day, and is-weekend features. |
+| `timestamp` | Never used raw — expanded into day-of-week, time-of-day (four-hour buckets), and is-weekend features. |
 
-Declared fields are encoded deterministically regardless of the traffic window, and editing a declaration retrains the model from scratch so the change takes effect immediately. Fields you leave as plain strings keep the inferred behaviour.
+Declared fields are encoded deterministically regardless of the traffic window, and editing a declaration retrains the model from scratch on its next training run — the change doesn't wait for a scheduled rebuild. Fields you leave as plain strings keep the inferred behaviour.
 
 ### When to use contextual bandits
 
@@ -197,6 +196,8 @@ When the optimal variant differs per user, and you can describe "who they are" w
 
 The features should be available at decision time. Don't include features derived from the outcome you're trying to predict.
 
+One expectation to set: a contextual policy never converges on a single winner — winners vary per context — so the dashboard doesn't show a single-winner runtime estimate for it. [Measurement progress](/statistics/measurement-progress) still tracks the evidence on the policy's primary metric.
+
 ## Per-entity bandits
 
 For optimization at the entity level — each product, each merchant, each category learns independently — use a per-entity adaptive policy:
@@ -207,7 +208,7 @@ entityConfig:
   resolutionMode: "bundle"      # or "edge"
 ```
 
-Each entity gets its own bandit. A product with 1000 views has its own learned weights; a product with 3 views falls back to the global prior.
+Each entity gets its own bandit. A product with 1000 views has its own learned weights; a product with 3 views falls back to the global prior. Every entity's traffic split also keeps an exploration floor — each allocation retains at least a small share (1% by default) of that entity's traffic — so no option is ever fully starved, even after an entity's bandit has settled on a favorite.
 
 ### Resolution modes
 

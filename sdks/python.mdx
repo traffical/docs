@@ -151,7 +151,7 @@ client.track(
 )
 ```
 
-On the server there is no auto stable ID, so pass `unit_key` (or `decision_id`, which auto-attributes from the cached decision). If you're running an adaptive policy, the optimization engine uses `value` / `values` as reward signals to learn which variants perform best.
+On the server there is no auto stable ID, so pass `unit_key` (or `decision_id`, which auto-attributes from the cached decision). If you're running an adaptive policy, the optimizer uses `value` / `values` as reward signals to learn which variants perform best.
 
 ## Async client
 
@@ -185,7 +185,7 @@ asyncio.run(main())
 
 ## Server mode
 
-Delegate resolution to the edge worker instead of evaluating a local bundle. Each `get_params()` / `decide()` performs a `POST /v1/resolve`:
+Delegate resolution to Traffical's edge instead of evaluating a local bundle. Each `get_params()` / `decide()` performs a `POST /v1/resolve`:
 
 ```python
 options = TrafficalClientOptions(

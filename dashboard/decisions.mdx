@@ -13,7 +13,7 @@ It's both a debugging tool ("why did this experiment pause itself last night?") 
 
 ## What gets logged
 
-The log captures decisions across all kinds of policies — static, adaptive, per-entity, contextual — and both human and automated actions.
+The log captures decision records across all kinds of policies — static, adaptive, per-entity, contextual — and both human and automated actions.
 
 | Decision type | When it fires |
 |---------------|---------------|
@@ -26,15 +26,17 @@ The log captures decisions across all kinds of policies — static, adaptive, pe
 | `guardrail_breach` | A guardrail metric crossed a threshold |
 | `optimization_milestone` | An adaptive policy moved between phases (exploring → converging → converged) |
 
+When Changes is enabled, every transition on a [change](/dashboard/changes) — start, advance, promote, complete, revert — writes a decision record to this same log, citing the evidence it was based on. A change's **Decisions** tab shows those records scoped to that change.
+
 ## Actors
 
-Every decision has an actor:
+Every decision record has an actor:
 
 | Actor type | What it means |
 |-----------|---------------|
 | `user` | A human via the dashboard or API |
-| `agent` | An AI agent acting through the API (the [`integrate-ai-tools`](/tools/cli#integrate-ai-tools) flow uses this when an LLM-based assistant is involved) |
-| `system` | Traffical itself (cron jobs, scheduled rollout ramps, optimization engine updates) |
+| `agent` | An AI agent acting through the API — for example, one connected via the [MCP server](/tools/mcp-server) |
+| `system` | Traffical itself (cron jobs, scheduled rollout ramps, optimizer updates) |
 | `api_key` | A direct API key call without a logged-in user |
 
 This is how you tell the difference between "Alice paused the policy" and "the scheduler paused the policy because a health check failed".
@@ -68,7 +70,7 @@ A common query: "show me every system-driven action in the last 24 hours" — th
 
 ## Annotations
 
-You can attach a free-text annotation to a decision after the fact. Useful for adding context: "we paused this because the support team flagged a regression, see ticket TR-1234".
+You can attach a free-text annotation to a decision record after the fact. Useful for adding context: "we paused this because the support team flagged a regression, see ticket TR-1234".
 
 Annotations are visible to anyone with project access and become part of the audit trail.
 

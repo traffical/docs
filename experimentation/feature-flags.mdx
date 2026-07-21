@@ -40,7 +40,7 @@ For "enable for internal users" or "enable for a specific company" patterns, cre
 ```
 Layer: base
 └── Policy: internal_only (static, running)
-    └── treatment: buckets 0–9999 → checkout.redesign_enabled = true
+    └── treatment: buckets 0–999 → checkout.redesign_enabled = true
     └── conditions: [{ field: "email", op: "contains", value: "@traffical.io" }]
 ```
 
@@ -53,7 +53,7 @@ For "release this to 5% of traffic" patterns, attach a [rollout](/experimentatio
 ```
 Layer: base
 └── Policy: new_checkout_rollout (static, running, with rolloutConfig)
-    └── treatment: buckets 0–499 (starting at 5%) → checkout.redesign_enabled = true
+    └── treatment: buckets 0–49 (starting at 5%) → checkout.redesign_enabled = true
     └── (rollout config ramps to 100% over time)
 ```
 

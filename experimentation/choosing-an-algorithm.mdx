@@ -27,20 +27,20 @@ The goal type tells the engine how to aggregate a user's goal events into a per-
 The goal type changes the statistics under the hood, not just the arithmetic:
 
 - **Conversion rate** goals use a Bayesian success/failure model — the textbook approach for binary outcomes.
-- **Count and sum** goals make the engine measure both the average per user *and* the natural spread of per-user values in your actual traffic. No distribution is assumed: if your users' values vary wildly (a few whales among many small orders), the engine sees that spread and shifts traffic more cautiously; if they're consistent, it converges faster. This is why choosing the right goal type matters — it's not a label, it's the model.
+- **Count and sum** goals switch the engine to a model built for unbounded values: it measures both the average per user *and* the natural spread of per-user values in your actual traffic. This is why choosing the right goal type matters — it's not a label, it's the model. Squeezing counts through the binary success/failure model would make the leader's "probability of being best" collapse toward its share of traffic, which tells you nothing. With the right model, the spread is measured rather than assumed: if your users' values vary wildly (a few whales among many small orders), the engine shifts traffic more cautiously; if they're consistent, it converges faster.
 
-When you pick a goal event in the dashboard, Traffical suggests a goal type from the event's value type — currency-valued events suggest **sum**, everything else **count** — and you can always override it. You can also change the goal type later in the policy's settings: the attached primary metric follows the goal automatically, so measurement always judges the same quantity the optimizer optimizes.
+When you pick a goal event in the dashboard, Traffical suggests a goal type from the event's value type — currency- and rate-valued events suggest **sum**, boolean events suggest **conversion rate**, everything else **count** — and you can always override it. Contextual bandits default to **conversion rate** regardless of the event. You can also change the goal type later in the policy's settings: the attached primary metric follows the goal automatically, so measurement always judges the same quantity the optimizer optimizes.
 
 ## No events? Pick a goal metric
 
-The goal event is a convenience: what the optimizer actually reads is the policy's **primary metric**, which the goal event resolves to at creation (the dialog shows it — "Optimizing metric: *purchase Count*"). On warehouse-only projects with no event definitions, the goal step is a metric picker instead: choose any fact-backed conversion, count, or sum metric and the goal type follows the metric. See [Optimizing with your warehouse](/experimentation/optimization#optimizing-with-your-warehouse) for the full recipe.
+The goal event is a convenience: what the optimizer actually reads is the policy's **primary metric**, which the goal event resolves to at creation (the dialog shows it — "Optimizing metric: *purchase Count*"). On warehouse-only projects with no event definitions, the goal step is a metric picker instead: choose any fact-backed conversion, count, or sum metric and the goal type follows the metric. Projects with events get the same option — the goal step has a toggle to switch from the event dropdown to the metric picker, so you can optimize a warehouse metric directly even when native events exist. See [Optimizing with your warehouse](/experimentation/optimization#optimizing-with-your-warehouse) for the full recipe.
 
 A goal metric whose desired direction is *decrease* (an error rate, a latency, a cancellation count) makes the optimizer **minimize** — traffic shifts toward the variant with the lowest per-user score. Ratio metrics can't be goals: their reward would use only the numerator.
 
 The goal can also be a [composite metric](/dashboard/metrics#composite-metrics) — a weighted sum like *revenue minus cost* — so the optimizer trades several outcomes off against each other directly instead of chasing one event.
 
 <Tip>
-If your reward is revenue-like, a handful of extreme users can dominate the signal. Consider winsorizing the corresponding metric so a single outlier order doesn't swing the verdict — see [Metrics](/dashboard/metrics).
+If your reward is revenue-like, a handful of extreme users can dominate the signal. A composite metric's per-component **Cap** clamps each unit's contribution, so a single outlier order can't swing the verdict — see [Composite metrics](/dashboard/metrics#composite-metrics).
 </Tip>
 
 ## Pick the algorithm
@@ -64,12 +64,16 @@ Two quick sanity checks before choosing anything other than Thompson Sampling:
 In **Layers**, create a policy and set the **Policy Type** to **Adaptive** ("AI-optimized allocation. The algorithm adjusts splits based on reward signals."). The adaptive configuration section then asks for:
 
 - **Algorithm** — the four options above, Thompson Sampling preselected.
-- **Goal Event** — a dropdown of your defined events. This is the reward signal; everything in [Pick the goal event first](#pick-the-goal-event-first) applies here.
+- **Goal Event** — a dropdown of your defined events. This is the reward signal; everything in [Pick the goal event first](#pick-the-goal-event-first) applies here. A toggle switches the step to a **Goal Metric** picker instead (see [No events? Pick a goal metric](#no-events-pick-a-goal-metric)); on projects without events the metric picker is all you see.
 - **Goal Type** — how the goal event aggregates per user (see [The goal type](#the-goal-type-how-events-become-a-score)). Preselected from the event's value type; override it if the suggestion doesn't match your intent.
 - **Min Exposures** (default 100) — the engine won't move traffic until the policy has this many exposures. Raise it for noisy goals; lowering it below ~100 mostly buys you noise.
 - **Window Size** (default 1 hour) — how often the engine re-evaluates. Shorter windows react faster but on less data per step. Hourly is right for most traffic levels.
 
-For a **Contextual Bandit** the goal step is the same as above (goal event, or a goal metric on projects without events); you'll also list the **Context Fields** the SDK should send for personalization (these must be allow-listed for logging — see [Optimization](/experimentation/optimization#context-logging-allowlist)). Fields already used by other contextual policies in the project appear as one-click suggestions.
+<Frame>
+  <img src="/images/placeholders/policy-goal-step-event-metric-toggle.png" alt="Adaptive policy goal step with the toggle between the goal event dropdown and the goal metric picker, showing the resolved optimizing metric" />
+</Frame>
+
+For a **Contextual Bandit** the goal step is the same as above (goal event or goal metric); you'll also list the **Context Fields** the SDK should send for personalization (these must be allow-listed for logging — see [Optimization](/experimentation/optimization#context-logging-allowlist)). Fields already used by other contextual policies in the project appear as one-click suggestions.
 
 For per-entity learning (each product or merchant gets its own bandit) and dynamic allocations, see [Per-entity bandits](/experimentation/optimization#per-entity-bandits).
 
@@ -79,7 +83,8 @@ The optimizer is deliberately careful with your traffic:
 
 - **It ramps, it doesn't jump.** Even when one variant looks like a clear winner, traffic moves by a capped step per window (20% by default) and every variant keeps a small exploration floor. A decisive winner typically goes from an even split to ~95% over a few windows, not instantly.
 - **Phases tell you where it is.** The policy page shows *exploring* → *learning* → *converging* → *converged* as the leader's win probability grows.
-- **Converged is not the same as proven.** "Converged" means the optimizer is confident enough to concentrate traffic. If you attached a primary metric, the measured verdict (the anytime-valid confidence interval) is the standard of evidence for promoting the winner — and it's deliberately stricter. A policy can be converged while the measured lift is still inconclusive; the dashboard will tell you to keep it running before completing.
+- **Converged is not the same as proven.** "Converged" means the optimizer is confident enough to concentrate traffic. If you attached a primary metric, the measured verdict (an anytime-valid confidence interval when [sequential testing](/statistics/sequential-testing) is enabled) is the standard of evidence for promoting the winner — and it's deliberately stricter. A policy can be converged while the measured lift is still inconclusive; the dashboard will tell you to keep it running before completing.
+- **Contextual policies don't get a runtime estimate.** There's no single winner to forecast — winners vary per context — so [measurement progress](/statistics/measurement-progress) tracks evidence on the primary metric without a time-to-winner estimate. The other algorithms do get one.
 - **Bandits trade measurement speed for regret.** As traffic concentrates on the leader, the other variants accrue data more slowly, so statistical significance arrives later than it would in a fixed 50/50 test. If you need a clean, fast, stakeholder-ready verdict, run an [A/B test](/experimentation/ab-testing); if you want to stop paying the cost of the losing variant as soon as possible, use an adaptive policy.
 
 ## Next steps

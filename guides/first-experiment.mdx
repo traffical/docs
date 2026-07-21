@@ -147,15 +147,15 @@ Now the fun part. In the dashboard:
    - **Kind**: Static
    - **State**: Draft (we'll flip it to Running in a moment)
    - **Allocations**:
-     - `control` — bucket range `0–4999` — leave `checkout.button.color` unset (it'll use the parameter default)
-     - `treatment` — bucket range `5000–9999` — `checkout.button.color: "#22C55E"` (a green)
+     - `control` — bucket range `0–499` — leave `checkout.button.color` unset (it'll use the parameter default)
+     - `treatment` — bucket range `500–999` — `checkout.button.color: "#22C55E"` (a green)
 4. Save.
 5. Set the state to **Running**.
 
 That's a 50/50 split. Half your users will see the original blue button; half will see green.
 
 <Note>
-The bucket count for your project is typically 10000. If yours is different (you can check in **Settings → Hashing**), adjust the allocation ranges proportionally.
+The bucket count for your project is typically 1000. If yours is different (you can check in **Settings → Hashing**), adjust the allocation ranges proportionally.
 </Note>
 
 ## 8. Watch it work
@@ -212,7 +212,7 @@ You've now seen the whole loop. From here:
 - **"Bundle not loading"** — check your `apiKey` is for the right project and environment, and that you await `createTrafficalClient`.
 - **"All users in one allocation"** — confirm the `userId` field actually varies. A common bug is passing a hardcoded string in early testing.
 - **"Events not appearing"** — track events batch by default. Either wait ~30s or call `await traffical.flushEvents()` in tests.
-- **"Bucket count looks wrong"** — verify your project's bucket count in **Settings**. Defaults to 10000.
+- **"Bucket count looks wrong"** — verify your project's bucket count in **Settings**. Defaults to 1000.
 
 ## Reference
 

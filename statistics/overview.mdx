@@ -9,7 +9,7 @@ This section explains, in plain terms, how that works and what each option buys 
 
 ## What the engine computes
 
-For every metric on a policy, Traffical estimates each allocation's value, the **lift** versus control, a **confidence interval** around that lift, and whether the result is **statistically significant** at your chosen confidence level. The same machinery serves several metric shapes:
+For every metric on a policy, Traffical estimates each allocation's value, the **lift** versus control, a **confidence interval** around that lift, and whether the result is **statistically significant** at your chosen confidence level. The rest of this section covers that machinery and what's built on top of it:
 
 <CardGroup cols={2}>
   <Card title="Significance & metric types" icon="square-root-variable" href="/statistics/significance">
@@ -23,6 +23,12 @@ For every metric on a policy, Traffical estimates each allocation's value, the *
   </Card>
   <Card title="Ratio metrics" icon="divide" href="/statistics/ratio-metrics">
     Per-session and per-order metrics where both the numerator and denominator vary.
+  </Card>
+  <Card title="Measurement progress" icon="hourglass-half" href="/statistics/measurement-progress">
+    How much longer does this need? The target effect, what's detectable right now, and the estimated time remaining.
+  </Card>
+  <Card title="Impact methodology" icon="scale-balanced" href="/statistics/impact-methodology">
+    Program-level impact: shipped wins projected to rollout, discounted for false-positive risk, carried with intervals.
   </Card>
 </CardGroup>
 
@@ -46,5 +52,5 @@ How you intend to *look* at an experiment determines which method keeps you hone
 - **The engine reads aggregates, not raw rows.** Everything is computed from sufficient statistics summarised in your warehouse, so analysis is cheap to re-run at any moment.
 
 <Note>
-  Defaults are sensible out of the box: frequentist analysis at 95% confidence, two-sided. You only need the rest of this section when you want to peek continuously, reach significance faster, or measure a ratio.
+  Defaults are sensible out of the box: frequentist analysis at 95% confidence, two-sided. Reach for the rest of this section when you want to peek continuously, reach significance faster, measure a ratio, estimate how much longer an experiment needs, or roll shipped wins up into a program-level impact number.
 </Note>

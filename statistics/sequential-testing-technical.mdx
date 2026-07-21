@@ -1,0 +1,65 @@
+---
+title: "Sequential testing: statistical details"
+description: "The asymptotic confidence sequence behind anytime-valid results — the half-width formula, the N* tuning parameter, and how the progress card inverts it."
+---
+
+This page is the technical companion to [Sequential testing](/statistics/sequential-testing). It covers the exact interval Traffical computes when sequential analysis is on, the tuning parameter behind its width, and how the same formula runs in reverse to power the progress card.
+
+Traffical's sequential mode implements **asymptotic confidence sequences** from the anytime-valid inference literature: Waudby-Smith, Arbour, Sinha, Kennedy & Ramdas, *Time-uniform central limit theory and asymptotic confidence sequences*, Annals of Statistics, 2024 ([arXiv:2103.06476](https://arxiv.org/abs/2103.06476)).
+
+## Same estimate, different interval
+
+The sequential result is built on exactly the estimate the fixed-horizon test uses. For each treatment-versus-control pair the engine forms the difference in means and its standard error:
+
+```
+Δ̂   = μ̂_t − μ̂_c              # the lift
+σ̂_Δ = √( SE_t² + SE_c² )      # standard error of the lift
+```
+
+The fixed-horizon test reports `Δ̂ ± z · σ̂_Δ`. Sequential mode replaces `z · σ̂_Δ` with a different half-width — that is the entire change. The confidence sequence is a *widening* of the same mean-difference estimate, computed as a pure function of the cumulative aggregates at the current look. No state is kept between looks, so a person or an automated agent can evaluate it at any moment, any number of times, with nothing carried over.
+
+What the widening buys is a **time-uniform guarantee**: the probability that the sequence *ever* excludes the true lift — across every look, jointly — is at most α. "Asymptotic" means the coverage comes from a time-uniform central limit theorem rather than a parametric model of your metric: no distributional assumption, with the guarantee sharpening as sample size grows, in the same sense the fixed-horizon z-test is asymptotic.
+
+## The half-width
+
+At a look with `N` total units across both arms, the sequence is `Δ̂ ± half_width(N)` with:
+
+```
+half_width(N) = σ̂_Δ · √N · √( (2 · (N·ρ² + 1)) / (N² · ρ²) · log( √(N·ρ² + 1) / α ) )
+
+ρ² = ( −2·log α + log( −2·log α + 1 ) ) / N*
+```
+
+Here `α` is the two-sided error level (0.05 at the 95% setting) and `N*` is the tuning parameter described below. Note that `σ̂_Δ` is the standard error of the lift — it already shrinks like `1/√N` on its own.
+
+To see the shape, write `σ̂_Δ = s/√N` for a per-unit spread `s`. For large `N` the expression collapses to roughly `s · √(log N / N)`, while the fixed-horizon half-width is `s · z / √N`. The confidence sequence is wider by a factor of about `√(log N)` — a slowly growing premium, and exactly the price of being allowed to look forever.
+
+## The tuning parameter N*
+
+`ρ²` depends only on `α` and `N*`. A confidence sequence cannot be uniformly tight at every sample size, so `N*` chooses *where* the tightness goes: the sequence is closest to the fixed-horizon width around `N ≈ N*`, and comparatively looser well below or beyond it. A badly chosen `N*` costs efficiency — wider intervals where you actually stop — but never validity; the guarantee holds for any `N*`.
+
+Traffical derives `N*` from your power target. When an experiment launches under a [measurement plan](/governance/measurement-protocols), `N*` is set to the required total sample size implied by the plan's target MDE, power, and confidence level against the best available baseline — so the sequence is tightest right where the experiment is expected to conclude. Updating the primary metric's target re-tunes it. When no usable power analysis exists, a default of 5,000 applies.
+
+## Decisions, and why there is no sequential p-value
+
+A sequential result is significant exactly when the confidence sequence excludes zero — `lower > 0` or `upper < 0`. That interval-exclusion rule is the whole decision.
+
+The absence of a sequential p-value is deliberate. A p-value would be recovered by inverting the family of intervals over α — the smallest α at which the sequence excludes zero. But `half_width` is **not monotone in α**: it diverges both as `α → 0` (through the `log(…/α)` term) and as `α → 1` (where `ρ² → 0` collapses the denominator). With no unique crossing, any inversion would be fragile in exactly the tails where a p-value matters most. Rather than report a number with those failure modes, Traffical reports the interval and the decision it implies.
+
+## Inverting the width for the progress card
+
+[Measurement progress](/statistics/measurement-progress) asks the reverse question: how many units until the target effect is detectable? The detectable-effect-now is read straight off the current interval, `κ · half_rel`, where `half_rel` is the half-width of the relative interval and `κ = (z_α + z_power) / z_α` converts an interval half-width into a powered minimum detectable effect (≈ 1.43 at 95% confidence and 80% power).
+
+For the required sample, the `N`-dependent part of the half-width is isolated as a bracket that is monotone decreasing in `N`. The current look pins the scale constant `s`, and the engine then finds the smallest total `N′` whose widened half-width meets the target by integer bisection — exact, because of the monotonicity. Both arms scale by `N′ / N_now`, preserving your traffic split. Because the inversion uses the same formula as the interval itself, the progress readout can never disagree with the significance table.
+
+## Interaction with CUPED
+
+[Variance reduction](/statistics/cuped) happens upstream. CUPED replaces each arm's (mean, standard error) before the difference is formed, so the sequence consumes the already-adjusted `Δ̂` and `σ̂_Δ` without knowing the adjustment happened. A smaller `σ̂_Δ` narrows the sequence at every look; the time-uniform guarantee is untouched. Details in the [CUPED technical companion](/statistics/cuped-technical).
+
+## Degenerate looks
+
+A look with no data, a zero or near-zero standard error, or nonsensical settings yields an unbounded interval that never rejects — surfaced as an unknown bound rather than a number. The failure mode is always conservative: a degenerate look can widen the interval, never manufacture a rejection.
+
+## Reference
+
+Waudby-Smith, I., Arbour, D., Sinha, R., Kennedy, E. H., & Ramdas, A. (2024). Time-uniform central limit theory and asymptotic confidence sequences. *Annals of Statistics*. [arXiv:2103.06476](https://arxiv.org/abs/2103.06476).

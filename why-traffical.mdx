@@ -1,31 +1,25 @@
 ---
 title: "Why Traffical"
-description: "The parameter-first philosophy, the velocity-confidence gap, and how Traffical differs from feature flag tools."
+description: "How Traffical differs from feature-flag tools: typed parameters, local resolution, warehouse-native measurement, and governance built in."
 ---
 
-## The velocity-confidence gap
+## The bottleneck moved
 
-The way software gets built is changing. Agentic tools compress what took months into weeks, and what took weeks into days. Shipping is becoming cheap.
+Building got cheap. A change that used to take a sprint now takes an afternoon, and agentic tools keep pushing that cost down. What didn't get cheap is knowing what each change did — what to keep, what to revert, what to double down on. If you can ship ten changes a week but evaluate two, the other eight are guesses.
 
-But when shipping gets cheap, the hard part changes. It is no longer about building faster. It is about knowing what to keep, what to revert, and what to double down on. Execution velocity is increasing faster than decision confidence. That gap — between what teams _can_ ship and what they _should_ ship — is widening.
+Traffical is built on the premise that three things have to keep pace with each other:
 
-Organizations need what we call **confidence infrastructure**: systems that govern exposure, preserve causal correctness, and produce reliable evidence at the speed you ship.
+- how fast you ship user-facing changes,
+- how fast you detect and contain the ones that hurt,
+- and how fast you produce evidence you trust.
 
-Three rates have to stay in balance:
-
-- **Change rate** — how many user-facing changes you can ship
-- **Safety rate** — how quickly you can detect and contain harm
-- **Learning rate** — how quickly you can produce evidence you trust
-
-When tooling pushes the change rate up while the other two lag behind, you get chaos dressed up as productivity.
+Most tools accelerate the first and leave the other two as manual follow-up. Traffical wires them together: [changes](/concepts/changes) don't carry traffic without an approved measurement plan, guardrails monitor every phase, and results come from [statistics you can defend](/statistics/overview).
 
 ## Parameters, not feature flags
 
-Most platforms in this space start from the feature flag — a boolean switch. On or off. That is useful, but it is a ceiling. Real products don't just toggle features. They tune pricing, adjust algorithm weights, personalize content, configure CRM rules, and optimize conversion funnels.
+Most tools in this space start from the feature flag — a boolean, on or off. Useful, but a ceiling: real products tune prices, adjust algorithm weights, pick headlines, and configure ranking rules, not just toggle features.
 
-Traffical starts from a different primitive: the **parameter**. A typed, versioned value with a default. Parameters are the foundation of everything — experiments, rollouts, feature flags, and adaptive optimization are all policies that control how parameter values are assigned to users.
-
-This is not a semantic distinction. It is an architectural one. When the parameter is your building block, you can run an A/B test on a color, a bandit on a price point, a gradual rollout of an algorithm change, and a personalized content selection — all through the same system, the same SDKs, the same dashboard.
+Traffical starts from the **parameter**: a typed, versioned value with a default. Experiments, rollouts, feature flags, and adaptive optimization are all [policies](/concepts/policies) that control how parameter values are assigned. Because the primitive is a value rather than a switch, an A/B test on a headline, a bandit on a price point, and a gradual rollout of an algorithm change all run through the same system — same SDKs, same layers, same dashboard.
 
 <Tabs>
   <Tab title="Feature flag approach">
@@ -38,7 +32,7 @@ This is not a semantic distinction. It is an architectural one. When the paramet
     }
     ```
 
-    Limited to boolean toggles. Each new variation requires a new flag and more branching logic.
+    Boolean toggles only. Each new variation needs a new flag and more branching logic.
   </Tab>
   <Tab title="Traffical approach">
     ```typescript
@@ -62,34 +56,29 @@ This is not a semantic distinction. It is an architectural one. When the paramet
 
 ## Local resolution
 
-Traditional experimentation platforms make decisions on the server and serve them over the network. Every request is a round trip. Every round trip is latency.
+Traditional experimentation platforms decide on a server and serve the answer over the network — a round trip per request. Traffical resolves locally: your SDK fetches a pre-built [config bundle](/how-it-works#the-config-bundle) and every decision happens in-process, in sub-milliseconds. No per-request API calls. Works offline, works at the edge, and if Traffical is unreachable your app keeps running on the last known configuration.
 
-Traffical resolves parameters locally, inside the SDK. The client fetches a pre-built configuration bundle from the edge, and all decisions happen in-process, in sub-milliseconds. No per-request API calls. Works offline. Works at the edge.
+## Concurrent experiments that don't collide
 
-## Layered isolation
+Running one experiment is straightforward. Running fifty at once, across the same users, without them contaminating each other is the real problem. Traffical organizes parameters into [layers](/concepts/layers): within a layer, a user is in at most one policy; across layers, bucketing is orthogonal, so experiments don't interfere. Teams run in parallel without coordinating calendars.
 
-Running one experiment is straightforward. Running fifty at the same time, across the same user base, without them contaminating each other — that is the real challenge.
+## Measurement where your data already lives
 
-Traffical organizes parameters into **layers**. Each layer provides mutual exclusivity: a user can only be in one policy per layer. Across layers, bucketing is orthogonal — statistically independent — so experiments in different layers don't interfere.
+You don't need a second event pipeline to measure outcomes. Define metrics as SQL against your own warehouse — Postgres, BigQuery, Snowflake, Databricks, ClickHouse — and Traffical executes the queries, joins assignments to outcomes, and produces the same per-allocation statistics as its native events. Outcomes SDKs never see — renewals, refunds, support tickets — count the same as clicks. Use [warehouse-native](/concepts/warehouse-native) metrics, Traffical-native events, or both at once.
 
-This means teams can run concurrent experiments safely, at scale, without waiting for each other. No collisions. No interaction effects. Clean data.
+## Governance built in — for humans and agents
+
+Speed without control is how incidents happen, and more of your changes are shipped by agents every quarter. Traffical's governance surface, [changes](/concepts/changes), makes the safe path the default: every change states its intent before it carries traffic, every traffic-bearing phase requires an approved measurement plan, and every transition writes a decision record — who acted, what the evidence said, what changed.
+
+A computed risk class scales the friction. A low-risk change with certified measurement coverage starts without ceremony; a pricing change on a backend surface waits for human sign-off. Agents act through the [MCP server](/tools/mcp-server) under the same gates, not around them: safety actions like pause and revert are always cleared, while promoting a winner into the product default is always a human checkpoint. See [approvals and autonomy](/governance/approvals-and-autonomy) for the full model.
 
 ## From static tests to adaptive optimization
 
-A/B testing answers the question: "Which variant is better, on average?" That is valuable. But it is also slow, manual, and one-size-fits-all.
-
-Traffical includes an optimization engine that goes beyond static allocation: adaptive algorithms that adjust allocations based on observed behavior. Define your goals, set your constraints, and let the system find optimal configurations — automatically, continuously.
-
-Supported algorithms:
-
-- **Thompson Sampling** — Bayesian exploration-exploitation with Beta-Bernoulli model
-- **Epsilon-Greedy** — Simple exploration with configurable epsilon
-- **UCB1** — Upper Confidence Bound with optimistic exploration
-- **Linear contextual bandits** — Personalized optimization using context features
+A/B testing answers "which variant is better, on average?" — valuable, but manual and one-size-fits-all. When the best variant shifts over time, or differs per user, adaptive policies move traffic toward better performers automatically: Thompson Sampling, UCB1, Epsilon-Greedy, and linear contextual bandits that personalize per user. See [optimization](/experimentation/optimization) and [choosing an algorithm](/experimentation/choosing-an-algorithm).
 
 ## Developer-first
 
-- Type-safe SDKs in TypeScript, React, Svelte, and Node.js
-- CLI that treats configuration as code with `push`, `pull`, `sync`, and CI/CD integration
-- Visual editor for no-code experiment creation
-- Graceful degradation — if Traffical is unreachable, your app keeps working with the last known configuration
+- Type-safe SDKs for TypeScript (Node, browser, React, Svelte, React Native), Python, PHP, and Swift — one shared conformance spec, so a given unit buckets identically on every platform
+- [Config as code](/tools/cli): parameters, events, and metrics in version-controlled YAML, with `push`, `pull`, and a `status` check that gates CI on drift
+- A [visual editor](/tools/visual-editor) for no-code UI experiments, and [DevTools](/tools/devtools) to inspect SDK state and override parameters live
+- An [MCP server](/tools/mcp-server) and [agent skill](/tools/agent-skill) so coding agents can run experiments under the same governance you do

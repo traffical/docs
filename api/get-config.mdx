@@ -47,11 +47,30 @@ Returns the config bundle as JSON.
 
 ```json
 {
-  "version": "2026-05-21T10:30:00Z",
-  "hashing": { "unitKey": "userId", "bucketCount": 10000 },
+  "version": "2026-05-21T09:58:11Z",
+  "orgId": "org_acme",
+  "projectId": "proj_marketplace",
+  "env": "production",
+  "hashing": {
+    "unitKey": "userId",
+    "bucketCount": 1000,
+    "algorithm": "sha256-v2"
+  },
   "parameters": [
-    { "key": "checkout.button.color",       "type": "string",  "default": "#1E6EFB" },
-    { "key": "checkout.show_trust_badges",  "type": "boolean", "default": false }
+    {
+      "key": "checkout.button.color",
+      "type": "string",
+      "default": "#1E6EFB",
+      "layerId": "layer_checkout",
+      "namespace": "checkout"
+    },
+    {
+      "key": "checkout.show_trust_badges",
+      "type": "boolean",
+      "default": false,
+      "layerId": "layer_checkout",
+      "namespace": "checkout"
+    }
   ],
   "layers": [
     {
@@ -59,19 +78,22 @@ Returns the config bundle as JSON.
       "policies": [
         {
           "id": "policy_color_test",
+          "key": "color_test",
           "state": "running",
           "kind": "static",
           "allocations": [
             {
               "id": "alloc_a",
               "name": "control",
-              "bucketRange": [0, 4999],
+              "key": "control",
+              "bucketRange": [0, 499],
               "overrides": { "checkout.button.color": "#1E6EFB" }
             },
             {
               "id": "alloc_b",
               "name": "treatment",
-              "bucketRange": [5000, 9999],
+              "key": "treatment",
+              "bucketRange": [500, 999],
               "overrides": { "checkout.button.color": "#22C55E" }
             }
           ],
@@ -86,6 +108,18 @@ Returns the config bundle as JSON.
 }
 ```
 
+Key fields:
+
+| Field | Description |
+|-------|-------------|
+| `version` | ISO timestamp of the bundle build. Also the basis of the `ETag`. |
+| `hashing.unitKey` | Context field used as the bucketing unit (for example, `userId`). |
+| `hashing.bucketCount` | Number of buckets per layer. Defaults to `1000`; allocation `bucketRange` values are `[0, bucketCount − 1]` inclusive. |
+| `hashing.algorithm` | Assignment-hash version identifier. Currently always `"sha256-v2"`; SDKs assume `"sha256-v2"` when the field is absent in older bundles. |
+| `parameters` | All parameters with their type, default (environment overrides applied), owning `layerId`, and `namespace`. |
+| `layers` | Layers with their **running** policies. Draft, paused, and completed policies are not included. |
+| `eventDefinitions` | Event names and value types defined for the project. Only present when the project defines events. |
+
 ### 304 Not Modified
 
 Returned when the `If-None-Match` header matches the current bundle version. No body is returned.
@@ -94,27 +128,60 @@ Returned when the `If-None-Match` header matches the current bundle version. No 
 
 ```json
 {
-  "error": "Unauthorized",
-  "message": "Invalid or expired API key"
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Invalid API key"
+  }
+}
+```
+
+### 403 Forbidden
+
+Returned when the key is valid but lacks the `sdk:read` scope:
+
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "SDK read scope required"
+  }
 }
 ```
 
 ### 404 Not found
 
+Returned when no bundle exists for the project and environment:
+
 ```json
 {
-  "error": "Not Found",
-  "message": "Bundle not found for project"
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Bundle not found for proj_marketplace/production"
+  }
 }
 ```
+
+### 503 Service unavailable
+
+Returned when the config store is temporarily unavailable and no cached copy can be served. The response includes a `Retry-After` header (currently `5` seconds); keep your cached bundle or defaults and retry.
+
+```json
+{
+  "error": {
+    "code": "SERVICE_UNAVAILABLE",
+    "message": "Config store temporarily unavailable, retry shortly"
+  }
+}
+```
+
+When the store is briefly unavailable but a recent copy exists, the endpoint keeps serving that copy instead: the response is a normal `200` with an `X-Traffical-Bundle-Stale: true` header and a shorter cache TTL, so clients revalidate aggressively.
 
 ## ETag caching
 
 The SDKs use ETag caching to poll for bundle updates efficiently:
 
-1. First request — No `If-None-Match` header. The edge returns the full bundle with an `ETag` header.
-2. Subsequent requests — Include `If-None-Match: <previous-etag>`. If the bundle hasn't changed, the edge returns `304 Not Modified` with no body.
-3. When the bundle changes — The ETag changes, and the edge returns the full updated bundle.
+1. First request — No `If-None-Match` header. The response contains the full bundle with an `ETag` header.
+2. Subsequent requests — Include `If-None-Match: <previous-etag>`. If the bundle hasn't changed, the response is `304 Not Modified` with no body.
+3. When the bundle changes — The ETag changes, and the response contains the full updated bundle.
 
 This minimizes bandwidth when the bundle hasn't changed, which is the common case.
-

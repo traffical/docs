@@ -8,7 +8,8 @@ and flags the failure modes that quietly invalidate experiments — missing
 exposures, sample-ratio mismatches, freshness gaps, breached guardrails,
 and stuck optimizers.
 
-It's the runtime sibling of the [launch readiness check](/concepts/policies#readiness)
+It's the runtime sibling of the
+[launch-readiness checklist](/dashboard/layers-and-policies#overview-tab)
 that gates draft policies before they start.
 
 <Frame caption="Policy health hero">
@@ -20,12 +21,14 @@ that gates draft policies before they start.
 Open any policy detail page:
 
 - The **Overview** tab shows a compact health hero that auto-collapses when
-  everything is green. Click any pill to see per-check detail.
-- The **Diagnostics** tab (between **Results** and **Decisions**) shows the
-  full assignments time-series, optional SRM history chart, and the
-  transition log.
-- The **Allocations** list footer shows the last exposure per allocation so
-  you can spot dropouts at a glance.
+  everything is green. Click any pill to see per-check detail. The tab's
+  **Live allocation** digest also shows traffic share and exposures per
+  variant, so a variant that stopped receiving exposures stands out at a
+  glance.
+- The **Diagnostics** tab (between **Measurement** and **Decisions**) shows
+  the full assignments time-series, optional SRM history chart, and the
+  transition log. Its tab label carries a `(!)` while any check is warning
+  or failing.
 
 The hero is hidden in `draft` state — the readiness checklist covers that
 phase.
@@ -55,10 +58,11 @@ Every rollup compares the new health JSON against the previous JSON. Any
 check whose status changed (including pass → warn) writes a
 `PolicyHealthEvent` row.
 
-Today these power the per-check **Transitions** list in the side sheet and
-the timeline at the bottom of the Diagnostics tab. The same rows will drive
-Slack / email / webhook fanout when notification channels ship — the schema
-is in place and the events table already records who needs to be told what.
+These power the per-check **Transitions** list in the side sheet and the
+timeline at the bottom of the Diagnostics tab. The same transitions feed
+[Notifications](/dashboard/notifications) — a check that starts failing or
+recovers lands in the **Policy** category, deliverable in-app, by email, or
+to a shared Slack channel.
 
 ## Endpoints
 
@@ -80,14 +84,13 @@ yet, so the UI never errors during a policy's first few minutes.
    policy as the last phase of every run (`policy-health-rollup`). The
    rollup runs three queries against `_p_{policyId}_assignments` (hourly
    24 h, daily 30 d, lifetime) and computes chi-squared in process.
-2. The control-plane orchestrator persists the JSON to R2 at
-   `${orgId}/${projectId}/policy-health/${policyId}.json` and compares it
-   to the previous JSON to detect transitions, which are written to the
-   `policy_health_events` D1 table in the same step.
-3. On request, the control plane reads R2 + D1 and calls
-   `computePolicyHealth` — a pure function that maps the raw data into the
-   six checks + an overall rollup. Identical inputs produce identical
-   outputs, so the function is fully unit-testable.
+2. Traffical persists the report and compares it to the previous run's
+   report to detect transitions, recording each status change as a
+   `PolicyHealthEvent` in the same step.
+3. On request, the stored report and transition history feed a pure
+   function that maps the raw data into the six checks + an overall
+   rollup. Identical inputs produce identical outputs, so the same report
+   always renders the same way.
 
 For more on the underlying data model, see
 [Warehouse-native](/concepts/warehouse-native).

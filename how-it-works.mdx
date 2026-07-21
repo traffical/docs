@@ -6,7 +6,7 @@ description: "Local resolution from a config bundle, evaluation modes, and how S
 Traffical splits responsibilities cleanly:
 
 - **Your SDK** resolves parameter values in your application. No per-request API call is needed.
-- **The Traffical service** stores configuration, builds the config bundle that SDKs consume, ingests events from your application, and runs the optimization engine that learns from those events.
+- **The Traffical service** stores configuration, builds the config bundle that SDKs consume, ingests events from your application, and runs the optimizer that learns from those events.
 
 Most of the interesting behaviour lives in the SDK. The service exists to publish configuration and to collect signal.
 
@@ -25,7 +25,7 @@ The config bundle is the contract between Traffical and your application. It is 
   ```json
   {
     "version": "2026-05-21T10:30:00Z",
-    "hashing": { "unitKey": "userId", "bucketCount": 10000 },
+    "hashing": { "unitKey": "userId", "bucketCount": 1000 },
     "parameters": [
       { "key": "checkout.button.color", "type": "string", "default": "#1E6EFB" },
       { "key": "checkout.show_trust_badges", "type": "boolean", "default": false }
@@ -39,8 +39,8 @@ The config bundle is the contract between Traffical and your application. It is 
             "state": "running",
             "kind": "static",
             "allocations": [
-              { "name": "control",   "bucketRange": [0, 4999],   "overrides": { "checkout.button.color": "#1E6EFB" } },
-              { "name": "treatment", "bucketRange": [5000, 9999], "overrides": { "checkout.button.color": "#22C55E" } }
+              { "name": "control",   "bucketRange": [0, 499],   "overrides": { "checkout.button.color": "#1E6EFB" } },
+              { "name": "treatment", "bucketRange": [500, 999], "overrides": { "checkout.button.color": "#22C55E" } }
             ],
             "conditions": []
           }
@@ -74,7 +74,7 @@ Parameters not touched by any active policy keep their default value. Resolution
 
 **Independent across layers.** Each layer mixes its own ID into the hash, so a user's bucket in one layer carries no information about its bucket in another. This is what lets concurrent experiments coexist without contaminating each other.
 
-**Configurable granularity.** `bucketCount` (typically 10000) controls how finely traffic can be sliced. A higher count enables finer-grained allocation ranges and smoother ramps.
+**Configurable granularity.** `bucketCount` (`1000` by default) controls how finely traffic can be sliced. A higher count enables finer-grained allocation ranges and smoother ramps.
 </Accordion>
 
 ## Evaluation modes
@@ -106,7 +106,7 @@ When a parameter is resolved, the SDK emits an **exposure event** that records t
 Both kinds are batched in memory and shipped in the background. The Traffical service uses them for two things:
 
 - **Metrics** — dashboards and significance calculations
-- **Learning** — the optimization engine uses track events as reward signals for adaptive policies
+- **Learning** — the optimizer uses track events as reward signals for adaptive policies
 
 You can also compute metrics from your own data warehouse — see [warehouse-native](/concepts/warehouse-native).
 

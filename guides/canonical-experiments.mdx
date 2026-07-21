@@ -204,7 +204,7 @@ See the [SSR patterns](/sdks/ssr) page for Next.js variants and pitfalls.
 **Why it works.** Same project, same bundle, same hash function, same unit key → same answer for the same user, regardless of which SDK resolves.
 
 ```
-hash("user_123" + "layer_checkout") % 10000 → 4217
+hash("user_123" + "layer_checkout") % 1000 → 421
 ```
 
 Web SDK, mobile SDK, and Node SDK all compute the same bucket. They all resolve to the same allocation.
@@ -513,61 +513,21 @@ For mixed-level experiments (randomize per company, measure per user), keep the 
 
 **Why it matters.** Individually, experiments often show small effects that are hard to assemble into "did we move the needle this quarter?" A holdout is the cleanest way to answer that question.
 
-**How to model it.** Use the **eligible bucket range** on every policy in a layer. Say you want a 5% holdout — every policy in that layer gets `eligibleBucketRange: [500, 9999]` (95% of traffic). Buckets 0–499 never match any policy → those users always get parameter defaults.
+**How to model it.** Use the **eligible bucket range** on every policy in a layer. Say you want a 5% holdout — every policy in that layer gets `eligibleBucketRange: [50, 999]` (95% of traffic). Buckets 0–49 never match any policy → those users always get parameter defaults.
 
 ```
-Layer: Marketing experiments  (bucketCount: 10000)
-                 [0]───[499] [500]──────────────[9999]
+Layer: Marketing experiments  (bucketCount: 1000)
+                 [0]────[49] [50]───────────────[999]
                   └─ holdout ─┘ └─── all experiments ───┘
 
-Policy A:  eligibleBucketRange [500, 9999] → its allocations within this range
-Policy B:  eligibleBucketRange [500, 9999] → ditto
-Policy C:  eligibleBucketRange [500, 9999] → ditto
+Policy A:  eligibleBucketRange [50, 999] → its allocations within this range
+Policy B:  eligibleBucketRange [50, 999] → ditto
+Policy C:  eligibleBucketRange [50, 999] → ditto
 ```
 
-Then define a metric that compares users with bucket `< 500` against users with bucket `>= 500`. Conversion, revenue per user, whatever the bottom-line outcome is.
+Then define a metric that compares users with bucket `< 50` against users with bucket `>= 50`. Conversion, revenue per user, whatever the bottom-line outcome is.
 
 **Tip.** Rotate the holdout periodically (every 6 or 12 months) — if you keep the same users in the holdout forever, they may behave systematically differently for unrelated reasons (e.g. they never see new features and their engagement drifts).
-
-## Switchback
-
-**Use case.** Marketplaces and operational systems where the variant affects *the whole system*, not just one user. You can't run a per-user A/B test because a treatment for user A also affects user B (a different pricing model in a region affects everyone in that region; a new dispatch algorithm affects every rider and driver).
-
-**Examples.**
-
-- Pricing tests in a ride-sharing market — surge multipliers affect everyone in the region
-- Search ranking experiments where the ranking depends on inventory state shared across users
-- Operational policies that change supply allocation
-
-**Why it's different.** The randomization unit isn't the user — it's *time and place*. Each (region, time window) tuple is randomly assigned to control or treatment, and you compare windows.
-
-**How to model it in Traffical.** This isn't a per-user policy resolution. The backend is the decision point — it asks Traffical for the current variant at the start of each time window per region, applies the variant globally, and observes outcomes.
-
-```typescript
-// Cron job every 30 minutes, per region
-async function rotateSwitchback(region: string) {
-  const windowId = `${region}:${Math.floor(Date.now() / (30 * 60 * 1000))}`;
-
-  const decision = traffical.decide({
-    context: { userId: windowId },    // unit key = window, not user
-    defaults: { "pricing.surge_algo": "v1" },
-  });
-
-  await applySurgeAlgorithm(region, decision.assignments["pricing.surge_algo"]);
-
-  // Log the assignment so it's queryable for analysis
-  traffical.track("switchback_window_started", {
-    unitKey: windowId,
-    properties: { region, window_start: new Date().toISOString() },
-  });
-}
-```
-
-The `unitKey` here is the *window identifier*, not a user. Each window gets a random assignment, and the experiment hashing makes sure adjacent windows aren't always the same variant.
-
-**Analysis.** Outcomes (rides taken, prices accepted, latency P50) are joined back to the window via the timestamp. The warehouse-native pipeline is usually the right fit — assignments live as window records, facts are the operational events, and the metric is per-window.
-
-**Watch out for carryover.** If the system has state that persists across windows (riders deciding whether to take a ride based on the *previous* surge price), the windows aren't independent. Carryover bias is the main hazard in switchback designs. Longer windows reduce it; staggered randomization with a wash-out period eliminates most of it.
 
 ## Geo-randomized
 
@@ -587,7 +547,7 @@ Create a project keyed on the geographic unit:
 project:
   hashing:
     unitKey: city_code
-    bucketCount: 10000
+    bucketCount: 1000
 ```
 
 Or — more commonly — keep the user-keyed project and pass the geo unit as the unit key for *this specific experiment*. The SDK supports custom unit-key fields when the policy declares it.
@@ -624,5 +584,4 @@ The "control" group is then "everyone in matched comparison cities" — chosen u
 | Warehouse-native | None | varies | None | pipeline only |
 | Multi-tenant SaaS | Any | `companyId` | Any | bundle |
 | Holdout group | Any | `userId` | Any | bundle |
-| Switchback | Backend | window id | Node | bundle |
 | Geo-randomized | Any | `cityCode` / region | Any | bundle |

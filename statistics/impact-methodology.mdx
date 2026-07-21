@@ -1,0 +1,120 @@
+---
+title: "Impact methodology"
+description: "How the Impact view turns shipped results into a credible program-level number — rollout projection, false-positive discounting, and honest intervals."
+---
+
+Sooner or later every experimentation program gets asked the same question: **what has all of this been worth?** The tempting answer — add up every winner's measured lift — is systematically wrong. It's a sum of best cases: every lucky noise-driven "win" counts in full, every effect is assumed to hold at any scale, and the total only ever goes up.
+
+The **Impact** section on the project home takes the other path. It aggregates your shipped [changes](/concepts/changes) into one program-level estimate that is deliberately conservative: each win is projected to full rollout, discounted by its estimated false-positive risk, and carried with an interval — so the headline is a number you can defend, not a number you have to apologize for.
+
+<Frame caption="Impact section on the project home">
+  <img src="/images/placeholders/impact-program-view.png" alt="Impact section with program strip, per-metric groups, and methodology disclaimer" />
+</Frame>
+
+Everything here is an **estimate, not a measurement** — the dashboard says so right next to the numbers, and the [limitations](#honest-limitations) below spell out what the estimate assumes.
+
+## From a result to a daily number
+
+Each shipped change contributes a **projected daily impact**: the per-user effect it measured, converted to metric units per day, scaled to a full rollout.
+
+```
+projected / day  =  (per-user effect)  ×  (treatment users ÷ window days)  ÷  (treatment share)
+```
+
+- The **per-user effect** is the absolute difference between the shipped variant's mean and control's, exactly as the experiment measured it.
+- **Treatment users ÷ window days** turns that into units per day: how many users per day actually saw the winning variant during the analysis window.
+- Dividing by the **treatment share** — the shipped variant's share of eligible traffic, as the unrounded product of the layer's traffic slice and the variant split — scales the observed daily total up to what a 100% rollout of that experience would produce.
+
+So a +0.4% conversion effect measured on a variant that held 10% of eligible traffic projects to ten times its observed daily contribution — that's the point of shipping the winner.
+
+## Intervals travel with the estimate
+
+A point estimate alone would overstate how much you know, so the experiment's uncertainty is carried through the projection. The impact interval is reconstructed from the **measured relative confidence interval** on the lift: multiplying it by the control mean recovers the absolute-difference interval, and scaling by the same rollout factor as the point estimate gives the interval on projected daily impact.
+
+Because the relative interval is what the analysis reports in both modes, this works identically for **fixed-horizon** and **sequential (anytime-valid)** results — a [sequential](/statistics/sequential-testing) result's wider interval flows straight into a wider impact interval, as it should.
+
+## The false-positive discount
+
+Here is the part most impact reports skip. At a 5% significance level, some of your winners are noise — and the fewer of your ideas that truly work, the larger the share of your "wins" that are false. Summing undiscounted winners bakes that winner's bias into the headline.
+
+Traffical discounts each concluded win by its estimated **false-positive risk** — the probability that a result this significant came from a change with no real effect:
+
+```
+FPR  =  α·(1−π) ÷ (α·(1−π) + (1−β)·π)          discounted  =  (1 − FPR) × projected
+```
+
+where α is the significance level, 1−β the test's power, and π the prior probability that a tested change has a real effect. The discount applies to the interval width too, not just the point estimate.
+
+The interesting input is **π — and it comes from your own track record**:
+
+- Your observed **win rate over concluded experiments** can't be used directly: it estimates the probability of a *significant result* — a mixture of lucky nulls, arising at rate α, and real detections, at rate 1−β — not π itself. Traffical inverts that mixture to recover π from the win rate.
+- Until you have **at least 20 concluded experiments**, a conservative **cold-start prior of π = 0.33** applies — roughly one idea in three moves its metric, the industry's long-run experience.
+- The inferred prior is floored at 0.05, so one unlucky stretch never zeroes out the whole program.
+
+Power is assumed at **1−β = 0.8**, the same value the dashboard's methodology note discloses. **Bayesian results** bypass the α/power mixture entirely. A result is Bayesian when it comes from an adaptive [Thompson-sampling policy](/experimentation/optimization#algorithms) with a conversion goal — the optimizer's posterior reports **P(beat control)** instead of a p-value — so its risk input is simply **1 − P(beat control)**, the posterior's own doubt about the win.
+
+<Note>
+  The current prior is disclosed right in the Impact section: the always-visible disclaimer line shows the π in effect, and clicking it opens the methodology popover with the formulas and caveats applied to the numbers you're looking at.
+</Note>
+
+## Group totals
+
+Within a metric, contributions are summed after discounting — but the group's interval is **not** the sum of the individual bounds. Summing bounds assumes every experiment erred in the same direction at once, the perfect-correlation worst case, and produces intervals too wide to act on.
+
+Instead the group interval treats contributions as independent: the total is the sum of discounted impacts, and its half-width is the **root-sum-of-squares** of the individual (discounted) half-widths. Independent errors partially cancel, so the combined interval is tighter than the worst case — and the independence assumption is labeled as such in the [limitations](#honest-limitations).
+
+<Frame caption="Per-metric impact group with contributions and interval">
+  <img src="/images/placeholders/impact-metric-group.png" alt="Per-metric impact group with discounted daily total, confidence interval, and contribution rows" />
+</Frame>
+
+## Window accounting
+
+The Impact view is scoped to a date range (the last 90 days by default, filterable by [surface](/concepts/surfaces)). A change's contribution to the window total accrues **by overlap days**:
+
+- Shipped **before** the window starts → it accrues its daily impact for the whole window.
+- Shipped **mid-window** → it accrues only from its ship date, including fractional days.
+- No overlap → it contributes nothing.
+
+So the window total is honest about time: a win shipped three days before the window closes contributes three days of impact, not a full window's worth.
+
+## Shown separately, never added
+
+Two kinds of activity appear in the Impact section but are **never summed into the concluded total**:
+
+- **In-flight experiments** — live readings of running changes. They're real-time signals, not realized impact, and they can still reverse. See [measurement progress](/statistics/measurement-progress) for how to read a running experiment.
+- **Always-on optimization** — adaptive policies that continuously shift allocation toward what's working. Their value is reported against a baseline in their own block, but an optimizer that never concluded an experiment has no frozen result to accrue.
+
+Both render visually apart from the realized totals, so the concluded number stays a sum of finished, evidenced decision records.
+
+<Frame caption="In-flight and optimization blocks, separated from realized totals">
+  <img src="/images/placeholders/impact-inflight-optimization.png" alt="In-flight experiment rows and always-on optimization block rendered apart from realized totals" />
+</Frame>
+
+## Honest limitations
+
+The methodology is conservative, but it is still a model. Know what it assumes:
+
+- **Effects are assumed to persist.** A change accrues its ship-time daily impact for as long as the window runs. Novelty effects that decay, seasonality, and later product changes are not modeled.
+- **Independence across changes.** Group intervals assume experiments err independently; interactions between overlapping changes are not modeled. Treat group intervals as indicative, not exact.
+- **The discount is an estimate.** π is inferred from a finite history (or a cold-start default) and power is assumed or approximated — the false-positive risk is a principled correction, not a measurement.
+- **Projection is to 100% of the targeted population.** Audience conditions and rollout caps aren't modeled; if the winner only ever ships to a segment, the projection overstates it.
+- **Results freeze at decision time.** A contribution restates the evidence the [decision](/dashboard/decisions) was made on; conversions still attributing when you shipped aren't recounted later. Ratio metrics are excluded from impact aggregation.
+
+If a stakeholder asks whether the impact number is *real*, the honest answer is: it's the most defensible estimate the evidence supports — measured effects, scaled transparently, discounted for the ways experiments flatter themselves.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Significance & metric types" icon="square-root-variable" href="/statistics/significance">
+    How the underlying lifts, intervals, and p-values are computed.
+  </Card>
+  <Card title="Sequential testing" icon="gauge-high" href="/statistics/sequential-testing">
+    Anytime-valid results — the intervals that flow into impact when you peek continuously.
+  </Card>
+  <Card title="Measurement progress" icon="hourglass-half" href="/statistics/measurement-progress">
+    Reading a running experiment before it concludes.
+  </Card>
+  <Card title="Changes in the dashboard" icon="waypoints" href="/dashboard/changes">
+    The governed lifecycle that produces the concluded, evidenced decision records impact is built from.
+  </Card>
+</CardGroup>

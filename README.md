@@ -1,55 +1,64 @@
-# Mintlify Starter Kit
+# Traffical docs
 
-Use the starter kit to get your docs deployed and ready to customize.
+Public documentation for [Traffical](https://traffical.io) — the experimentation and
+optimization platform. This repo is the source for the published docs site.
 
-Click the green **Use this template** button at the top of this repo to copy the Mintlify starter kit. The starter kit contains examples with
+## Stack
 
-- Guide pages
-- Navigation
-- Customizations
-- API reference pages
-- Use of popular components
+- [Mintlify](https://mintlify.com) — pages are MDX files with YAML frontmatter
+- `docs.json` — site configuration and the entire navigation tree (a page only appears
+  on the site if it is listed there)
 
-**[Follow the full quickstart guide](https://starter.mintlify.com/quickstart)**
+## Local preview
 
-## AI-assisted writing
-
-Set up your AI coding tool to work with Mintlify:
-
-```bash
-npx skills add https://mintlify.com/docs
+```sh
+npm i -g mint   # one-time
+mint dev        # preview at http://localhost:3000
 ```
 
-This command installs Mintlify's documentation skill for your configured AI tools like Claude Code, Cursor, Windsurf, and others. The skill includes component reference, writing standards, and workflow guidance.
+Run `mint broken-links` before opening a PR to catch dead internal links. If the dev
+server misbehaves, `mint update` brings the CLI current.
 
-See the [AI tools guides](/ai-tools) for tool-specific setup.
+## Structure
 
-## Development
+| Path | Contents |
+|---|---|
+| `api/` | SDK API reference — config, resolve, decide, events endpoints |
+| `concepts/` | Core concepts: parameters, layers, policies, surfaces, changes, warehouse-native |
+| `connectors/` | Warehouse connector setup (Postgres, BigQuery, Snowflake, Databricks, ClickHouse) |
+| `dashboard/` | Dashboard walkthrough pages, one per section |
+| `experimentation/` | Feature flags, A/B testing, rollouts, optimization, algorithm choice |
+| `governance/` | Measurement protocols, approvals and autonomy, roles and permissions |
+| `guides/` | Task-oriented guides: first experiment, canonical patterns, type-safe events |
+| `images/` | Static images; `images/placeholders/` holds dashboard screenshots (see below) |
+| `logo/` | Site logo assets |
+| `reference/` | Troubleshooting, FAQ, glossary |
+| `sdks/` | Per-SDK pages (Node, JS, React, Svelte, React Native, PHP, …) plus patterns like SSR |
+| `statistics/` | Statistical methodology: significance, sequential testing, CUPED, progress, impact |
+| `tools/` | Developer tools: CLI, config file, MCP server, agent skill, visual editor, devtools |
 
-Install the [Mintlify CLI](https://www.npmjs.com/package/mint) to preview your documentation changes locally. To install, use the following command:
+Top-level `.mdx` files (`index`, `introduction`, `quickstart`, `how-it-works`,
+`why-traffical`) are the getting-started pages.
 
-```
-npm i -g mint
-```
+## Screenshots
 
-Run the following command at the root of your documentation, where your `docs.json` is located:
+Dashboard pages reference screenshots at `/images/placeholders/*.png`.
+`images/placeholders/README.md` is the shot manifest: one entry per required screenshot
+with a description of what it must show, plus style notes (theme, viewport, size budget).
 
-```
-mint dev
-```
+The screenshots are not captured by hand — a capture harness in the product repo
+(`tools/docs-screenshots` in the platform monorepo) reads this manifest, drives a demo
+project in the live dashboard, and writes compressed PNGs back into this repo. If you add
+a screenshot reference to a page, add a matching entry to the manifest so the harness
+picks it up.
 
-View your local preview at `http://localhost:3000`.
+## Contributing
 
-## Publishing changes
+- `CONTRIBUTING.md` — workflow, working conventions, and the pre-PR checklist
+- `AGENTS.md` — the style contract, content boundaries, and the source-of-truth map
+  used to verify pages against product code
 
-Install our GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app) to propagate changes from your repo to your deployment. Changes are deployed to production automatically after pushing to the default branch.
-
-## Need help?
-
-### Troubleshooting
-
-- If your dev environment isn't running: Run `mint update` to ensure you have the most recent version of the CLI.
-- If a page loads as a 404: Make sure you are running in a folder with a valid `docs.json`.
-
-### Resources
-- [Mintlify documentation](https://mintlify.com/docs)
+`CHANGELOG.md` at the repo root is the running log of doc edits — add an entry when you
+edit pages (see `CONTRIBUTING.md`). Content boundaries are part of the style contract in
+`AGENTS.md`: the docs describe only the public product surface and never name internal
+components, infrastructure, or hosting details.

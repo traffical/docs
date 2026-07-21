@@ -1,0 +1,160 @@
+---
+title: "Changes in the dashboard"
+description: "Walking through the Changes list, the six-step New Change wizard, the change detail page, and the transition console."
+---
+
+The **Changes** pages are where you run a parameterized product change through its lifecycle — from draft to canary to experiment to a new default. This page covers the UI. For what a change *is* — phases, lifecycle templates, risk classes — see [Changes](/concepts/changes).
+
+<Frame caption="The Changes list">
+  <img src="/images/placeholders/changes-list.png" alt="Changes list with the four process stat cards on top, the decision queue panel, and rows in mixed lifecycle states" />
+</Frame>
+
+## The Changes list
+
+At the top of the list, four stat cards summarize your change process over a trailing window: **Time to exposure** (median from creation to first traffic), **Clean activation rate** (phase starts with no failed or warned readiness checks), **Guardrail catch rate** (blocking breaches followed by a pause or revert), and **Decision-log completeness** (transitions citing evidence). Hover a label for the exact definition.
+
+Below the cards, two panels appear when relevant: a decision queue listing changes that are **Ready** for a transition or **Awaiting approval**, and a needs-attention panel for changes with degraded health, an active guardrail breach, or unfinished setup. Both link straight to the change.
+
+Filter the list with the chips above the table:
+
+| Chip | Shows |
+|------|-------|
+| **Current** | Everything except archived changes |
+| **Active** | Changes with a running lifecycle |
+| **Needs attention** | Drafts with no linked policy, active blocking-guardrail breaches, degraded health, or an evidence recommendation to pause or roll back |
+| **Canary** / **Experiment** / **Rollout** / **Adaptive** | In-flight changes currently in that phase |
+| **Completed** / **Archived** | Terminal states |
+
+Each row shows the change name, its current phase, a **Draft** or **Archived** badge where applicable, a health badge, the primary metric's relative lift, the pending transition (with the approving role when one is required), parameter and policy counts, the primary surface, the owner, and a suggested next action. Rows needing attention sort to the top.
+
+Click **New change** to start the wizard. Creating changes requires the `changes:write` permission — see [Roles and permissions](/governance/roles-and-permissions).
+
+## The New Change wizard
+
+The wizard walks six steps. You can jump back to any step you have already passed; forward jumps stop at the first step that fails validation.
+
+<Frame caption="The wizard's Strategy step">
+  <img src="/images/placeholders/change-wizard-strategy-step.png" alt="New Change wizard Strategy step showing the computed risk class, the lifecycle template list with the Recommended badge, and the measurement protocol teaser" />
+</Frame>
+
+<Steps>
+  <Step title="Intent">
+    Name the change and describe the outcome you're after. The intent anchors the change through every phase — it shows up on the detail page and becomes the description of each phase's executing policy.
+  </Step>
+  <Step title="Parameters">
+    Select the typed parameters the change controls. Filter by surface to narrow a long list — selections persist when you change the filter, so a change can span surfaces. If your selection spans multiple layers you can still save a draft, but the parameters must live in a single layer before a phase can start.
+  </Step>
+  <Step title="Strategy">
+    Based on the surfaces your parameters touch, Traffical computes a **risk class** (low, medium, high, or critical) with a written reason, and recommends a lifecycle template — marked with a **Recommended** badge in the template list.
+
+    You can override the risk class, but lowering it below the computed baseline requires a written reason. The override is tied to your current parameter and surface selection — change either and the risk is re-derived.
+
+    A measurement teaser previews coverage: either *N certified protocols will apply* with the derived measurement template, or a warning that **no certified protocol matches** — meaning a human must approve metrics and guardrails before any traffic. You can still create the draft either way. See [Measurement protocols](/governance/measurement-protocols).
+  </Step>
+  <Step title="Variants (Define values)">
+    Set the values per arm. The shape follows the lifecycle template: an A/B lifecycle locks control to the current default and gives you a single treatment; an adaptive lifecycle lets you add and remove arms (starting split is even); a gradual rollout sets the new values against the current defaults.
+
+    For lifecycles with a canary or experiment phase, a **Traffic exposure** section appears — with a **Canary traffic** slider when the lifecycle leads with a canary, and an **Experiment allocation** slider when it includes an experiment phase. The default Canary → Experiment → Rollout template shows both; a gradual rollout shows only the canary slider; adaptive optimization shows neither.
+
+    - **Canary traffic** — the initial exposure per arm. Bounds default to 1–10%; project guardrails can narrow them. The canary is capped at the experiment allocation.
+    - **Experiment allocation** — the share of the layer reserved for the test. It's auto-sized to reach significance within the project's target duration (14 days by default), from your measured traffic and the primary metric's baseline. The helper text tracks the slider live, projecting days to significance, and flags when the recommendation was clamped to a guardrail. Drag the slider to override — your value sticks.
+  </Step>
+  <Step title="Surfaces & measurement">
+    Confirm the **primary surface** (pre-filled from your parameters' bindings — the surface the change decides or writes on outranks one it merely renders) and toggle any additional **impacted surfaces**. If the confirmed surfaces raise the computed risk, a nudge offers to switch to a canary-first lifecycle.
+
+    Below, the resolved measurement plan preview lists the matched protocols with versions, the primary and secondary metric counts, and the guardrail count. Draft (uncertified) protocols are flagged as a measurement risk. See [Surfaces](/concepts/surfaces).
+  </Step>
+  <Step title="Phase plan">
+    Review the planned phases. Gating banners appear here when they apply:
+
+    - **Parameters span multiple layers** — consolidate to one layer before starting traffic.
+    - **No certified protocol matches** — review and approve a measurement plan on the change page before starting traffic.
+    - **Critical risk** — starting traffic will require human approval on the change page. This one appears only when a certified protocol matches — the missing-protocol banner takes precedence.
+
+    Creating a change **always produces a draft**. Traffic is never exposed from the wizard — you review placement, the measurement plan, and guardrails on the change page first.
+  </Step>
+</Steps>
+
+## The change detail page
+
+<Frame caption="Change detail — Overview tab">
+  <img src="/images/placeholders/change-detail-overview.png" alt="Change detail Overview tab with the lifecycle rail across the top and the next-transition hero card" />
+</Frame>
+
+The detail page has six tabs, each deep-linkable via `?tab=`:
+
+### Overview
+
+The lifecycle rail shows every phase and where the change stands. When a transition is pending, a hero card summarizes it — what would move, how many readiness checks pass, and whether approval is needed — with the button that opens the transition console. An active blocking-guardrail breach surfaces as a banner with the automatic action taken (pause, revert, or none) and a shortcut to the evidence. Below that: the current phase summary with live metrics, the latest evidence record, per-phase cards, what's changing (parameters and surfaces), and a measurement-plan summary.
+
+### Plan
+
+The resolved measurement plan in full: primary and impacted surfaces, the source protocols with versions and certification state, primary and secondary metrics, and guardrails with their thresholds and severity. For blocking guardrails, the card states the armed action on the current phase — pause, revert, or readiness-blocking only.
+
+Two situations ask for input:
+
+- **Multiple primaries** — several certified protocols each declared a primary metric. This is the one case that blocks approval: **Approve plan** stays disabled until you pick a single primary objective (the rest demote to secondary).
+- **No primary at all** — no protocol contributed a primary metric. You can still approve the plan as-is; the *Create a basic plan* card is there to fill the gap, letting you pick a primary metric and optional guardrails from the project's metric definitions and re-resolve.
+
+The rail shows the plan state (**Draft**, **Approved**, or **Superseded**), risk class, and any unresolved measurement risks. Both plan actions require `changes:operate`: **Resolve again** re-runs resolution, **Approve plan** approves the result.
+
+### Evidence
+
+A stream of durable, decision-ready snapshots — experiment results, canary and rollout health, data quality — grouped by the phase they belong to. Filter with the **All**, **Results**, **Health**, and **Data quality** chips: Results adds a per-metric arm comparison, Health adds the readiness checks with pass/warn status. Evidence is materialized at each phase transition, or on demand with **Refresh evidence**. The rail tracks policy health and the analysis runs behind each refresh.
+
+### Decisions
+
+Every decision on the change — system, agent, and human — merged across the linked phase policies, with a **Transitions** chip to isolate phase transitions. Decisions cite the evidence they relied on. Use **Annotate** to record a change- or phase-scoped note (title, reason, tags) in the log.
+
+### Execution
+
+The machinery underneath: the policy executing each phase (linked to its [policy page](/dashboard/layers-and-policies)), a live bucket map of the layer showing this change's slice next to other policies, and a reservations table. It's computed from active policies — useful for debugging placement.
+
+### Settings
+
+Edit the name, owner, and tags. **Phase automation** sets, per traffic-bearing phase, what the change monitor may do on the change's behalf:
+
+| Setting | Options | Default |
+|---------|---------|---------|
+| Advance | Manual / Propose / Auto | Propose |
+| On blocking breach | Pause / Revert / None | Pause |
+| On warning breach | Flag / Pause | Flag |
+
+See [Approvals and autonomy](/governance/approvals-and-autonomy) for how these interact with approval gates. The danger zone offers **Archive change** (pauses all running phase policies) and **Abandon change** (also releases the policies' bucket space; requires a reason, recorded in the decision log).
+
+## The transition console
+
+<Frame caption="The transition console">
+  <img src="/images/placeholders/transition-console.png" alt="Transition console side panel with plan options, ramp-to-target shape controls, readiness checks, and the approval footer" />
+</Frame>
+
+Every phase transition — start, advance, promote a winner, complete, revert — runs through the console, a side panel opened from the transition button. Executing any transition requires the `changes:operate` permission — without it the transition button and console don't appear.
+
+**Readiness checks.** The console shows each check with pass, warn, or fail status and a passing count. Failures explain themselves and block the action.
+
+**Plan options.** For transitions that expose traffic, the console offers placements:
+
+- **Run now** — the requested traffic fits the layer as-is.
+- **Run smaller** — the largest free contiguous gap, when the full request doesn't fit.
+- **Schedule after** — informational: space frees up on a known release signal.
+- **Overlay** — run at top priority over existing policies. Masked policies stop serving in the overlapping buckets. If any masked policy is actively **measuring**, you must tick an explicit acknowledgment that its cohorts will be starved before the action enables.
+
+Each option carries a projected days-to-significance and a provenance badge — **measured**, **assumed**, or **manual**. You can override the requested traffic, MDE, or units per day to recompute the estimates; these overrides affect the preview only.
+
+**Ramp to target.** Entering a canary or experiment always ramps rather than jumping: exposure starts at a fraction of the phase target and steps up per time window, both arms scaling proportionally so the split ratio never drifts. Tune the shape — start (1–99% of target), step (1–50% per window), window (5 minutes to 1 day). Reaching the target does not advance the phase; advancing stays evidence-driven.
+
+**Placement resolution.** A requested-versus-resolved table shows the exact bucket range, priority, and — for canaries under a reserved experiment allocation — the reservation the canary ramps inside, plus a resolved layer map.
+
+**Measurement approval gate.** A traffic start requires an approved measurement plan:
+
+- Plan approved — the transition proceeds normally.
+- Low-risk plan built entirely on certified protocols with no unresolved risks — the console notes it will be **approved automatically** when traffic starts.
+- Anything else — the start is **blocked** with a *Measurement plan not approved* panel. Use **Review & approve in Plan tab** to approve, then return. An optional measurement note can be attached to the decision record either way.
+
+**Approvals.** When the transition's phase requires sign-off, the console shows the approving role and status. **Request approval** flags it for an approver; if you're eligible, a single combined approve-and-run button (**Approve & Start canary**, and so on) records the approval and executes atomically. Otherwise the action waits for an eligible approver.
+
+Promoting a winner asks you to select the winning variant (a non-control arm is pre-selected and badged **recommended**), completing shows the parameter default updates it will write, and reverting requires a reason. Whatever the transition, the decision record previewed at the bottom is written atomically with the policy and reservation changes when you confirm.
+
+<Note>
+The Changes surface is enabled per organization. If you don't see **Changes** in the sidebar, it isn't enabled for your organization yet — contact your Traffical representative to turn it on.
+</Note>

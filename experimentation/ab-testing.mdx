@@ -30,10 +30,10 @@ Open the layer that owns the parameter and create a new policy:
 - **Kind:** static
 - **State:** running
 - **Allocations:**
-  - `control` — buckets `0–4999` — `checkout.button.color: "#1E6EFB"`
-  - `treatment` — buckets `5000–9999` — `checkout.button.color: "#22C55E"`
+  - `control` — buckets `0–499` — `checkout.button.color: "#1E6EFB"`
+  - `treatment` — buckets `500–999` — `checkout.button.color: "#22C55E"`
 
-That's a 50/50 split assuming a `bucketCount` of 10000.
+That's a 50/50 split assuming a `bucketCount` of 1000.
 
 ### 3. Implement in code
 

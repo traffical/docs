@@ -14,8 +14,8 @@ flowchart TB
         Bucket["bucket = hash(unitKey + layerId) % bucketCount"]
         P1{"Policy 1<br/>conditions match?"}
         P2{"Policy 2<br/>conditions match?"}
-        A1["Allocation A<br/>bucket in 0–4999<br/>→ overrides"]
-        A2["Allocation B<br/>bucket in 5000–9999<br/>→ overrides"]
+        A1["Allocation A<br/>bucket in 0–499<br/>→ overrides"]
+        A2["Allocation B<br/>bucket in 500–999<br/>→ overrides"]
         Default["Default values"]
     end
 
@@ -34,6 +34,10 @@ A policy consists of:
 - **Eligible bucket range** (optional) — restricts the policy to a sub-range of the layer
 - **Algorithm configuration** — only for adaptive policies (Thompson Sampling, contextual bandits, etc.)
 - **Rollout configuration** (optional) — turns the policy into a [progressive rollout](/experimentation/rollouts)
+
+<Note>
+Policies are often created for you: when a [change](/concepts/changes) moves through its lifecycle, each traffic-carrying phase materializes a policy in the layer with the change's approved measurement plan attached. You can still create and operate policies directly — a change is governance on top, not a replacement.
+</Note>
 
 ## Policy states
 
@@ -58,12 +62,12 @@ A policy moves through a small lifecycle:
 
     ```
     Policy: checkout_color_test (static, running)
-    ├── control:   buckets 0–4999   → button.color = "#1E6EFB"
-    └── treatment: buckets 5000–9999 → button.color = "#22C55E"
+    ├── control:   buckets 0–499   → button.color = "#1E6EFB"
+    └── treatment: buckets 500–999 → button.color = "#22C55E"
     ```
   </Tab>
   <Tab title="Adaptive">
-    **Adaptive policies** let the optimization engine adjust allocations based on observed rewards. Use them for:
+    **Adaptive policies** let the optimizer adjust allocations based on observed rewards. Use them for:
 
     - Continuous traffic shifting toward better-performing variants
     - Personalized variant selection based on user context (contextual bandits)
@@ -71,12 +75,12 @@ A policy moves through a small lifecycle:
 
     ```
     Policy: pricing_optimizer (adaptive, running)
-    ├── low:    buckets 0–2999   → discount_pct = 5
-    ├── medium: buckets 3000–6999 → discount_pct = 10   ← currently winning
-    └── high:   buckets 7000–9999 → discount_pct = 20
+    ├── low:    buckets 0–299   → discount_pct = 5
+    ├── medium: buckets 300–699 → discount_pct = 10   ← currently winning
+    └── high:   buckets 700–999 → discount_pct = 20
     ```
 
-    Allocation ranges shift over time as the engine learns. The SDK doesn't know or care — it just resolves from the latest bundle.
+    Allocation ranges shift over time as the optimizer learns. The SDK doesn't know or care — it just resolves from the latest bundle.
   </Tab>
 </Tabs>
 
@@ -181,10 +185,10 @@ See [Optimization](/experimentation/optimization#contextual-bandits) for the ful
 A policy can optionally narrow itself to a sub-range of the layer:
 
 ```json
-{ "eligibleBucketRange": { "start": 0, "end": 4999 } }
+{ "eligibleBucketRange": { "start": 0, "end": 499 } }
 ```
 
-Only users whose layer bucket falls within this range see the policy. Outside that range, the policy is invisible. This is the simplest way to run several non-overlapping experiments inside one layer.
+With the default 1000 buckets, this policy covers the first half of the layer. Only users whose layer bucket falls within this range see the policy. Outside that range, the policy is invisible. This is the simplest way to run several non-overlapping experiments inside one layer.
 
 ## Next steps
 

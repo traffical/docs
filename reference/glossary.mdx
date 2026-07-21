@@ -8,7 +8,7 @@ This is a quick reference. Each entry links to the page where the concept is exp
 ## A
 
 ### Adaptive policy
-A [policy](#policy) where the [optimization engine](#optimization-engine) adjusts allocations over time based on observed rewards. Contrast with a [static policy](#static-policy). Algorithms include Thompson Sampling, Epsilon-Greedy, UCB1, and Linear Contextual. → [Optimization](/experimentation/optimization)
+A [policy](#policy) where the [optimizer](#optimizer) adjusts allocations over time based on observed rewards. Contrast with a [static policy](#static-policy). Algorithms include Thompson Sampling, Epsilon-Greedy, UCB1, and Linear Contextual. → [Optimization](/experimentation/optimization)
 
 ### Allocation
 A variant within a [policy](#policy), defined by a [bucket range](#bucket-range) and a set of parameter overrides. Users whose bucket falls in the range receive the overrides. → [Policies](/concepts/policies#allocations)
@@ -25,6 +25,9 @@ Connecting a [track event](#track-event) to the [decision](#decision) that prece
 ### Attribution mode
 Whether a track event attributes to *all* layers the user has been exposed to in the session (`cumulative`, the default) or only to the specific decision named in the event (`decision`). → [Decisions & attribution](/concepts/assignments#attribution-modes)
 
+### Autonomy
+How much of a [change's](#change) lifecycle an agent may drive without a human, per [risk class](#risk-class). Risk-reducing actions (pause, revert, reduce traffic) always execute immediately; risk-increasing actions (start, advance, increase traffic) execute automatically only for low-risk changes and otherwise become proposals awaiting approval; promoting a new default is a human checkpoint by default at every risk class (relaxable only via an autonomy policy). → [Approvals & autonomy](/governance/approvals-and-autonomy)
+
 ## B
 
 ### Base layer
@@ -34,7 +37,7 @@ The default layer every project has. New parameters land here unless assigned el
 A number in `[0, bucketCount - 1]` computed by hashing the [unit key](#unit-key) with the [layer](#layer) ID. Determines which allocation a user falls into. → [How it works](/how-it-works#local-resolution)
 
 ### Bucket count
-The total number of buckets per layer (typically `10000`). A project-level setting that determines allocation granularity.
+The total number of buckets per layer (`1000` by default). A project-level setting that determines allocation granularity.
 
 ### Bucket range
 A `[start, end]` pair within `[0, bucketCount - 1]` defining the users assigned to a given allocation. Ranges within a policy don't overlap.
@@ -43,6 +46,15 @@ A `[start, end]` pair within `[0, bucketCount - 1]` defining the users assigned 
 See [config bundle](#config-bundle).
 
 ## C
+
+### Certified
+The reviewed-and-locked state of a [measurement protocol](#measurement-protocol) (`draft` → `certified` → `deprecated`). A change has *certified coverage* when every protocol its [measurement plan](#measurement-plan) was resolved from is currently certified — one precondition (alongside low risk and no unresolved risks) for starting traffic without waiting on human plan approval. → [Measurement protocols](/governance/measurement-protocols)
+
+### Change
+A product initiative wrapping one or more [policies](#policy) across its lifecycle — intent, affected [surfaces](#surface), [phases](#change-phase), measurement plan, and audit trail in one place. States: `draft`, `active`, `paused`, `completed`, `archived`. Changes are enabled per organization — if you don't see **Changes** in the sidebar, it isn't enabled for you yet. → [Changes](/concepts/changes)
+
+### Change phase
+One lifecycle step of a [change](#change): `setup`, `canary`, `experiment`, `rollout`, `adaptive`, or `complete`. Traffic-bearing phases execute as policies (usually one per phase), and each phase records an outcome when it ends. → [Changes](/concepts/changes)
 
 ### Config bundle
 A JSON document containing every parameter, layer, policy, allocation, and event definition needed for SDK resolution. SDKs fetch it once and cache it. → [How it works](/how-it-works#the-config-bundle)
@@ -57,18 +69,23 @@ The object you pass to `getParams()` containing the unit key plus any fields use
 An [adaptive policy](#adaptive-policy) where allocation selection depends on user context features via a trained linear model. The SDK scores allocations locally. → [Optimization](/experimentation/optimization#contextual-bandits)
 
 ### Control plane
-Traffical's management layer (configuration, bundle building, optimization engine). Users interact via the dashboard and CLI; SDKs don't talk to it directly.
+Traffical's management layer (configuration, bundle building, the optimizer). Users interact via the dashboard and CLI; SDKs don't talk to it directly.
 
 ## D
 
 ### Decision
 The SDK's record of resolving parameters for a user — assignments, layer-by-layer allocation details, and a `decisionId`. Emitted as a decision event. → [Decisions & attribution](/concepts/assignments)
 
+"Decision" carries three distinct senses in these docs: the SDK decision above (one resolution per unit, identified by its `decisionId`); the [decision event](#decision-event) the SDK emits, used as the assignment record for intent-to-treat analysis; and a [decision record](#decision-record) in the [decision log](#decision-log) — the audit trail of lifecycle decisions on policies and changes.
+
 ### Decision event
 An event emitted by the SDK when it makes a decision. Used for intent-to-treat analysis. → [Events](/concepts/events-and-metrics)
 
 ### Decision log
-The audit trail of every policy lifecycle change — state transitions, allocation overrides, rollout actions, guardrail breaches. → [Dashboard: Decisions](/dashboard/decisions)
+The audit trail of every policy and change lifecycle decision — state transitions, allocation overrides, rollout actions, guardrail breaches. → [Dashboard: Decisions](/dashboard/decisions)
+
+### Decision record
+A structured, immutable entry in the [decision log](#decision-log) capturing who did what and why at a lifecycle moment — actor, reason, the [evidence records](#evidence-record) cited, and the thresholds in force at the time. Written automatically on transitions, breaches, and milestones; humans and agents add annotations and approvals. → [Dashboard: Decisions](/dashboard/decisions)
 
 ### `decisionId`
 A unique identifier the SDK generates for each decision. Threaded into track events to connect outcomes to assignments. → [Decisions & attribution](/concepts/assignments#the-decisionid)
@@ -113,6 +130,9 @@ How the SDK resolves parameters — `bundle` (local resolution from cached bundl
 
 ### Event definition
 A declaration of a track event's value type, unit, description, and optional property schema. → [Events](/concepts/events-and-metrics#event-definitions)
+
+### Evidence record
+An immutable, decision-ready snapshot of measured results for a [change phase](#change-phase) — canary health, experiment result, rollout health, adaptive status — with a rule-derived recommendation (`continue`, `advance`, `pause`, `rollback`, `complete`) and full provenance. Refreshing writes a new record and supersedes the old one; [decision records](#decision-record) cite evidence rather than recomputing it. → [Dashboard: Changes](/dashboard/changes)
 
 ### Exposure event
 An event emitted by the SDK when a parameter value is read. Records the user's allocation. The denominator for conversion-rate metrics. → [Events](/concepts/events-and-metrics)
@@ -160,6 +180,9 @@ Analysis approach that counts every user *assigned* to a variant, regardless of 
 ### Layer
 A pool of mutually exclusive policies over a disjoint set of parameters. Concurrent experiments in different layers are statistically independent. → [Layers](/concepts/layers)
 
+### Lifecycle template
+The phase scaffold chosen when a [change](#change) is created — **Gradual rollout**, **Canary → Experiment → Rollout**, or **Adaptive optimization**. It determines which [phases](#change-phase) are planned up front; you can still adjust them afterwards. → [Changes](/concepts/changes)
+
 ### Linear contextual
 The contextual bandit algorithm. SDK scores allocations locally using a trained linear model. → [Optimization](/experimentation/optimization#contextual-bandits)
 
@@ -171,6 +194,12 @@ A bundle embedded in your application binary (typically built in CI). Used as a 
 ### Management key
 A `traffical_sk_...` API key with `mgmt:read`/`mgmt:write` or `admin` scope. Can create and modify projects, layers, and policies. Must stay secret — never ship in client code. (The CLI normally uses device login instead.)
 
+### Measurement plan
+The per-[change](#change) snapshot resolved from the matching [measurement protocols](#measurement-protocol): primary and secondary metrics, guardrails, diagnostics, and per-phase rules, stamped with the change's [risk class](#risk-class). A change can't expose traffic until its plan is approved — low-risk plans built entirely from [certified](#certified) protocols with no unresolved risks approve automatically. → [Measurement protocols](/governance/measurement-protocols)
+
+### Measurement protocol
+A reusable measurement standard: metric rules, guardrail rules, diagnostics, and per-phase requirements, plus a predicate (surfaces, parameter tags, templates, risk classes) describing which changes it applies to. Protocols are versioned and move `draft` → [`certified`](#certified) → `deprecated`. → [Measurement protocols](/governance/measurement-protocols)
+
 ### Metric definition
 The combination of a fact (or event) and an aggregation rule (`conversion_rate`, `sum`, `count`). → [Dashboard: Metrics](/dashboard/metrics)
 
@@ -181,7 +210,7 @@ A dot-prefix convention for grouping related parameters (`checkout.button.color`
 
 ## O
 
-### Optimization engine
+### Optimizer
 Traffical's component that retrains adaptive policy state on a schedule. Reads events, updates allocation weights or model coefficients, republishes the bundle. → [Optimization](/experimentation/optimization)
 
 ### Orthogonal bucketing
@@ -202,7 +231,7 @@ The rule that overrides parameter values for selected users within a layer. → 
 The unit of experimentation — contains parameters, layers, policies, events, definitions, hashing configuration. → [Projects & environments](/concepts/projects-and-environments)
 
 ### Property group
-A reusable bundle of typed event properties (e.g. `geo: {market, country, currency}`) referenced by many event definitions. → [Type-safe events](/guides/type-safe-events#property-groups-for-reuse)
+A reusable bundle of typed event properties (e.g. `geo: {market, country, currency}`) referenced by many event definitions. → [Type-safe events](/guides/type-safe-events#2-property-groups-for-reuse)
 
 ### Property schema
 Type declarations for a track event's payload properties. Drives codegen, edge validation, and dashboard dimension extraction. → [Type-safe events](/guides/type-safe-events)
@@ -214,6 +243,9 @@ The process of computing parameter values for a user — bucket → policy → a
 
 ### Resolution mode
 For per-entity adaptive policies: `bundle` (entity weights ship in the bundle) or `edge` (SDK requests fresh weights per decision). → [Policies](/concepts/policies#per-entity-adaptive-policies)
+
+### Risk class
+A computed rating of a [change](#change) — `low`, `medium`, `high`, or `critical` — derived from the kinds of [surfaces](#surface) it touches (ranking and AI surfaces rate higher than frontend ones), bumped one rung when any [surface binding](#surface-binding) can mutate behavior (a write, decision, or side-effect role). Sets the approval bar: which protocols apply and how much [autonomy](#autonomy) the system gets. → [Approvals & autonomy](/governance/approvals-and-autonomy)
 
 ### Rollout
 A progressive ramp of a policy from a starting percentage to a target, optionally gated by health checks. → [Rollouts](/experimentation/rollouts)
@@ -235,8 +267,11 @@ A UUID auto-generated by browser SDKs for users without a `userId`. Persisted in
 ### Static policy
 A policy with fixed allocations. Bucket ranges only change if you change them. Contrast with [adaptive policy](#adaptive-policy).
 
-### Switchback
-An experimental design where the randomization unit is (region, time window) rather than the user. Used in marketplaces and operational systems. → [Canonical experiments](/guides/canonical-experiments#switchback)
+### Surface
+A named product context where parameterized behavior appears or has impact — the checkout page, a ranking service, an onboarding email. Each surface has a kind (frontend, backend, email, notification, ranking, AI, data, or other) that feeds [risk classification](#risk-class). A surface is product meaning, not a [layer](#layer). → [Surfaces](/concepts/surfaces)
+
+### Surface binding
+The link declaring that a [surface](#surface) consumes a [parameter](#parameter), with a role — `read`, `render`, `write`, `decision`, or `side_effect` — and a required flag. Mutating roles raise a change's [risk class](#risk-class); a required surface with no matching [certified](#certified) protocol is flagged as an unresolved risk that disables auto-approval of the [measurement plan](#measurement-plan) — a human must sign off with the gap recorded. → [Surfaces](/concepts/surfaces)
 
 ### Synced parameter
 A parameter managed by the CLI from [`.traffical/config.yaml`](/tools/config-file). Its definition is read-only in the dashboard to prevent drift. Contrast with [dashboard-only parameter](#dashboard-only-parameter).

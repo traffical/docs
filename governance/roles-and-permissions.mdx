@@ -1,0 +1,127 @@
+---
+title: "Roles, teams & API key scopes"
+description: "Who can do what in Traffical — organization roles, team ownership of parameter groups, and the scopes that bound each API key."
+---
+
+Access in Traffical is decided by three things: the **role** each person holds in your organization, the **teams** that own specific parameter groups, and the **scopes** on each API key. The dashboard hides what you can't do, but every check is enforced again on the server — hiding a button is a courtesy, not the security boundary.
+
+## Organization roles
+
+Every member of your organization has exactly one role:
+
+| Role | What it grants |
+|------|----------------|
+| **Viewer** | Read everything — projects, experiments, metrics, changes, decision logs. No writes. |
+| **Member** | Day-to-day building: create and edit experiments, parameters, layers, metrics, events, definitions, and draft changes. No privileged operations and no org administration. |
+| **Admin** | Everything a member can do, plus the [operate tier](#the-operate-tier) and org administration — teams, API keys, members, notifications, org settings. |
+| **Owner** | Everything, including billing. |
+
+Under the hood, every action maps to a permission in `resource:action` form (`metrics:read`, `policies:write`, …), and a role is a fixed bundle of those permissions. You don't manage individual permissions — you assign roles, and optionally narrow write access further with [teams](#teams). Roles are managed by organization admins and owners; ask one to change yours.
+
+### The operate tier
+
+A small set of permissions is deliberately held back from members and granted only to admins and owners:
+
+| Permission | What it allows |
+|------------|----------------|
+| `changes:propose` | Formally propose a transition on a [change](/concepts/changes) for approval |
+| `changes:operate` | Execute lifecycle transitions on a change — start a canary, promote to experiment, begin a rollout |
+| `policies:operate` | Operate live traffic on a policy directly — start, pause, resume, and ramp a rollout |
+| `defaults:promote` | Promote a winning allocation to the parameter default |
+
+Anyone who can operate a change can also propose one — `changes:propose` is always bundled with `changes:operate`.
+
+This is the line between *building* and *shipping*. A member can design an experiment end to end — parameters, allocations, goal metrics, a draft change — but formally proposing it for sign-off or moving real traffic takes an admin, an owner, or an [API key](#api-key-scopes) that explicitly carries `mgmt:operate`. Where a transition needs sign-off beyond a role check, [approvals](/governance/approvals-and-autonomy) layer on top.
+
+<Note>
+The Changes surface is enabled per organization. If you don't see **Changes** in the sidebar, it isn't enabled for your organization yet — the rest of this page applies unchanged.
+</Note>
+
+## Teams
+
+Teams let you go one step finer than org-wide roles: a team can **own parameter groups**, and once a group is owned, only that team writes to it.
+
+Create teams on your organization's **Teams** page (in the sidebar's **Organization** section). A team has a name, an optional description, and a URL-safe key generated from the name that can't change later. Creating, editing, and deleting teams — and managing who's on them — is an admin/owner action; everyone can view teams and their membership.
+
+<Frame caption="The Teams page">
+  <img src="/images/placeholders/teams-page.png" alt="Teams page with several teams listed and the members dialog open showing per-person team roles" />
+</Frame>
+
+Each person on a team has a team role, separate from their organization role:
+
+| Team role | What it grants |
+|-----------|----------------|
+| **Owner** | Full control of the team and its parameter groups |
+| **Approver** | Write + approve changes in owned groups |
+| **Member** | Write access to owned groups |
+| **Viewer** | Read-only |
+
+### Owning parameter groups
+
+On a project's **Parameters** page, an admin can assign an **owning team** to a parameter group. Ownership changes who can write:
+
+- **Reads stay org-wide.** Anyone whose role can read parameters still sees everything.
+- **Edits and deletions** of parameters in an owned group — and of the group itself — require being on the owning team as owner, approver, or member. Team viewers stay read-only.
+- **Unowned groups behave as before** — writable by anyone whose organization role allows it.
+- **Org admins and owners can still write to any group.** That override is recorded in the activity log, so break-glass access is never silent.
+
+API keys are not team members, so team ownership doesn't constrain them — a key is bounded only by its [scopes](#api-key-scopes) and its org or project scoping.
+
+A team that still owns parameter groups can't be deleted; reassign or clear those owners first. Deleting a team removes the access its members held through it.
+
+## API key scopes
+
+API keys are managed on your organization's **API Keys** page (in the sidebar when viewing your organization, or from the account menu). Viewing and managing keys is an admin/owner action. Each key's capabilities come from its scopes:
+
+| Scope | Grants |
+|-------|--------|
+| `sdk:read` | Fetch config bundles, request resolutions and decisions |
+| `sdk:write` | Send exposure, decision, and track events |
+| `mgmt:read` | Read everything a viewer can read |
+| `mgmt:write` | Create and edit — plus all reads. Never operates: no transitions, no traffic, no default promotion |
+| `mgmt:operate` | The [operate tier](#the-operate-tier), plus read/write of changes and policies |
+| `admin` | Everything an owner can do |
+
+The create dialog offers these as presets — **SDK Key** (`sdk:read` + `sdk:write`), **Management Key** (`mgmt:read` + `mgmt:write`), **Lifecycle Operate Key** (management plus `mgmt:operate`), and **Full Access** (`admin`).
+
+<Frame caption="The Create API Key dialog">
+  <img src="/images/placeholders/create-api-key-dialog.png" alt="Create API Key dialog with the key-type preset dropdown open showing the SDK, Management, Lifecycle Operate, and Full Access presets" />
+</Frame>
+
+Two properties are worth internalizing:
+
+- **SDK keys carry no management access.** A key with only `sdk:read`/`sdk:write` can serve decisions and ingest events but can't read or change any configuration — that's why SDK keys are safe to ship in client code. See [API key types](/api/overview#api-key-types).
+- **`mgmt:write` mirrors the member role.** An automation holding it can build — create metrics, edit policies, push config — but can't start traffic. Grant `mgmt:operate` only to automations you trust to execute transitions.
+
+Keys are **org-wide or scoped to a single project** (chosen at creation), and can carry an expiry. The full key is shown exactly once when created; after that the list shows only the prefix, scopes, creation date, and last use. Deleting a key revokes it immediately.
+
+<Tip>
+Give each integration its own narrowly scoped key. A CI pipeline that pushes config needs a project-scoped Management Key — not Full Access. The list flags keys that have never been used, which makes pruning easy.
+</Tip>
+
+## How permissions surface in the dashboard
+
+The dashboard reads your permissions and adjusts itself: sidebar sections you can't read are hidden, actions you can't take — **New Team**, **Create API Key** — don't render at all, and transition buttons render disabled with a hint naming the missing permission. A viewer sees the whole product with nothing to press.
+
+That filtering is UX, not enforcement. Every request is re-checked server-side, so a hand-crafted request without the right permission fails with a `403` no matter what the UI showed. The same is true of team ownership: the write check on an owned parameter group happens on the server, per request.
+
+## MCP connections
+
+Connections to the [MCP server](/tools/mcp-server) follow the same model. Sign in with OAuth and the agent acts as *you* — your role's permissions apply. Connect with an API key and the key's scopes apply. Either way the tool list is filtered to what the token can actually do: a read-only connection sees read tools only, and proposing or executing transitions requires the [operate tier](#the-operate-tier) — `mgmt:operate` on a key, or an admin or owner signed in via OAuth.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Approvals & autonomy" icon="user-check" href="/governance/approvals-and-autonomy">
+    What needs sign-off beyond a role check, and who gives it.
+  </Card>
+  <Card title="Measurement protocols" icon="clipboard-check" href="/governance/measurement-protocols">
+    The measurement rules changes are held to.
+  </Card>
+  <Card title="API overview" icon="key" href="/api/overview">
+    Key types, endpoints, and error shapes.
+  </Card>
+  <Card title="MCP server" icon="robot" href="/tools/mcp-server">
+    Connect agents with least-privilege scopes.
+  </Card>
+</CardGroup>

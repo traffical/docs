@@ -12,19 +12,23 @@ This is a tour. Each section links to a deeper walkthrough.
 The URL structure mirrors the [hierarchy](/concepts/projects-and-environments): organization → project → resource.
 
 ```
-app.traffical.io/{orgKey}                          ← org-level: API keys, billing, members
-app.traffical.io/{orgKey}/{projectKey}             ← project-level: everything below
-app.traffical.io/{orgKey}/{projectKey}/parameters
+app.traffical.io/{orgKey}                          ← org-level: teams, notifications, API keys, billing
+app.traffical.io/{orgKey}/{projectKey}             ← the project overview: KPIs + impact
+app.traffical.io/{orgKey}/{projectKey}/changes
+app.traffical.io/{orgKey}/{projectKey}/surfaces
 app.traffical.io/{orgKey}/{projectKey}/layers
+app.traffical.io/{orgKey}/{projectKey}/parameters
 app.traffical.io/{orgKey}/{projectKey}/events
 app.traffical.io/{orgKey}/{projectKey}/metrics
-app.traffical.io/{orgKey}/{projectKey}/definitions
-app.traffical.io/{orgKey}/{projectKey}/pipeline
 app.traffical.io/{orgKey}/{projectKey}/decisions
+app.traffical.io/{orgKey}/{projectKey}/ai
+app.traffical.io/{orgKey}/{projectKey}/definitions
+app.traffical.io/{orgKey}/{projectKey}/workflow-runs
+app.traffical.io/{orgKey}/{projectKey}/data-freshness
 app.traffical.io/{orgKey}/{projectKey}/settings
 ```
 
-The sidebar follows the same structure.
+The sidebar follows the same structure, in four groups: the project pages (under the project's name), the pipeline pages, project settings, and the organization pages.
 
 <Frame caption="Dashboard home — pick an organization">
   <img src="/images/placeholders/dashboard-home.png" alt="Dashboard home placeholder" />
@@ -32,51 +36,119 @@ The sidebar follows the same structure.
 
 ## What's where
 
-### Organization
-
-<CardGroup cols={2}>
-  <Card title="API keys" icon="key" href="/dashboard/settings#api-keys">
-    Create and revoke `traffical_sk_...` keys (SDK or management scope) per project + environment.
-  </Card>
-  <Card title="Billing" icon="credit-card">
-    Plan, usage, invoices.
-  </Card>
-  <Card title="Members" icon="users">
-    Invite teammates, manage roles.
-  </Card>
-  <Card title="System" icon="server">
-    Org-wide settings.
-  </Card>
-</CardGroup>
+Some sidebar items appear only when you hold the matching [permission](/governance/roles-and-permissions) or when the feature is enabled for your organization — if you don't see **Changes** or **Billing**, that's why.
 
 ### Project
 
 <CardGroup cols={2}>
+  <Card title="Overview" icon="house" href="#the-project-overview">
+    The project's landing page — KPIs, aggregated impact, traffic, recent activity. Toured below.
+  </Card>
+  <Card title="Setup" icon="wand-magic-sparkles" href="/guides/first-experiment">
+    Step-by-step wizard for wiring up a new project — warehouse, SDK, first parameters — with progress tracked in the sidebar.
+  </Card>
+  <Card title="Changes" icon="waypoints" href="/dashboard/changes">
+    Governed change lifecycle — wizard, approvals, transitions. Enabled per organization; if you don't see **Changes** in the sidebar it isn't enabled for you yet.
+  </Card>
+  <Card title="Surfaces" icon="window-maximize" href="/concepts/surfaces">
+    The product contexts changes land in — where risk is classified and [measurement protocols](/governance/measurement-protocols) attach.
+  </Card>
+  <Card title="Layers" icon="layer-group" href="/dashboard/layers-and-policies">
+    Traffic containers and the policies inside them. The bulk of day-to-day experiment work.
+  </Card>
   <Card title="Parameters" icon="sliders" href="/dashboard/parameters">
     All parameters in the project — synced (from CLI) and dashboard-only.
-  </Card>
-  <Card title="Layers & policies" icon="layer-group" href="/dashboard/layers-and-policies">
-    Where experiments are configured. The bulk of day-to-day work.
   </Card>
   <Card title="Events" icon="bolt" href="/dashboard/events">
     Event definitions, property schemas, the event explorer.
   </Card>
-  <Card title="Definitions" icon="database" href="/dashboard/definitions">
-    Entities, assignments, facts — for warehouse-native metrics.
-  </Card>
   <Card title="Metrics" icon="chart-line" href="/dashboard/metrics">
     Metric definitions and their results.
-  </Card>
-  <Card title="Pipeline" icon="forward" href="/dashboard/pipeline">
-    Pipeline runs, freshness, costs.
   </Card>
   <Card title="Decisions" icon="clock-rotate-left" href="/dashboard/decisions">
     Audit log of every policy lifecycle change.
   </Card>
-  <Card title="Settings" icon="gear" href="/dashboard/settings">
-    Warehouse connection, SDK sync, hashing config, maintenance.
+  <Card title="AI Status" icon="robot" href="#the-ai-optimization-page">
+    Every adaptive policy, grouped by convergence state. Toured below.
   </Card>
 </CardGroup>
+
+### Pipeline
+
+<CardGroup cols={2}>
+  <Card title="Definitions" icon="database" href="/dashboard/definitions">
+    Entities, assignments, facts — for warehouse-native metrics.
+  </Card>
+  <Card title="Workflow Runs" icon="arrows-rotate" href="/dashboard/pipeline">
+    Every pipeline run — status, timing, per-run detail.
+  </Card>
+  <Card title="Data Freshness" icon="gauge" href="/dashboard/pipeline">
+    How current the computed warehouse data is, per definition.
+  </Card>
+</CardGroup>
+
+### Settings
+
+The settings group holds [project settings](/dashboard/settings): warehouse connection, SDK sync, hashing config, pipeline scheduling, maintenance.
+
+### Organization
+
+<CardGroup cols={2}>
+  <Card title="Teams" icon="users" href="/governance/roles-and-permissions">
+    Members, roles, and team ownership of parameter groups.
+  </Card>
+  <Card title="Notifications" icon="bell" href="/dashboard/notifications">
+    Choose which alerts you get and where they're delivered.
+  </Card>
+  <Card title="API keys" icon="key" href="/concepts/projects-and-environments#api-keys">
+    Create and revoke `traffical_sk_...` keys (SDK or management scope) per project + environment.
+  </Card>
+  <Card title="Billing" icon="credit-card" href="/dashboard/usage-and-billing">
+    Plan, usage, invoices.
+  </Card>
+</CardGroup>
+
+## The project overview
+
+The project's landing page answers "how is this project doing right now":
+
+- **KPI cards** — active layers broken down by policy state, plus exposures, unique users, and reward rate over the last 24 hours, each with a trend sparkline.
+- **Impact** — what your concluded changes are worth ([below](#impact)).
+- **Traffic Overview** — decisions, exposures, tracks, and rewards per day, alongside a view of layer bucket allocation.
+- **Recent activity** — the latest project events, so you catch what teammates (and the optimizer) did.
+
+Data refreshes automatically about every five minutes; the header shows the timestamp of the data you're looking at.
+
+### Impact
+
+The **Impact** section aggregates concluded [changes](/concepts/changes) and standalone policies into one program-level answer: what has shipped, and what is it worth per day?
+
+<Frame caption="Project overview — the Impact section">
+  <img src="/images/placeholders/project-overview-impact.png" alt="Impact section on the project overview: program strip, per-metric table, and in-flight block" />
+</Frame>
+
+- **Program strip** — shipped winners (with inconclusive conclusions counted alongside as learning), win rate, reverted changes (counted as avoided harm, never as impact), and velocity versus the previous window of the same length.
+- **Per-metric table** — one row per affected metric: daily impact with a confidence interval, the window total (a change shipped mid-window accrues only for its live days), footprint, and a cumulative-impact sparkline. Expand a row to see each contributing change.
+- **Filters** — narrow to a single [surface](/concepts/surfaces), restrict to results where the metric was the change's **primary** metric, and pick any window with the date-range picker (default: the last 90 days).
+- **In flight (unshipped)** — current readings of still-running changes, shown separately and never summed into the totals. A live lift isn't a realized win until the change ships.
+- **Optimization (adaptive policies)** — the estimated value of adaptive traffic allocation, versus a uniform split (and versus control where that comparison is causal). Also display-only, never summed into the totals.
+
+Impact figures are **estimates, not measurements**. Each shipped win's ship-time result is projected to full rollout, then discounted by its false-positive risk using the program's observed win rate; group totals assume independence between changes, and interactions between overlapping changes and novelty decay are not modeled. The always-visible note under the table restates this, and its popover carries the exact formulas — see [Impact methodology](/statistics/impact-methodology) for the full math.
+
+## The AI optimization page
+
+The **AI Status** entry in the sidebar opens the **AI Optimization** page: every [adaptive policy](/experimentation/optimization) in the project on one screen, grouped by where it is in its learning lifecycle.
+
+<Frame caption="AI Optimization — adaptive policies by convergence state">
+  <img src="/images/placeholders/ai-optimization-page.png" alt="AI Optimization page with summary strip and Converged and Learning policy groups" />
+</Frame>
+
+- **Converged** — the optimizer has settled: one allocation now carries most of the traffic. These prompt you to review the result and complete the policy to lock in the winner.
+- **Learning** — still exploring: each card shows the live allocation split, the algorithm (Thompson Sampling, Epsilon Greedy, UCB1), the goal it optimizes, and exposures so far.
+
+Above the groups, a summary strip totals running adaptive policies, 24-hour exposures, estimated lift, and the time of the optimizer's last action. Non-running policies collapse out of the way below, and a **Recent Activity** feed shows each traffic shift the optimizer made — previous split and new split side by side — so allocation moves are never a mystery. (Optimization milestones also land in the [decision log](/dashboard/decisions).)
+
+Use this page as your daily check on autonomous optimization: is anything converged and waiting on you, is anything erroring, is the lift holding up. See [Choosing an algorithm](/experimentation/choosing-an-algorithm) for picking between the algorithms.
 
 ## Day-to-day flow
 
@@ -91,13 +163,7 @@ Parameters live in code (the source of truth). Policies live in the dashboard (b
 
 ## Roles
 
-| Role | Can |
-|------|-----|
-| **Admin** | Everything, including billing and member management |
-| **Editor** | Create/edit/delete experiments, parameters, definitions |
-| **Viewer** | Read-only |
-
-Roles are managed at the org level. Project-level scoping (so a team can only edit one specific project) is on the near roadmap.
+Every member of your organization holds one role — **Viewer**, **Member**, **Admin**, or **Owner**. Viewers read everything, members do the day-to-day building, and a small operate tier — starting live traffic, executing change transitions, promoting defaults — is reserved for admins and owners. Teams can narrow write access further by owning parameter groups. The full model, including API key scopes, is in [Roles, teams & API key scopes](/governance/roles-and-permissions).
 
 ## Audit trail
 

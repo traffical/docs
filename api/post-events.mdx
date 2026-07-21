@@ -11,8 +11,6 @@ Ingests events from SDKs and custom integrations. Events are processed for real-
 POST /v1/events
 ```
 
-Also accepts `POST /v1/events/batch` as an alias.
-
 ### Headers
 
 | Header | Required | Description |
@@ -22,42 +20,48 @@ Also accepts `POST /v1/events/batch` as an alias.
 
 ### Body
 
-An array of events (maximum 1000 per request):
+An `events` array (maximum 1000 events per request):
 
 ```json
 {
   "events": [
     {
       "type": "exposure",
-      "orgId": "org_acme",
       "projectId": "proj_marketplace",
       "env": "production",
       "unitKey": "user_789",
       "timestamp": "2026-05-21T10:30:00Z",
       "decisionId": "dec_abc123",
+      "assignments": {
+        "checkout.button.color": "#22C55E"
+      },
       "layers": [
         {
           "layerId": "layer_checkout",
           "policyId": "policy_color_test",
           "allocationName": "treatment",
-          "bucket": 7420
+          "bucket": 742
         }
       ]
     },
     {
       "type": "track",
-      "orgId": "org_acme",
       "projectId": "proj_marketplace",
       "env": "production",
       "unitKey": "user_789",
       "timestamp": "2026-05-21T10:35:00Z",
       "event": "purchase",
+      "value": 49.99,
       "properties": { "order_total": 49.99, "currency": "USD" },
       "decisionId": "dec_abc123"
     }
   ]
 }
 ```
+
+Tenant fields are derived from the API key: the organization always comes from the key (an `orgId` in the payload is ignored if it differs), and `projectId` comes from the key when the key is project-scoped. Only org-scoped keys need to set `projectId` on each event.
+
+Events are validated individually. An invalid event is skipped and reported in `validationErrors` — it never fails the rest of the batch.
 
 ## Event schemas
 
@@ -70,8 +74,10 @@ Tracked automatically by SDKs when parameters are resolved.
 | `type` | `"exposure"` | Yes | Event type |
 | `unitKey` | `string` | Yes | User identifier for bucketing |
 | `timestamp` | `string` | Yes | ISO 8601 timestamp |
+| `assignments` | `object` | Yes | Resolved parameter values the user was exposed to |
 | `layers` | `LayerAssignment[]` | Yes | Layer assignments (see below) |
 | `decisionId` | `string` | No | Links exposure to subsequent track events |
+| `configVersion` | `string` | No | `version` of the config bundle the SDK evaluated against |
 | `userId` | `string` | No | User identifier (if different from unitKey) |
 | `sessionId` | `string` | No | Session identifier |
 | `sdkName` | `string` | No | SDK name (for example, `js-client`) |
@@ -79,12 +85,15 @@ Tracked automatically by SDKs when parameters are resolved.
 
 **LayerAssignment:**
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `layerId` | `string` | Layer ID |
-| `policyId` | `string` | Policy that was applied |
-| `allocationName` | `string` | Allocation name (for example, `control`, `treatment`) |
-| `bucket` | `number` | Computed bucket number (0–999) |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `layerId` | `string` | Yes | Layer ID |
+| `bucket` | `number` | Yes | Computed bucket (0 to `bucketCount − 1`; 0–999 with the default 1000 buckets) |
+| `policyId` | `string` | No | Policy that was applied |
+| `policyKey` | `string` | No | Stable key of the policy (for warehouse data matching) |
+| `allocationName` | `string` | No | Allocation name (for example, `control`, `treatment`) |
+| `allocationKey` | `string` | No | Stable key of the allocation (for warehouse data matching) |
+| `probability` | `number` | No | Propensity of the chosen allocation at decision time, in (0, 1]. Set by SDKs for adaptive policies; omitted for static policies. |
 
 ### Track event
 
@@ -92,24 +101,28 @@ Custom events sent by your code for analytics and optimization.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `type` | `"track"` | yes | Event type |
-| `orgId`, `projectId`, `env` | `string` | yes | Identify the scope |
-| `unitKey` | `string` | yes | User identifier (or whatever the project's unit key is) |
-| `timestamp` | `string` | yes | ISO 8601 timestamp |
-| `event` | `string` | yes | Event name (e.g. `purchase`, `signup`) |
-| `properties` | `Record<string, unknown>` | no | Event payload (typed via [`generate-types`](/tools/cli#type-safe-events)) |
-| `decisionId` | `string` | no | Links to the decision that preceded this event |
-| `attribution` | `TrackAttribution[]` | no | Explicit attribution metadata (advanced) |
+| `type` | `"track"` | Yes | Event type |
+| `unitKey` | `string` | Yes | User identifier (or whatever the project's unit key is) |
+| `timestamp` | `string` | Yes | ISO 8601 timestamp |
+| `event` | `string` | Yes | Event name (e.g. `purchase`, `signup`) |
+| `value` | `number` | No | Primary numeric value for optimization (e.g. order total) |
+| `values` | `Record<string, number>` | No | Secondary values for multi-objective optimization |
+| `properties` | `Record<string, unknown>` | No | Event payload (typed via [`generate-types`](/tools/cli#type-safe-events)) |
+| `decisionId` | `string` | No | Links to the decision that preceded this event |
+| `attribution` | `TrackAttribution[]` | No | Explicit attribution metadata (advanced) |
+
+If the project defines a property schema for an event, the payload is validated against it. In `warn` mode the event is still stored and the violations appear in `schemaWarnings`; in `reject` mode the event is dropped and reported in `validationErrors`.
 
 ### Decision event
 
-Logged by the server-side `/v1/decide` endpoint.
+Recorded automatically when a decision is made — by [`POST /v1/resolve`](/api/post-resolve) and by server-mode SDKs. You don't normally send these yourself.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `type` | `"decision"` | Yes | Event type |
 | `unitKey` | `string` | Yes | User identifier |
 | `timestamp` | `string` | Yes | ISO 8601 timestamp |
+| `assignments` | `object` | Yes | Resolved parameter values |
 | `layers` | `LayerAssignment[]` | Yes | Layer assignments |
 | `latencyMs` | `number` | No | Processing latency in milliseconds |
 
@@ -120,29 +133,82 @@ Logged by the server-side `/v1/decide` endpoint.
 ```json
 {
   "accepted": 2,
-  "written": 2
+  "pipelineWritten": 2,
+  "parquetPipelineWritten": 2
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `accepted` | `number` | Number of valid events in the request |
-| `written` | `number` | Number of events successfully processed |
+| `accepted` | `number` | Number of events that passed validation and were stored |
+| `pipelineWritten`, `parquetPipelineWritten` | `number` | Internal delivery diagnostics. Safe to ignore — `accepted` is the number that matters. |
+| `validationErrors` | `{index, error}[]` | Present when some events were invalid. `index` refers to the event's position in the request. The rest of the batch is still accepted. |
+| `schemaWarnings` | `{index, event, violations}[]` | Present when track events violated a `warn`-mode property schema. The events are still stored. |
+| `pipelineErrors` | `{pipeline, error}[]` | Internal delivery diagnostics, present when part of the delivery reported an error on a batch that was still accepted. Do **not** retry — the batch was stored, and a resend would duplicate it. |
+
+An empty `events` array returns `{ "accepted": 0 }`.
 
 ### 400 Bad request
 
 ```json
 {
-  "error": "Bad Request",
-  "message": "events must be a non-empty array (max 1000)"
+  "error": {
+    "code": "BAD_REQUEST",
+    "message": "Batch size exceeds limit of 1000"
+  }
 }
 ```
+
+Also returned for an invalid JSON body (`Invalid JSON body`) and a missing `events` array (`Missing events array`).
 
 ### 401 Unauthorized
 
 ```json
 {
-  "error": "Unauthorized",
-  "message": "Invalid or expired API key"
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Invalid API key"
+  }
 }
 ```
+
+### 403 Forbidden
+
+Sending events requires the `sdk:write` scope. A key without it — for example, a read-only key — gets a structured error, not a bare `403`:
+
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "SDK write scope required"
+  }
+}
+```
+
+### 503 Events not stored
+
+Returned when event storage is temporarily unavailable and **nothing** from the batch was stored. The body sets `retryable: true` and the response carries a `Retry-After` header (currently `2` seconds) — resend the same batch; since nothing was stored, a retry cannot duplicate events.
+
+```json
+{
+  "error": {
+    "code": "EVENTS_NOT_STORED",
+    "message": "Event storage temporarily unavailable — retry this batch shortly"
+  },
+  "accepted": 0,
+  "retryable": true,
+  "pipelineErrors": [
+    { "pipeline": "events", "error": "send failed" }
+  ]
+}
+```
+
+## Batch
+
+```
+POST /v1/events/batch
+```
+
+Identical to `POST /v1/events` — same request body, same response, same authentication, same 1000-event limit. Browser SDKs post their queued events to this path, including a final keepalive request during page unload, so events from a closing tab still arrive with the same delivery guarantee as `navigator.sendBeacon` (but with an `Authorization` header, which `sendBeacon` itself cannot send).
+
+Use whichever path you prefer in custom integrations; always batch events rather than sending one request per event.

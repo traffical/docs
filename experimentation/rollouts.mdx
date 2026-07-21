@@ -121,6 +121,10 @@ You can pause, resume, jump to a specific percentage, or roll back manually from
 
 You don't need to do all four. A low-risk feature flag may go straight from rollout to complete. An adaptive policy can stay in learning mode indefinitely.
 
+<Note>
+When Changes is enabled for your organization, this lifecycle is what a [change](/concepts/changes) runs for you: each phase — canary, experiment, rollout — executes as a governed phase policy, ramped in health-gated steps with an approved measurement plan attached.
+</Note>
+
 ## Feature flags as rollouts
 
 A boolean parameter with a rollout policy is a feature flag with built-in safety:

@@ -5,6 +5,8 @@ description: "Authentication, base URL, and the endpoints SDKs use to fetch conf
 
 The Traffical SDK API is served from `sdk.traffical.io`. SDKs use it to fetch config bundles, send events, and (in `server` evaluation mode) request resolutions. You can also call it directly for server-to-server integrations.
 
+This section covers the SDK runtime endpoints only: config, resolve, decide, and events. Project and organization management — creating parameters, layers, and policies — happens through the dashboard, the [CLI](/tools/cli), and the [MCP server](/tools/mcp-server).
+
 ## Base URL
 
 ```
@@ -36,11 +38,11 @@ Every key has the same `traffical_sk_...` prefix. What a key can do — and whet
 
 SDK keys are safe to include in client-side JavaScript: they can fetch the project's bundle and send events, but cannot modify configuration in any way. Management keys can change configuration and must never ship in client code.
 
-A `mgmt:read` key also authenticates AI agents against the read-only [MCP server](/tools/mcp-server).
+A `mgmt:read` key gives AI agents a read-only connection to the [MCP server](/tools/mcp-server); write tools require separate write scopes.
 
 ### Managing keys
 
-Create and revoke keys under **Settings → API keys** in the dashboard. Keys can be scoped to a project and environment, given an expiry, or revoked at any time.
+Create and revoke keys on your organization's **API Keys** page in the dashboard (from the account menu). Keys can be scoped to a project, given an expiry, or revoked at any time.
 
 ## Endpoints
 
@@ -49,9 +51,9 @@ Create and revoke keys under **Settings → API keys** in the dashboard. Keys ca
 | `GET` | [`/v1/config/:projectId`](/api/get-config) | Fetch the config bundle | `sdk:read` |
 | `POST` | [`/v1/resolve`](/api/post-resolve) | Server-side resolution (for `evaluationMode: "server"`) | `sdk:read` |
 | `POST` | [`/v1/decide/:policyId`](/api/post-decide) | Per-entity adaptive decision | `sdk:read` |
+| `POST` | [`/v1/decide/batch`](/api/post-decide#batch) | Batch of per-entity decisions | `sdk:read` |
 | `POST` | [`/v1/events`](/api/post-events) | Send exposure, decision, and track events | `sdk:write` |
-
-The `/v1/events/batch` endpoint is an alias for `POST /v1/events` for clients that prefer the explicit "batch" naming.
+| `POST` | [`/v1/events/batch`](/api/post-events#batch) | Identical to `/v1/events` — the path browser SDKs use to flush queued events | `sdk:write` |
 
 ## Caching
 
@@ -59,27 +61,32 @@ The `/v1/events/batch` endpoint is an alias for `POST /v1/events` for clients th
 
 ## Error responses
 
-All errors share a consistent shape:
+All errors share a consistent shape — an `error` object with a stable machine-readable `code` and a human-readable `message`:
 
 ```json
 {
-  "error": "Unauthorized",
-  "message": "Invalid or expired API key"
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Invalid API key"
+  }
 }
 ```
 
-| Status | Description |
-|--------|-------------|
-| `400` | Bad request — invalid payload or missing required fields |
-| `401` | Unauthorized — missing or invalid API key |
-| `403` | Forbidden — API key lacks required scope |
-| `404` | Not found — resource does not exist |
-| `429` | Rate limited |
-| `500` | Internal server error |
+| Status | Code | Description |
+|--------|------|-------------|
+| `400` | `BAD_REQUEST` | Invalid payload or missing required fields |
+| `401` | `UNAUTHORIZED` | Missing, invalid, expired, or revoked API key |
+| `403` | `FORBIDDEN` | API key lacks the required scope, or a tenant header doesn't match the key |
+| `404` | `NOT_FOUND` | Resource does not exist (for example, no bundle for the project and environment) |
+| `429` | `RATE_LIMITED` | Too many requests — retry after the `Retry-After` header |
+| `500` | `INTERNAL_ERROR` | Internal server error |
+| `503` | `SERVICE_UNAVAILABLE`, `EVENTS_NOT_STORED` | Transient storage unavailability — retry after the `Retry-After` header when present (config and events set it); otherwise retry shortly |
+
+`503` responses are always safe to retry: they mean nothing was stored or served, so a retry cannot duplicate data.
 
 ## Rate limits
 
-Limits are generous for SDK traffic and scale with your plan. Two things to know:
+Limits are generous for SDK traffic and scale with your plan. Rate-limited requests return `429` with a `RATE_LIMITED` error code and a `Retry-After` header (currently `10` seconds). Two things to know:
 
 - `GET /v1/config/:projectId` responses are heavily cached at the edge — most SDK refreshes never reach an origin.
 - `POST /v1/events` accepts batches of up to 1000 events per request. Always batch; never send one event per request from a server.
