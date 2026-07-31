@@ -42,7 +42,7 @@ Once it's installed, just talk to your agent normally — it pulls the skill in 
     Adds `track()` at the real conversion point (not on click or render), with the right signature for each SDK.
   </Card>
   <Card title="Audit a codebase" icon="magnifying-glass">
-    Scans for hardcoded values and hand-rolled flags (env toggles, `if (FLAG)`, LaunchDarkly/Split/Unleash) and proposes a prioritized migration.
+    Finds the product decisions frozen in your code — hardcoded values, hand-rolled flags (env toggles, `if (FLAG)`, LaunchDarkly/Split/Unleash), model/prompt choices — and proposes a small ranked set of parameters, with a reviewable state file so dismissed findings stay dismissed.
   </Card>
 </CardGroup>
 
@@ -103,7 +103,7 @@ When you ask the agent to build something new, the skill makes it build it **par
 
 Point the agent at code you already have:
 
-- **Audit** — it produces a prioritized list of what to move into Traffical (hardcoded values, magic numbers, hand-rolled flags), with a ready-to-paste `config.yaml` sketch and a rollout order — without changing your code until you ask.
+- **Audit** — it inspects the repo and proposes a *small, ranked* set of product decisions worth managing (capped at ~10) — hand-rolled flags, revenue levers, ranking weights, model/prompt choices — each with `file:line` evidence, a ready-to-paste parameter block whose default equals the current value (so nothing changes on day one), and the outcome metric that would measure it, or the missing event to define first. It changes no code and writes two artifacts: `TRAFFICAL_AUDIT.md` (the report — including untracked conversions, what it deliberately did *not* flag, and a suggested order) and `.traffical/audit.yaml` (review state — mark findings accepted or dismissed with a reason, and re-audits respect those decisions instead of re-proposing them).
 - **Parametrize** — it turns a specific hardcoded value into a parameter: defines it in config with the default equal to the *current* value (so behavior is unchanged on day one), runs `push`, then replaces the literal with an SDK read.
 - **Migrate flags** — it converts env-var toggles or third-party flags into Traffical parameters, usually *richer* than a 1:1 boolean (e.g. a `NEXT_PUBLIC_NEW_HERO` env flag becomes a `ui.hero.variant` enum plus `copy.hero.headline`, so you can test layouts and copy, not just on/off).
 
@@ -118,7 +118,7 @@ The skill triggers on natural requests — you don't name it. A few examples:
 | You say | The agent does |
 |---------|----------------|
 | "Set us up with Traffical and put the checkout button color behind it." | Logs in, inits the project, installs `@traffical/react`, defines `checkout.button.color`, wires the provider, reads it via the SDK, and pushes. |
-| "Go through this repo and tell me what we should move into Traffical." | Writes a prioritized `TRAFFICAL_AUDIT.md` — hand-rolled flags, revenue levers, untracked conversions — with a config sketch and rollout order. No code changed. |
+| "Go through this repo and tell me what we should move into Traffical." | Writes a ranked `TRAFFICAL_AUDIT.md` — hand-rolled flags, revenue levers, untracked conversions — plus `.traffical/audit.yaml` review state, so you can accept or dismiss each finding and re-audit later. No code changed. |
 | "Make the pricing card's discount, CTA, and highlight color controllable without a redeploy." | Lifts each value into a typed parameter (number with constraints, strings), reads them via the SDK with in-code defaults, and pushes. |
 | "We're flying blind on checkout — nothing fires when an order completes." | Defines a `purchase` currency event and fires `track()` at the success point (with `flushEvents()` before navigation, where relevant). |
 
