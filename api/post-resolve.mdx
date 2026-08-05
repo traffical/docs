@@ -17,7 +17,7 @@ POST /v1/resolve
 
 | Header | Required | Description |
 |--------|----------|-------------|
-| `Authorization` | Yes | `Bearer traffical_sk_...` (requires `sdk:read` scope) |
+| `Authorization` | Yes | `Bearer traffical_sk_...` — **server-side SDK key only**; publishable keys are rejected |
 | `Content-Type` | Yes | `application/json` |
 | `X-Project-Id` | Only for org-scoped keys | Selects the project when the key is not pinned to one. For project-pinned keys the header is unnecessary; a mismatching value is rejected with `403`. |
 | `X-Env` | No | Environment name. Defaults to `production`; the body `env` field takes precedence. |

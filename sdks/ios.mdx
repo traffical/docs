@@ -38,7 +38,7 @@ struct MyApp: App {
             orgId: "org_acme",
             projectId: "proj_marketplace",
             env: "production",
-            apiKey: "traffical_sk_..."
+            apiKey: "traffical_pk_..."
         ))
         // `initialize()` is non-throwing — the SDK fails open to localConfig,
         // the disk cache, or your inline defaults if the fetch is slow or fails.
@@ -140,7 +140,7 @@ Events are batched in memory and flushed in the background (and on app backgroun
 | `orgId` | `String` | required | Organization ID |
 | `projectId` | `String` | required | Project ID |
 | `env` | `String` | required | Environment name (`"production"`, `"staging"`, etc.) |
-| `apiKey` | `String` | required | SDK key (`traffical_sk_...`) |
+| `apiKey` | `String` | required | Publishable SDK key (`traffical_pk_...`) |
 | `baseURL` | `URL` | `https://sdk.traffical.io` | SDK API base URL |
 | `localConfig` | `TrafficalConfigBundle?` | `nil` | Build-time baked fallback bundle for instant cold-start |
 | `evaluationMode` | `.bundle \| .server` | `.bundle` | Resolve locally from the bundle, or delegate to the edge per call |
@@ -189,7 +189,7 @@ traffical = TrafficalClient(options: .init(
     orgId: "org_acme",
     projectId: "proj_marketplace",
     env: "production",
-    apiKey: "traffical_sk_...",
+    apiKey: "traffical_pk_...",
     deviceInfoProvider: DefaultDeviceInfoProvider()
 ))
 ```
@@ -205,7 +205,7 @@ traffical = TrafficalClient(options: .init(
     orgId: "org_acme",
     projectId: "proj_marketplace",
     env: "production",
-    apiKey: "traffical_sk_...",
+    apiKey: "traffical_pk_...",
     evaluationMode: .server
 ))
 ```

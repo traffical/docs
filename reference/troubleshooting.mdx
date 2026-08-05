@@ -22,14 +22,14 @@ Find your symptom, work through the likely causes in order, apply the fix. Every
 
 | Status | Message | Cause |
 |--------|---------|-------|
-| `401` | `Missing Authorization header` | No `Authorization: Bearer traffical_sk_...` header on the request |
+| `401` | `Missing Authorization header` | No `Authorization: Bearer traffical_...` header on the request |
 | `401` | `Invalid API key` | The key doesn't exist — typo, truncation, or the wrong environment variable |
 | `401` | `API key has expired` / `API key has been revoked` | The key was expired or revoked on the **API Keys** page |
-| `403` | `SDK read scope required` | The key lacks `sdk:read` — you're probably using a management key in an SDK |
-| `403` | `SDK write scope required` | The key lacks `sdk:write`, so it can fetch config but not send events |
+| `403` | Wrong key type for this endpoint | A management or admin key sent to an SDK endpoint, or a publishable key sent to `/v1/resolve` or `/v1/decide/*` (those need a server-side SDK key). Legacy keys report `SDK read scope required` instead |
+| `403` | `SDK write scope required` | A legacy key lacking `sdk:write` — it can fetch config but not send events |
 | `403` | Tenant mismatch | An `X-Org-Id` or `X-Project-Id` header doesn't match the key's organization or pinned project |
 
-**Fix** — open your organization's **API Keys** page (from the account menu) and check the key's scopes. SDKs need both `sdk:read` and `sdk:write`; management scopes (`mgmt:read`, `mgmt:write`, `admin`) don't grant SDK access, and SDK scopes don't grant management access — the [key types table](/api/overview#api-key-types) shows the split. If the key is expired or revoked, mint a new one; keys are cheap, and can be pinned to a single project.
+**Fix** — open your organization's **API Keys** page (from the account menu) and check the key's **type**. SDKs need a publishable (`traffical_pk_...`) or server-side (`traffical_sk_...`) SDK key; management and admin keys don't reach SDK endpoints, and SDK keys don't reach the control plane — the [key types table](/api/overview#api-key-types) shows the split. Server-side resolution (`/v1/resolve`, `/v1/decide/*`) additionally needs a server-side key, not a publishable one. If the key is expired or revoked, mint a new one — or **rotate** it, which issues a replacement and keeps the old one valid for 7 days. Keys are cheap and can be pinned to a single project.
 
 ## Parameters resolve to their defaults
 
@@ -52,7 +52,7 @@ Find your symptom, work through the likely causes in order, apply the fix. Every
 
 **Likely causes**
 
-1. **The key can't write.** Sending events needs `sdk:write`; without it the whole batch is refused with `403` and `SDK write scope required`.
+1. **The key can't write.** Sending events needs an SDK key — publishable or server-side. A management or admin key is refused with `403`, as is a legacy key lacking `sdk:write` (`SDK write scope required`).
 2. **Schema enforcement rejected them.** If the event's definition has `schemaEnforcement: reject`, an event violating the property schema is dropped and reported in the response's `validationErrors` array with `Schema validation failed: ...`. In `warn` mode the event is stored and the violations appear in `schemaWarnings` instead — so "warn shows data, reject shows nothing" is the tell. See [property schemas](/concepts/events-and-metrics#property-schemas).
 3. **The event name doesn't match its definition.** Metrics aggregate a specific event definition by exact name. A typo'd name (`purchase_completed` vs `purchase`) doesn't error — it accumulates as a separate auto-discovered event while the metric it was meant to feed stays flat.
 4. **The event is structurally invalid.** Events missing `type` or `unitKey` are skipped individually and reported in `validationErrors`; the rest of the batch is still accepted.
@@ -144,12 +144,13 @@ A third state, `insufficient_data`, means the allocation has fewer than 30 users
 
 **Likely causes**
 
-1. **Wrong key type.** SDK keys (`sdk:read`/`sdk:write`) — including the key the CLI provisions into `.traffical/.env` — cannot access the MCP server and get a `403 FORBIDDEN` naming the missing management scope. Use a management key with `mgmt:read` (read-only) or a write scope, or the OAuth flow.
-2. **OAuth token minted for the wrong resource.** Tokens are audience-bound: a token minted for anything other than the MCP resource gets a `401` whose `WWW-Authenticate` header points at the OAuth discovery document. Clients that follow standard discovery recover automatically; re-run your client's auth flow (`/mcp` in Claude Code).
-3. **Write tools missing from `tools/list`.** The tool list is scope-filtered — a token without `changes:propose` / `changes:operate` / `defaults:promote` simply never sees the write tools. This is a token-scope issue, not a server outage.
-4. **Transitions rejected outright.** MCP write mode is off (the default) or set to `advisory`. In `off`, `create_change` still authors drafts but its start leg is refused; in `advisory`, every transition is capped at a proposal for human review. That's [governance working as designed](/governance/approvals-and-autonomy), not a failure.
+1. **Wrong key type.** SDK keys — publishable (`traffical_pk_...`) and server-side (`traffical_sk_...`), including the keys the CLI provisions into `.traffical/.env` — cannot reach the control plane at all and get a `403 FORBIDDEN`. Use a management key (`traffical_mk_...`) or admin key (`traffical_ak_...`), or the OAuth flow.
+2. **Missing `mcp:invoke`.** A management key without that permission returns `403 Required permission: mcp:invoke`. It is not part of the default management-key preset — grant it explicitly when creating the key.
+3. **OAuth token minted for the wrong resource.** Tokens are audience-bound: a token minted for anything other than the MCP resource gets a `401` whose `WWW-Authenticate` header points at the OAuth discovery document. Clients that follow standard discovery recover automatically; re-run your client's auth flow (`/mcp` in Claude Code).
+4. **Write tools missing from `tools/list`.** The tool list is scope-filtered — a token without `changes:propose` / `changes:operate` / `defaults:promote` simply never sees the write tools. This is a token-scope issue, not a server outage.
+5. **Transitions rejected outright.** MCP write mode is off (the default) or set to `advisory`. In `off`, `create_change` still authors drafts but its start leg is refused; in `advisory`, every transition is capped at a proposal for human review. That's [governance working as designed](/governance/approvals-and-autonomy), not a failure.
 
-**Fix** — call `whoami` first: it confirms the token works and which projects it can reach. If it fails, fix the key or the OAuth flow before anything else. If read tools work but writes don't, check the key's scopes on the **API Keys** page, then the organization's write mode.
+**Fix** — call `whoami` first: it confirms the token works and which projects it can reach. If it fails, fix the key or the OAuth flow before anything else. If read tools work but writes don't, check the key's permissions on the **API Keys** page, then the organization's write mode.
 
 ## Still stuck?
 

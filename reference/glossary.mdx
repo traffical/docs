@@ -192,7 +192,7 @@ A bundle embedded in your application binary (typically built in CI). Used as a 
 ## M
 
 ### Management key
-A `traffical_sk_...` API key with `mgmt:read`/`mgmt:write` or `admin` scope. Can create and modify projects, layers, and policies. Must stay secret — never ship in client code. (The CLI normally uses device login instead.)
+A `traffical_mk_...` API key. Creates and modifies projects, layers and policies — CLI, CI/CD, Terraform, agents. Carries permission slugs that can never exceed those of the person who created it. Must stay secret; never ship in client code. (The CLI normally uses device login instead.) An **admin key** (`traffical_ak_...`) adds organization administration on top.
 
 ### Measurement plan
 The per-[change](#change) snapshot resolved from the matching [measurement protocols](#measurement-protocol): primary and secondary metrics, guardrails, diagnostics, and per-phase rules, stamped with the change's [risk class](#risk-class). A change can't expose traffic until its plan is approved — low-risk plans built entirely from [certified](#certified) protocols with no unresolved risks approve automatically. → [Measurement protocols](/governance/measurement-protocols)
@@ -255,8 +255,11 @@ A progressive ramp of a policy from a starting percentage to a target, optionall
 ### Schema enforcement
 What the edge does with events that don't match their property schema — `off`, `warn` (default), or `reject`.
 
-### SDK key
-A `traffical_sk_...` API key with scopes `sdk:read`+`sdk:write`. Browser-safe — fetches the bundle and sends events but cannot modify configuration. This is the key used in all SDKs and client code.
+### Publishable SDK key
+A `traffical_pk_...` API key. Safe to ship in a client bundle — browsers, mobile apps, other client devices. Fetches the config bundle for local on-device resolution and sends events; cannot modify configuration and cannot use server-side resolution.
+
+### Server-side SDK key
+A `traffical_sk_...` API key. Everything a publishable key can do, plus server-side resolution (`/v1/resolve`, `/v1/decide/*`). Belongs on your backend only — it reads the project's full ruleset.
 
 ### Significance
 The statistical confidence that an observed difference between allocations isn't random noise. Surfaced per metric per policy in the dashboard.

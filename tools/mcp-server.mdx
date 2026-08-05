@@ -34,16 +34,20 @@ Two transport details for client authors:
 
 ### API key (headless agents, CI)
 
-For agents that can't run a browser flow, use a **management API key** as a plain bearer token. The scope on the key decides what it can do:
+For agents that can't run a browser flow, use a **management key** (`traffical_mk_...`) or an **admin key** (`traffical_ak_...`) as a plain bearer token. The permissions on the key decide what it can do:
 
 ```
-Authorization: Bearer traffical_sk_...
+Authorization: Bearer traffical_mk_...
 ```
 
-Create one on your organization's **API Keys** page in the dashboard (in the sidebar when viewing your organization, or from the account menu). A read-only management key is exactly the `mgmt:read` scope; write scopes are granted deliberately. See [API key types](/api/overview#api-key-types) for how scopes work.
+Create one on your organization's **API Keys** page in the dashboard (in the sidebar when viewing your organization, or from the account menu). See [API key types](/api/overview#api-key-types) for the full reference.
 
 <Warning>
-SDK keys (scopes `sdk:read`/`sdk:write`) — including the key the CLI provisions into `.traffical/.env` — cannot read changes and will get a `403`. You need a management key with `mgmt:read` (read-only) or a write scope.
+**The key must carry the `mcp:invoke` permission**, and it is *not* included in the default management-key preset — grant it explicitly when you create the key. Without it every request returns `403 Required permission: mcp:invoke`.
+</Warning>
+
+<Warning>
+SDK keys — publishable (`traffical_pk_...`) and server-side (`traffical_sk_...`), including the keys the CLI provisions into `.traffical/.env` — cannot reach the control plane at all and will get a `403`. SDK keys serve config and events; they are a different surface.
 </Warning>
 
 ## Scopes

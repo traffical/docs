@@ -52,14 +52,20 @@ Every project comes with `production`, `staging`, and `development` out of the b
 
 ## API keys
 
-API keys are scoped to a project and environment. Every key has the same `traffical_sk_...` prefix — what differs is the key's **scopes**, which determine what it can do and whether it is browser-safe:
+A key is either org-wide or scoped to a **single project** — chosen when you create it. Keys are *not* scoped to an environment: the environment is a request parameter, so one key serves all of a project's environments.
 
-| Scopes | Type | Where to use |
+A key's **type is its prefix**, and it decides where the key belongs:
+
+| Prefix | Type | Where to use |
 |--------|------|-------------|
-| `sdk:read`, `sdk:write` | **SDK key** | All SDKs (`@traffical/node`, `@traffical/js-client`, `@traffical/react`, `@traffical/svelte`, React Native) and direct SDK API calls. Browser-safe — fetches the bundle and sends events but cannot modify configuration. |
-| `mgmt:read`, `mgmt:write`, or `admin` | **Management key** | Creating and modifying projects, layers, and policies. Must stay secret — never ship in client code. (The CLI normally uses device login instead.) |
+| `traffical_pk_` | **Publishable SDK key** | Client-facing apps — browsers, mobile, other client devices. Safe to ship in a client bundle. |
+| `traffical_sk_` | **Server-side SDK key** | Server-side SDKs (`@traffical/node`, PHP, Python) and any backend calling the SDK API. Keep it on your server. |
+| `traffical_mk_` | **Management key** | Creating and modifying projects, layers and policies — CLI, CI/CD, Terraform, agents. Never ship in client code. (The CLI normally uses device login instead.) |
+| `traffical_ak_` | **Admin key** | Organization administration on top of everything a management key does. |
 
-Create and manage keys in **Settings → API keys** in the dashboard.
+Both SDK keys support **local resolution** — the SDK fetches the config bundle once and resolves on-device, with no per-decision network call. Server-side resolution (`/v1/resolve`, `/v1/decide/*`) additionally requires a server-side SDK key.
+
+Create, rotate and manage keys in **Settings → API keys** in the dashboard. See [API key types](/api/overview#api-key-types) for the full reference.
 
 ## The unit key
 

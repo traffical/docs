@@ -1,5 +1,5 @@
 ---
-title: "Roles, teams & API key scopes"
+title: "Roles, teams & API key permissions"
 description: "Who can do what in Traffical — organization roles, team ownership of parameter groups, and the scopes that bound each API key."
 ---
 
@@ -69,34 +69,37 @@ API keys are not team members, so team ownership doesn't constrain them — a ke
 
 A team that still owns parameter groups can't be deleted; reassign or clear those owners first. Deleting a team removes the access its members held through it.
 
-## API key scopes
+## API key types and permissions
 
-API keys are managed on your organization's **API Keys** page (in the sidebar when viewing your organization, or from the account menu). Viewing and managing keys is an admin/owner action. Each key's capabilities come from its scopes:
+API keys are managed on your organization's **API Keys** page (in the sidebar when viewing your organization, or from the account menu). Viewing and managing keys is an admin/owner action.
 
-| Scope | Grants |
-|-------|--------|
-| `sdk:read` | Fetch config bundles, request resolutions and decisions |
-| `sdk:write` | Send exposure, decision, and track events |
-| `mgmt:read` | Read everything a viewer can read |
-| `mgmt:write` | Create and edit — plus all reads. Never operates: no transitions, no traffic, no default promotion |
-| `mgmt:operate` | The [operate tier](#the-operate-tier), plus read/write of changes and policies |
-| `admin` | Everything an owner can do |
+A key's **type is its prefix**, and it decides which surface the key can reach:
 
-The create dialog offers these as presets — **SDK Key** (`sdk:read` + `sdk:write`), **Management Key** (`mgmt:read` + `mgmt:write`), **Lifecycle Operate Key** (management plus `mgmt:operate`), and **Full Access** (`admin`).
+| Type | Prefix | Reaches |
+|------|--------|---------|
+| **Publishable SDK key** | `traffical_pk_` | Config bundles and events. Safe in a client bundle. |
+| **Server-side SDK key** | `traffical_sk_` | Everything publishable can, plus server-side resolution (`/v1/resolve`, `/v1/decide/*`) |
+| **Management key** | `traffical_mk_` | The control plane — reads and writes of configuration |
+| **Admin key** | `traffical_ak_` | Everything management can, plus the [operate tier](#the-operate-tier) and org administration |
+
+Management and admin keys additionally carry **permission slugs** — the same vocabulary as the roles above. The create dialog offers a preset per type, and you can narrow it further.
 
 <Frame caption="The Create API Key dialog">
-  <img src="/images/placeholders/create-api-key-dialog.png" alt="Create API Key dialog with the key-type preset dropdown open showing the SDK, Management, Lifecycle Operate, and Full Access presets" />
+  <img src="/images/placeholders/create-api-key-dialog.png" alt="Create API Key dialog with the key-type dropdown open showing the Publishable SDK, Server-side SDK, Management and Admin key types" />
 </Frame>
 
 Two properties are worth internalizing:
 
-- **SDK keys carry no management access.** A key with only `sdk:read`/`sdk:write` can serve decisions and ingest events but can't read or change any configuration — that's why SDK keys are safe to ship in client code. See [API key types](/api/overview#api-key-types).
-- **`mgmt:write` mirrors the member role.** An automation holding it can build — create metrics, edit policies, push config — but can't start traffic. Grant `mgmt:operate` only to automations you trust to execute transitions.
+- **SDK keys carry no management access.** Publishable and server-side SDK keys serve decisions and receive events but cannot read or change any configuration — they never reach the control plane at all. See [API key types](/api/overview#api-key-types).
+- **A key can never exceed its creator.** Permissions are intersected with those of the person who created the key, evaluated on every request — so demoting someone narrows the keys they made, with no cleanup step.
+- **The management preset mirrors the member role.** An automation holding it can build — create metrics, edit policies, push config — but can't start traffic. Operate permissions are granted deliberately, to automations you trust to execute transitions.
 
-Keys are **org-wide or scoped to a single project** (chosen at creation), and can carry an expiry. The full key is shown exactly once when created; after that the list shows only the prefix, scopes, creation date, and last use. Deleting a key revokes it immediately.
+Keys are **org-wide or scoped to a single project** (chosen at creation), and can carry an expiry — by default they do not expire. The full key is shown exactly once when created; after that the list shows only the display prefix, type, permissions, creation date and last use.
+
+**Rotating** a key issues a replacement immediately and keeps the old one valid for 7 days. **Revoking** takes effect immediately on the control plane; SDK endpoints are served from the edge, where revocation propagates within about a minute. Revoked keys are retained for audit rather than deleted.
 
 <Tip>
-Give each integration its own narrowly scoped key. A CI pipeline that pushes config needs a project-scoped Management Key — not Full Access. The list flags keys that have never been used, which makes pruning easy.
+Give each integration its own narrowly scoped key. A CI pipeline that pushes config needs a project-scoped management key — not an admin key. The list flags keys that have never been used, which makes pruning easy.
 </Tip>
 
 ## How permissions surface in the dashboard

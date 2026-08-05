@@ -171,7 +171,9 @@ export async function getServerSideProps() {
 ## Pitfalls
 
 - **Mismatched user IDs.** If the server reads `userId` from a session cookie but the client reads it from a different source, the two will resolve to different buckets and you'll see a swap on hydration. Make sure both sides use the same value.
-- **Use the SDK key on both sides.** The same `traffical_sk_...` SDK key (scopes `sdk:read`+`sdk:write`) is browser-safe and is used both client-side in the `TrafficalProvider` and server-side when you fetch the bundle (the plain `fetch` on Next.js, `loadTrafficalBundle` on SvelteKit). There is no separate server secret for the SDK path — keep management-scoped keys out of all rendering code.
+- **Use two keys — one per side.** The client-side `TrafficalProvider` takes a **publishable SDK key** (`traffical_pk_...`), which is compiled into the browser bundle and is safe there. The server-side bundle fetch (the plain `fetch` on Next.js, `loadTrafficalBundle` on SvelteKit) takes a **server-side SDK key** (`traffical_sk_...`), read from a private environment variable that is never exposed to the client.
+
+  Expose the publishable key through your framework's public env mechanism (`NEXT_PUBLIC_*`, `$env/static/public`) and keep the server key in the private one (`$env/static/private`, a non-`NEXT_PUBLIC_` variable). Never route a `traffical_sk_...` key through a public variable — that ships it to every visitor. Keep management keys out of rendering code entirely.
 - **Stale bundle on long-lived pages.** The client refreshes the bundle every 60s by default. SPAs running for hours will pick up new policies automatically. For static pages, a hard reload is enough.
 
 ## Next steps

@@ -44,7 +44,7 @@ function App() {
 }
 ```
 
-Use an **SDK key** (`traffical_sk_...`, scopes `sdk:read`+`sdk:write`) in browser code — it is browser-safe.
+Use an **publishable SDK key** (`traffical_pk_...`) in client code — it is safe to ship in a client bundle.
 
 ## The `useTraffical` hook
 
@@ -177,7 +177,7 @@ export default async function RootLayout({ children }) {
 }
 ```
 
-The same `traffical_sk_...` SDK key is browser-safe, so there is no separate server secret for the SDK path. See the [SSR patterns](/sdks/ssr) page for the full setup, including the Pages Router.
+Use a publishable SDK key (`traffical_pk_...`) in the client provider and a server-side SDK key (`traffical_sk_...`) for the server-side bundle fetch, kept in a private environment variable. See the [SSR patterns](/sdks/ssr) page for the full setup, including the Pages Router.
 
 ## Standalone tracking
 
@@ -218,7 +218,7 @@ function DebugPanel() {
 | `orgId` | `string` | required | Organization ID |
 | `projectId` | `string` | required | Project ID |
 | `env` | `string` | required | Environment name |
-| `apiKey` | `string` | required | SDK key (`traffical_sk_...`, scopes `sdk:read`+`sdk:write`) — browser-safe |
+| `apiKey` | `string` | required | Publishable Publishable SDK key (`traffical_pk_...`) — safe in a client bundle |
 | `baseUrl` | `string` | `https://sdk.traffical.io` | SDK API base URL |
 | `localConfig` | `ConfigBundle` | — | Embedded bundle for cold-start / SSR hydration |
 | `refreshIntervalMs` | `number` | `60000` | Bundle refresh interval |

@@ -32,12 +32,12 @@ const traffical = await createTrafficalClient({
   orgId: "org_acme",
   projectId: "proj_marketplace",
   env: "production",
-  apiKey: "traffical_sk_...",
+  apiKey: "traffical_pk_...",
 });
 ```
 
 <Note>
-Use an **SDK key** (`traffical_sk_...`, scopes `sdk:read`+`sdk:write`) in browser code. SDK keys can fetch the bundle and send events but cannot modify configuration — safe to ship in client bundles.
+Use an **publishable SDK key** (`traffical_pk_...`) in client code. It fetches the config bundle and sends events, and cannot modify configuration — safe to ship in a client bundle.
 </Note>
 
 ## Resolving parameters
@@ -131,7 +131,7 @@ await traffical.close();
 | `orgId` | `string` | required | Organization ID |
 | `projectId` | `string` | required | Project ID |
 | `env` | `string` | required | Environment name |
-| `apiKey` | `string` | required | SDK key (`traffical_sk_...`, scopes `sdk:read`+`sdk:write`) — browser-safe |
+| `apiKey` | `string` | required | Publishable Publishable SDK key (`traffical_pk_...`) — safe in a client bundle |
 | `baseUrl` | `string` | `https://sdk.traffical.io` | SDK API base URL |
 | `refreshIntervalMs` | `number` | `60000` | Bundle refresh interval |
 | `localConfig` | `ConfigBundle` | — | Embedded bundle for cold-start |

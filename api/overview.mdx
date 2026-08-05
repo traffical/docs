@@ -20,40 +20,56 @@ You can override this in any SDK with the `baseUrl` option — useful for testin
 All requests require an API key in the `Authorization` header:
 
 ```
-Authorization: Bearer traffical_sk_...
+Authorization: Bearer traffical_pk_...
 ```
 
 ### API key types
 
-Every key has the same `traffical_sk_...` prefix. What a key can do — and whether it is browser-safe — depends on its **scopes**, not its prefix:
+**The prefix is the key's type**, and it is enforced server-side — a key of the wrong type is rejected before anything else is checked.
 
-| Scopes | Type | Capabilities | Browser-safe? |
-|--------|------|--------------|---------------|
-| `sdk:read`, `sdk:write` | SDK key | Fetch bundles, request resolutions, send events | Yes — ship in client code |
-| `mgmt:read`, `mgmt:write`, or `admin` | Management key | Create and modify projects, layers, policies | No — must stay secret |
+| Prefix | Type | Belongs in | Can reach |
+|--------|------|-----------|-----------|
+| `traffical_pk_` | **Publishable SDK key** | Client-facing apps — browsers, mobile, other client devices | `GET /v1/config`, `POST /v1/events`, `POST /v1/events/batch` |
+| `traffical_sk_` | **Server-side SDK key** | Your backend only | Everything `pk` can, plus `POST /v1/resolve` and `POST /v1/decide/*` |
+| `traffical_mk_` | **Management key** | CLI, CI/CD, Terraform, agents | Control plane reads and writes. No SDK endpoints. |
+| `traffical_ak_` | **Admin key** | Organization administration | Everything `mk` can, plus operate, promote, members, billing and minting keys |
 
-- **`sdk:read`** — fetch bundles, request resolutions
-- **`sdk:write`** — send events
-- **`mgmt:read` / `mgmt:write` / `admin`** — read and modify configuration
+All four are 59 characters and end in a checksum, so a truncated or mistyped key is rejected without a lookup.
 
-SDK keys are safe to include in client-side JavaScript: they can fetch the project's bundle and send events, but cannot modify configuration in any way. Management keys can change configuration and must never ship in client code.
+<Note>
+**Both SDK keys do local resolution.** The SDK fetches the config bundle once and resolves on-device — no per-decision network call, and it works offline. That is the default and the recommended mode.
 
-A `mgmt:read` key gives AI agents a read-only connection to the [MCP server](/tools/mcp-server); write tools require separate write scopes.
+The difference is *server-side* resolution: `POST /v1/resolve` and `POST /v1/decide/*` answer a per-unit question on the server, and those accept a server-side SDK key but not a publishable one.
+</Note>
+
+Management and admin keys additionally carry **permissions** — the same vocabulary as [organization roles](/governance/roles-and-permissions). A key can never exceed the permissions of the person who created it.
+
+An `mk` or `ak` key carrying the `mcp:invoke` permission gives AI agents a connection to the [MCP server](/tools/mcp-server). Note `mcp:invoke` is **not** part of the default management-key preset — grant it explicitly.
+
+### Legacy keys
+
+Keys minted before typed prefixes are 45 characters and all begin `traffical_sk_`. They keep working indefinitely and are governed by their original **scopes**, not by the type system above — so a legacy key beginning `sk` may in fact carry management scopes. Check a legacy key's scopes before assuming it is SDK-only.
 
 ### Managing keys
 
-Create and revoke keys on your organization's **API Keys** page in the dashboard (from the account menu). Keys can be scoped to a project, given an expiry, or revoked at any time.
+Create, rotate and revoke keys on your organization's **API Keys** page in the dashboard (from the account menu). Keys can be scoped to a project and given an expiry — by default they do not expire.
+
+**Rotating** a key issues a replacement immediately and keeps the old one valid for 7 days, so you can roll it out gradually and watch the old key's traffic fall to zero before it expires.
+
+**Revoking** takes effect immediately on the control plane. SDK endpoints are served from the edge, where revocation propagates within about a minute.
 
 ## Endpoints
 
-| Method | Path | Description | Scope |
-|--------|------|-------------|-------|
-| `GET` | [`/v1/config/:projectId`](/api/get-config) | Fetch the config bundle | `sdk:read` |
-| `POST` | [`/v1/resolve`](/api/post-resolve) | Server-side resolution (for `evaluationMode: "server"`) | `sdk:read` |
-| `POST` | [`/v1/decide/:policyId`](/api/post-decide) | Per-entity adaptive decision | `sdk:read` |
-| `POST` | [`/v1/decide/batch`](/api/post-decide#batch) | Batch of per-entity decisions | `sdk:read` |
-| `POST` | [`/v1/events`](/api/post-events) | Send exposure, decision, and track events | `sdk:write` |
-| `POST` | [`/v1/events/batch`](/api/post-events#batch) | Identical to `/v1/events` — the path browser SDKs use to flush queued events | `sdk:write` |
+| Method | Path | Description | Key types |
+|--------|------|-------------|-----------|
+| `GET` | [`/v1/config/:projectId`](/api/get-config) | Fetch the config bundle | `pk`, `sk` |
+| `POST` | [`/v1/resolve`](/api/post-resolve) | Server-side resolution (for `evaluationMode: "server"`) | `sk` only |
+| `POST` | [`/v1/decide/:policyId`](/api/post-decide) | Per-entity adaptive decision | `sk` only |
+| `POST` | [`/v1/decide/batch`](/api/post-decide#batch) | Batch of per-entity decisions | `sk` only |
+| `POST` | [`/v1/events`](/api/post-events) | Send exposure, decision, and track events | `pk`, `sk` |
+| `POST` | [`/v1/events/batch`](/api/post-events#batch) | Identical to `/v1/events` — the path browser SDKs use to flush queued events | `pk`, `sk` |
+
+Legacy keys are governed by their scopes instead: `sdk:read` for config, resolve and decide; `sdk:write` for events.
 
 ## Caching
 
@@ -76,7 +92,7 @@ All errors share a consistent shape — an `error` object with a stable machine-
 |--------|------|-------------|
 | `400` | `BAD_REQUEST` | Invalid payload or missing required fields |
 | `401` | `UNAUTHORIZED` | Missing, invalid, expired, or revoked API key |
-| `403` | `FORBIDDEN` | API key lacks the required scope, or a tenant header doesn't match the key |
+| `403` | `FORBIDDEN` | The key is the wrong type for the endpoint (for example a publishable key on `/v1/resolve`), a legacy key lacks the required scope, or a tenant header doesn't match the key |
 | `404` | `NOT_FOUND` | Resource does not exist (for example, no bundle for the project and environment) |
 | `429` | `RATE_LIMITED` | Too many requests — retry after the `Retry-After` header |
 | `500` | `INTERNAL_ERROR` | Internal server error |
