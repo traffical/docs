@@ -199,7 +199,7 @@
     "primary": {
       "type": "button",
       "label": "Dashboard",
-      "href": "https://app.traffical.io"
+      "href": "https://dashboard.traffical.io"
     }
   },
   "contextual": {
