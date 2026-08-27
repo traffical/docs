@@ -61,15 +61,15 @@ Find your symptom, work through the likely causes in order, apply the fix. Every
 
 ## A policy shows no results
 
-**Symptom** — the policy is running and exposures are flowing, but the results section is empty or never reaches a verdict.
+**Symptom** — the policy is running and assignment events are flowing, but the results section is empty or never reaches a verdict.
 
 **Likely causes**
 
 1. **No goal metric attached.** Results are computed per attached metric; a policy with none has nothing to analyze. For adaptive policies this also stalls optimization — the health view reports `Optimizer has no reward source: no primary metric attached`. On the policy's detail page, open the metrics panel and click **Attach Metrics** ([how](/dashboard/metrics#attaching-metrics-to-policies)).
-2. **Not enough sample yet.** Guardrail evaluation reports `insufficient_data` for any treatment allocation with fewer than 30 users, and early confidence intervals — especially [sequential](/statistics/sequential-testing) ones — are wide by design. This is the system refusing to call it early, not a malfunction. [Measurement progress](/statistics/measurement-progress) shows how far along the experiment is and a runtime estimate.
+2. **Not enough enrolled units yet.** Guardrail evaluation reports `insufficient_data` for any treatment allocation with fewer than 30 units, and early confidence intervals — especially [sequential](/statistics/sequential-testing) ones — are wide by design. This is the system refusing to call it early, not a malfunction. [Measurement progress](/statistics/measurement-progress) shows how far along the measurement is and a runtime estimate.
 3. **You're ahead of the analysis schedule.** Health and SRM checks refresh on a fast lane (every 5–15 minutes), but metric results — significance, lifts — are recomputed on the full analysis run, typically every two hours. An event sent seconds ago won't move a result yet, and flat results half an hour after launch are normal. Check freshness and recent runs on the [Pipeline page](/dashboard/pipeline).
 
-**Fix** — confirm a goal metric is attached, then check the policy's health view: if **Data freshness** passes and exposures are flowing, the answer is almost always "wait for sample." If freshness is failing, debug the pipeline, not the experiment.
+**Fix** — confirm a goal metric is attached, then check the policy's health view: if **Data freshness** passes and assignment events are flowing, the answer is almost always "wait for more enrolled units." If freshness is failing, debug the pipeline, not the policy.
 
 <Frame caption="Policy health surfaces most measurement problems before you go digging">
   <img src="/images/placeholders/troubleshooting-policy-health-warning.png" alt="Policy health hero with a warning pill expanded to show check detail" />
@@ -85,9 +85,9 @@ Find your symptom, work through the likely causes in order, apply the fix. Every
 
 - **Targeting or allocation edits mid-flight.** Changing weights or conditions on a running policy shifts who lands where from that moment on, while the window still contains the old regime. (Adaptive policies are handled for you: the check re-baselines at each optimizer rebalance, so a legitimate rebalance won't trip it.)
 - **Caching.** Clients holding an old config bundle keep serving the old split. Long-lived server processes that never refresh, or an aggressive CDN in front of your own config fan-out, are the usual suspects.
-- **Differential exposure loss.** One variant loses its exposure events more than the other — a redirect variant dropping users before the SDK flushes, a variant that crashes a webview, ad-blockers firing on one page layout but not the other.
+- **Differential exposure loss.** One allocation loses its exposure events more than the other — a redirect treatment dropping users before the SDK flushes, an allocation that crashes a webview, ad-blockers firing on one page layout but not the other.
 
-**Fix** — first check the policy's change history for mid-flight edits (the **Diagnostics** tab shows the SRM history and transition log — see [Policy health](/dashboard/policy-health)). If the split was edited, the mismatch window is explained; let the re-baselined window accumulate. If not, find the mechanism that loses users asymmetrically before trusting any number. When assignment itself was broken, the clean fix is restarting the experiment — biased sample can't be repaired after the fact.
+**Fix** — first check the policy's change history for mid-flight edits (the **Diagnostics** tab shows the SRM history and transition log — see [Policy health](/dashboard/policy-health)). If the split was edited, the mismatch window is explained; let the re-baselined window accumulate. If not, find the mechanism that loses users asymmetrically before trusting any number. When assignment itself was broken, the clean fix is restarting the policy — a biased sample can't be repaired after the fact.
 
 ## A guardrail is breaching
 

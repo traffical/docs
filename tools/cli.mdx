@@ -12,7 +12,7 @@ description: "Log in, link a project, and sync parameters, events, and metrics b
 - **Typed events** — generate TypeScript types from your event schemas so invalid `track()` calls fail at compile time.
 - **CI-enforceable** — `traffical status` exits non-zero on drift, so you can gate merges on the repo and platform being in sync.
 
-Policies, allocations, and experiment lifecycle decisions still live in the [dashboard](/dashboard/overview) — the CLI owns the *definitions*, not the rollout state.
+Policies, allocations, and lifecycle decisions still live in the [dashboard](/dashboard/overview) — the CLI owns the *definitions*, not the rollout state.
 
 ## Installation
 
@@ -281,7 +281,7 @@ Environment variables: `TRAFFICAL_API_KEY`, `TRAFFICAL_API_TOKEN`, `TRAFFICAL_AP
 | `3` | Network or API error. |
 | `4` | Not linked (no `project.yaml`). |
 | `10` | Drift detected (`status`). |
-| `11` | Experiment needs attention. |
+| `11` | Policy needs attention. |
 
 ## Next steps
 

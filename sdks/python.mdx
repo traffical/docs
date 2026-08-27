@@ -43,7 +43,7 @@ client.wait_for_ready(timeout=5.0)
 
 ### Options
 
-`TrafficalClientOptions` follows the [cross-language design contract](/sdks/overview): duration options carry an explicit `_seconds` suffix (Python's idiomatic float-seconds variant of the canonical `*Ms` names).
+`TrafficalClientOptions` follows the [cross-language design contract](/sdks/overview): duration options carry an explicit `_seconds` suffix (Python's idiomatic float-seconds form of the canonical `*Ms` names).
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -101,7 +101,7 @@ The `context` mapping is used for:
 
 ### Defaults
 
-Always pass defaults for every parameter you read. They're the fallback when no policy matches, when the bundle isn't loaded yet, or when Traffical is unreachable — and they make your code's intent explicit even when there's no active experiment.
+Always pass defaults for every parameter you read. They're the fallback when no policy matches, when the bundle isn't loaded yet, or when Traffical is unreachable — and they make your code's intent explicit even when there's no active policy.
 
 ## Decisions vs `get_params`
 
@@ -151,7 +151,7 @@ client.track(
 )
 ```
 
-On the server there is no auto stable ID, so pass `unit_key` (or `decision_id`, which auto-attributes from the cached decision). If you're running an adaptive policy, the optimizer uses `value` / `values` as reward signals to learn which variants perform best.
+On the server there is no auto stable ID, so pass `unit_key` (or `decision_id`, which auto-attributes from the cached decision). If you're running an adaptive policy, the optimizer uses `value` / `values` as reward signals to learn which allocations perform best.
 
 ## Async client
 
@@ -278,12 +278,12 @@ The Python SDK is gated on the spec's deterministic conformance vectors — the 
 
 <CardGroup cols={2}>
   <Card title="A/B testing" icon="flask" href="/experimentation/ab-testing">
-    Run a static experiment.
+    Run a static A/B test.
   </Card>
   <Card title="Warehouse-native" icon="warehouse" href="/concepts/warehouse-native">
     Compute metrics from your own data.
   </Card>
-  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+  <Card title="Experimentation patterns" icon="book-open" href="/guides/canonical-experiments">
     Patterns for backend, batch, and cross-surface tests.
   </Card>
   <Card title="API reference" icon="code" href="/api/overview">

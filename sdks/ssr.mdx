@@ -81,7 +81,7 @@ On the Svelte SDK the server-fetched bundle goes through `initialBundle` (not `l
 <button onclick={() => track("cta_click")}>Buy</button>
 ```
 
-The server resolves with `data.traffical.bundle` and renders the correct variant. The client picks up the same bundle and resolves identically. No swap.
+The server resolves with `data.traffical.bundle` and renders the correct allocation. The client picks up the same bundle and resolves identically. No swap.
 
 ## Next.js (App Router / RSC)
 
@@ -166,7 +166,7 @@ export async function getServerSideProps() {
 
 - **Same bundle, same hash, same answer.** Both server and client read the same bundle and run the same [SHA-256 v2 bucketing](/how-it-works#local-resolution). The same userId always resolves to the same allocation.
 - **One network fetch.** The server fetches; the client receives the bundle inline. No second fetch on hydration.
-- **First paint is correct.** Because the server resolves before rendering, the user sees the right variant immediately. No flash of original content.
+- **First paint is correct.** Because the server resolves before rendering, the user sees the right allocation immediately. No flash of original content.
 
 ## Pitfalls
 

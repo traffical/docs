@@ -11,8 +11,8 @@ Every member of your organization has exactly one role:
 
 | Role | What it grants |
 |------|----------------|
-| **Viewer** | Read everything — projects, experiments, metrics, changes, decision logs. No writes. |
-| **Member** | Day-to-day building: create and edit experiments, parameters, layers, metrics, events, definitions, and draft changes. No privileged operations and no org administration. |
+| **Viewer** | Read everything — projects, policies, metrics, changes, decision logs. No writes. |
+| **Member** | Day-to-day building: create and edit policies, parameters, layers, metrics, events, definitions, and draft changes. No privileged operations and no org administration. |
 | **Admin** | Everything a member can do, plus the [operate tier](#the-operate-tier) and org administration — teams, API keys, members, notifications, org settings. |
 | **Owner** | Everything, including billing. |
 
@@ -31,7 +31,7 @@ A small set of permissions is deliberately held back from members and granted on
 
 Anyone who can operate a change can also propose one — `changes:propose` is always bundled with `changes:operate`.
 
-This is the line between *building* and *shipping*. A member can design an experiment end to end — parameters, allocations, goal metrics, a draft change — but formally proposing it for sign-off or moving real traffic takes an admin, an owner, or an [API key](#api-key-scopes) that explicitly carries `mgmt:operate`. Where a transition needs sign-off beyond a role check, [approvals](/governance/approvals-and-autonomy) layer on top.
+This is the line between *building* and *shipping*. A member can design a test end to end — parameters, allocations, goal metrics, a draft change — but formally proposing it for sign-off or moving real traffic takes an admin, an owner, or an [API key](#api-key-scopes) that explicitly carries `mgmt:operate`. Where a transition needs sign-off beyond a role check, [approvals](/governance/approvals-and-autonomy) layer on top.
 
 <Note>
 The Changes surface is enabled per organization. If you don't see **Changes** in the sidebar, it isn't enabled for your organization yet — the rest of this page applies unchanged.

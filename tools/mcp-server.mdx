@@ -78,7 +78,7 @@ Scope is the durable ceiling; the [autonomy resolver](/governance/approvals-and-
 | `get_change_decisions` | `changes:read` | The change's decision log: who decided each transition or annotation, why, and the evidence cited |
 | `get_measurement_plan` | `changes:read` | The resolved measurement plan: primary metrics, guardrails, diagnostics, per-phase rules, source protocols |
 | `preview_transition` | `changes:read` | The next lifecycle transition: availability, blockers, readiness checks, ranked plan options with runtime estimates |
-| `get_change_stats` | `changes:read` | Process health over a trailing window: time to exposure, clean activation rate, guardrail catch rate, decision-log completeness |
+| `get_change_stats` | `changes:read` | Process health over a trailing window: time to first traffic, clean activation rate, guardrail catch rate, decision-log completeness |
 | `get_autonomy` | `changes:read` | Per transition kind, whether the caller may `execute` or `propose` right now, with the full reasoning |
 | `list_attention` | `changes:read` | Changes that need attention: pending approvals, actionable evidence recommendations, paused changes |
 | `get_project_decisions` | `changes:read` | Project-wide decision log |

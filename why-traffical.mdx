@@ -19,7 +19,7 @@ Most tools accelerate the first and leave the other two as manual follow-up. Tra
 
 Most tools in this space start from the feature flag — a boolean, on or off. Useful, but a ceiling: real products tune prices, adjust algorithm weights, pick headlines, and configure ranking rules, not just toggle features.
 
-Traffical starts from the **parameter**: a typed, versioned value with a default. Experiments, rollouts, feature flags, and adaptive optimization are all [policies](/concepts/policies) that control how parameter values are assigned. Because the primitive is a value rather than a switch, an A/B test on a headline, a bandit on a price point, and a gradual rollout of an algorithm change all run through the same system — same SDKs, same layers, same dashboard.
+Traffical starts from the **parameter**: a typed, versioned value with a default. A/B tests, rollouts, feature flags, and adaptive optimization are all [policies](/concepts/policies) that control how parameter values are assigned. Because the primitive is a value rather than a switch, an A/B test on a headline, a bandit on a price point, and a gradual rollout of an algorithm change all run through the same system — same SDKs, same layers, same dashboard.
 
 <Tabs>
   <Tab title="Feature flag approach">
@@ -50,7 +50,7 @@ Traffical starts from the **parameter**: a typed, versioned value with a default
     button.style.color = params["checkout.button.color"];
     ```
 
-    Any type. Any number of variants. Same SDK, same resolution path.
+    Any type. Any number of allocations. Same SDK, same resolution path.
   </Tab>
 </Tabs>
 
@@ -58,9 +58,9 @@ Traffical starts from the **parameter**: a typed, versioned value with a default
 
 Traditional experimentation platforms decide on a server and serve the answer over the network — a round trip per request. Traffical resolves locally: your SDK fetches a pre-built [config bundle](/how-it-works#the-config-bundle) and every decision happens in-process, in sub-milliseconds. No per-request API calls. Works offline, works at the edge, and if Traffical is unreachable your app keeps running on the last known configuration.
 
-## Concurrent experiments that don't collide
+## Concurrent experimentation that doesn't collide
 
-Running one experiment is straightforward. Running fifty at once, across the same users, without them contaminating each other is the real problem. Traffical organizes parameters into [layers](/concepts/layers): within a layer, a user is in at most one policy; across layers, bucketing is orthogonal, so experiments don't interfere. Teams run in parallel without coordinating calendars.
+Running one test is straightforward. Running fifty at once, across the same users, without them contaminating each other is the real problem. Traffical organizes parameters into [layers](/concepts/layers): within a layer, a user is in at most one policy; across layers, bucketing is orthogonal, so policies don't interfere. Teams run in parallel without coordinating calendars.
 
 ## Measurement where your data already lives
 
@@ -74,11 +74,11 @@ A computed risk class scales the friction. A low-risk change with certified meas
 
 ## From static tests to adaptive optimization
 
-A/B testing answers "which variant is better, on average?" — valuable, but manual and one-size-fits-all. When the best variant shifts over time, or differs per user, adaptive policies move traffic toward better performers automatically: Thompson Sampling, UCB1, Epsilon-Greedy, and linear contextual bandits that personalize per user. See [optimization](/experimentation/optimization) and [choosing an algorithm](/experimentation/choosing-an-algorithm).
+A/B testing answers "which allocation is better, on average?" — valuable, but manual and one-size-fits-all. When the best allocation shifts over time, or differs per user, adaptive policies move traffic toward better performers automatically: Thompson Sampling, UCB1, Epsilon-Greedy, and linear contextual bandits that personalize per user. See [optimization](/experimentation/optimization) and [choosing an algorithm](/experimentation/choosing-an-algorithm).
 
 ## Developer-first
 
 - Type-safe SDKs for TypeScript (Node, browser, React, Svelte, React Native), Python, PHP, and Swift — one shared conformance spec, so a given unit buckets identically on every platform
 - [Config as code](/tools/cli): parameters, events, and metrics in version-controlled YAML, with `push`, `pull`, and a `status` check that gates CI on drift
-- A [visual editor](/tools/visual-editor) for no-code UI experiments, and [DevTools](/tools/devtools) to inspect SDK state and override parameters live
-- An [MCP server](/tools/mcp-server) and [agent skill](/tools/agent-skill) so coding agents can run experiments under the same governance you do
+- A [visual editor](/tools/visual-editor) for no-code UI tests, and [DevTools](/tools/devtools) to inspect SDK state and override parameters live
+- An [MCP server](/tools/mcp-server) and [agent skill](/tools/agent-skill) so coding agents can run tests under the same governance you do

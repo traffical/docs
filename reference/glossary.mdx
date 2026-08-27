@@ -3,7 +3,7 @@ title: "Glossary"
 description: "Definitions of the terms used throughout the Traffical docs."
 ---
 
-This is a quick reference. Each entry links to the page where the concept is explained in depth.
+This is a quick reference. Each entry links to the page where the concept is explained in depth. The core measurement vocabulary — assignment events, unique units, enrolled units, allocations, traffic splits — is laid out on the [terminology page](/concepts/terminology).
 
 ## A
 
@@ -11,13 +11,19 @@ This is a quick reference. Each entry links to the page where the concept is exp
 A [policy](#policy) where the [optimizer](#optimizer) adjusts allocations over time based on observed rewards. Contrast with a [static policy](#static-policy). Algorithms include Thompson Sampling, Epsilon-Greedy, UCB1, and Linear Contextual. → [Optimization](/experimentation/optimization)
 
 ### Allocation
-A variant within a [policy](#policy), defined by a [bucket range](#bucket-range) and a set of parameter overrides. Users whose bucket falls in the range receive the overrides. → [Policies](/concepts/policies#allocations)
+A named bundle of parameter overrides a [policy](#policy) serves, with a share of its traffic — defined by a [bucket range](#bucket-range). Users whose bucket falls in the range receive the overrides. → [Policies](/concepts/policies#allocations)
+
+### Analysis signal
+Which assignment signal an analysis reads: [decision events](#decision-event) (intent-to-treat) or [exposure events](#exposure-event) (treatment-on-the-treated). Warehouse-native [assignment definitions](#assignment-definition) declare it as their Signal — decision, exposure, or mixed when a `source_type` column is mapped. → [Terminology](/concepts/terminology#analysis-signal)
 
 ### Assignment
 The pairing of a user (or other [unit](#unit-key)) with an [allocation](#allocation). Assignments are deterministic given a stable unit key and an unchanged bundle. → [Decisions & attribution](/concepts/assignments)
 
+### Assignment event
+Every decision or exposure row produced by a running policy, repeats included — serving volume, not a sample size. The umbrella over [decision events](#decision-event) and [exposure events](#exposure-event). → [Terminology](/concepts/terminology)
+
 ### Assignment definition
-SQL plus column mappings describing where assignments live in your warehouse. Used in warehouse-native mode when assignments come from outside Traffical. → [Warehouse-native](/concepts/warehouse-native#assignment-definitions)
+SQL plus column mappings describing where assignments live in your warehouse, with a declared Signal ([analysis signal](#analysis-signal)). Used in warehouse-native mode when assignments come from outside Traffical. → [Warehouse-native](/concepts/warehouse-native#assignment-definitions)
 
 ### Attribution
 Connecting a [track event](#track-event) to the [decision](#decision) that preceded it. Done in two places: the SDK embeds an `attribution` array on each track event (cumulative session view, or a single named `decisionId`); the pipeline joins events to assignments on `unit_key` + first-exposure timestamp. → [Decisions & attribution](/concepts/assignments)
@@ -79,7 +85,7 @@ The SDK's record of resolving parameters for a user — assignments, layer-by-la
 "Decision" carries three distinct senses in these docs: the SDK decision above (one resolution per unit, identified by its `decisionId`); the [decision event](#decision-event) the SDK emits, used as the assignment record for intent-to-treat analysis; and a [decision record](#decision-record) in the [decision log](#decision-log) — the audit trail of lifecycle decisions on policies and changes.
 
 ### Decision event
-An event emitted by the SDK when it makes a decision. Used for intent-to-treat analysis. → [Events](/concepts/events-and-metrics)
+Emitted when the SDK resolves an allocation for a unit — the intent-to-treat (ITT) signal, whether or not the unit saw it. One kind of [assignment event](#assignment-event). → [Events](/concepts/events-and-metrics)
 
 ### Decision log
 The audit trail of every policy and change lifecycle decision — state transitions, allocation overrides, rollout actions, guardrail breaches. → [Dashboard: Decisions](/dashboard/decisions)
@@ -103,7 +109,7 @@ A property marked `dimension: true` on an event schema, usable for slicing metri
 A bookmarklet that lets you inspect SDK state, current assignments, and override parameters live in any browser. → [DevTools](/tools/devtools)
 
 ### DOM binding
-A link between a parameter and a DOM element (selector + property + URL pattern). Used by the [visual editor](#visual-editor) for no-code experiments. → [Visual editor](/tools/visual-editor)
+A link between a parameter and a DOM element (selector + property + URL pattern). Used by the [visual editor](#visual-editor) for no-code UI tests. → [Visual editor](/tools/visual-editor)
 
 ### Dynamic allocations
 For [per-entity adaptive policies](#per-entity-adaptive-policy), allocations whose count comes from a context field rather than being declared in advance. → [Policies](/concepts/policies#dynamic-allocations)
@@ -114,7 +120,7 @@ For [per-entity adaptive policies](#per-entity-adaptive-policy), allocations who
 The SDK-facing API at `sdk.traffical.io`. Serves config bundles and ingests events. → [API overview](/api/overview)
 
 ### Eligible bucket range
-An optional sub-range a policy is restricted to. Useful for non-overlapping experiments in the same layer. → [Policies](/concepts/policies#eligible-bucket-ranges)
+An optional sub-range a policy is restricted to. Useful for non-overlapping policies in the same layer. → [Policies](/concepts/policies#eligible-bucket-ranges)
 
 ### Entity
 The unit of randomization or measurement (User, Company, Device). Has a `keyType` that matches the project's [unit key](#unit-key). → [Warehouse-native](/concepts/warehouse-native#entity-definitions)
@@ -134,8 +140,11 @@ A declaration of a track event's value type, unit, description, and optional pro
 ### Evidence record
 An immutable, decision-ready snapshot of measured results for a [change phase](#change-phase) — canary health, experiment result, rollout health, adaptive status — with a rule-derived recommendation (`continue`, `advance`, `pause`, `rollback`, `complete`) and full provenance. Refreshing writes a new record and supersedes the old one; [decision records](#decision-record) cite evidence rather than recomputing it. → [Dashboard: Changes](/dashboard/changes)
 
+### Enrolled units
+The analysis sample: units attributed to the allocation of their first assignment. Units seen in more than one allocation are excluded. Sample sizes and statistical results are computed over enrolled units. → [Terminology](/concepts/terminology#the-three-counts)
+
 ### Exposure event
-An event emitted by the SDK when a parameter value is read. Records the user's allocation. The denominator for conversion-rate metrics. → [Events](/concepts/events-and-metrics)
+Emitted when a unit actually experiences its allocation (a parameter value is read) — the treatment-on-the-treated (TOT) signal. One kind of [assignment event](#assignment-event). → [Events](/concepts/events-and-metrics)
 
 ## F
 
@@ -151,7 +160,7 @@ Flash of original content. Visible UI change when client-side resolution happens
 ## G
 
 ### Goal metric
-The metric an experiment is optimizing for. Drives adaptive allocation shifts; surfaces as the primary result. → [Dashboard: Metrics](/dashboard/metrics)
+The metric a policy is optimizing for. Drives adaptive allocation shifts; surfaces as the primary result. → [Dashboard: Metrics](/dashboard/metrics)
 
 ### Guardrail metric
 A metric you don't want to get worse, even if the goal metric improves. Surfaced alongside results; doesn't drive allocations. → [Experiment design](/guides/experiment-design#set-guardrails)
@@ -165,7 +174,7 @@ The deterministic function that maps a unit key to a bucket per layer. The same 
 A metric condition evaluated during a rollout. Can pause, roll back, or alert based on threshold violations. → [Rollouts](/experimentation/rollouts#health-checks)
 
 ### Holdout group
-A reserved fraction of users excluded from every experiment for a long stretch of time, to measure cumulative experiment impact. → [Canonical experiments](/guides/canonical-experiments#holdout-group)
+A reserved fraction of users excluded from every policy for a long stretch of time, to measure cumulative program impact. → [Experimentation patterns](/guides/canonical-experiments#holdout-group)
 
 ## I
 
@@ -173,12 +182,12 @@ A reserved fraction of users excluded from every experiment for a long stretch o
 The SDK method that switches a browser session's unit key from the auto-generated stable ID to a real user ID after login. → [JavaScript SDK](/sdks/javascript#anonymous-users-and-identify)
 
 ### Intent-to-treat
-Analysis approach that counts every user *assigned* to a variant, regardless of whether they actually saw it. Uses decision events. Contrast with [treatment-on-treated](#treatment-on-treated).
+Analysis approach that counts every unit *assigned* to an allocation, regardless of whether it actually saw it. Uses decision events. Contrast with [treatment-on-treated](#treatment-on-treated).
 
 ## L
 
 ### Layer
-A pool of mutually exclusive policies over a disjoint set of parameters. Concurrent experiments in different layers are statistically independent. → [Layers](/concepts/layers)
+A pool of mutually exclusive policies over a disjoint set of parameters. Concurrent policies in different layers are statistically independent. → [Layers](/concepts/layers)
 
 ### Lifecycle template
 The phase scaffold chosen when a [change](#change) is created — **Gradual rollout**, **Canary → Experiment → Rollout**, or **Adaptive optimization**. It determines which [phases](#change-phase) are planned up front; you can still adjust them afterwards. → [Changes](/concepts/changes)
@@ -293,10 +302,16 @@ A custom event your code emits to record an outcome (purchase, signup, click). R
 ### Traffical-native mode
 Metrics computed from track events sent via Traffical SDKs (as opposed to warehouse-native). → [Warehouse-native](/concepts/warehouse-native#when-to-use-warehouse-native)
 
+### Traffic split
+How a [policy's](#policy) traffic divides across its [allocations](#allocation). Percentages on a policy always describe traffic. → [Terminology](/concepts/terminology#allocations-and-traffic-splits)
+
 ### Treatment-on-treated
-Analysis approach that only counts users who actually saw the variant. Uses exposure events. Contrast with [intent-to-treat](#intent-to-treat).
+Analysis approach that only counts units that actually experienced their allocation. Uses exposure events. Contrast with [intent-to-treat](#intent-to-treat).
 
 ## U
+
+### Unique units
+Distinct unit keys seen in the window. Each unit counts once, however often it appears. → [Terminology](/concepts/terminology#the-three-counts)
 
 ### Unit key
 The context field that drives bucketing — `userId`, `companyId`, `deviceId`, or custom. Set per project. → [Projects & environments](/concepts/projects-and-environments#the-unit-key)
@@ -304,7 +319,7 @@ The context field that drives bucketing — `userId`, `companyId`, `deviceId`, o
 ## V
 
 ### Visual editor
-A browser bookmarklet for creating no-code UI experiments via CSS selector-based DOM bindings. → [Visual editor](/tools/visual-editor)
+A browser bookmarklet for creating no-code UI tests via CSS selector-based DOM bindings. → [Visual editor](/tools/visual-editor)
 
 ## W
 

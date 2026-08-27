@@ -22,9 +22,9 @@ Target state:  control [0, 4999]   treatment [5000, 9999]   (50/50 final)
 
 The ratio between allocations is preserved at every step. During forward auto-ramp, the bucket ranges grow monotonically toward the target state — users who land in `treatment` at 5% stay there at 10%, 50%, 100%. Stability holds as long as the rollout only moves forward.
 
-When the rollout moves *backward* — via `rollback_one_step`, `full_rollback`, a manual `set-percentage` to a lower value, or any other shrinking action — bucket ranges shrink and users near the edge fall *out* of the new range, reverting to the fallback policy or to the parameter default. That's the intended behavior: a rollback should pull users back, not strand them in a variant the rollout has decided to retreat from.
+When the rollout moves *backward* — via `rollback_one_step`, `full_rollback`, a manual `set-percentage` to a lower value, or any other shrinking action — bucket ranges shrink and users near the edge fall *out* of the new range, reverting to the fallback policy or to the parameter default. That's the intended behavior: a rollback should pull users back, not strand them in an allocation the rollout has decided to retreat from.
 
-A lower-priority fallback policy in the same layer catches traffic outside the rollout's current ranges. For single-allocation rollouts, this is just "everyone not yet in the new variant gets the old behaviour".
+A lower-priority fallback policy in the same layer catches traffic outside the rollout's current ranges. For single-allocation rollouts, this is just "everyone not yet in the treatment gets the old behaviour".
 
 ## Configuring a rollout
 
@@ -74,7 +74,7 @@ Each check requires `minimumExposures` before it runs. If there's not enough dat
 | `thresholdValue` | Absolute threshold |
 | `baselinePolicyId` | (optional) compare against another policy |
 | `relativeDeltaPercent` | (optional) max acceptable degradation, e.g. `5` for 5% |
-| `minimumExposures` | Required sample size before evaluation |
+| `minimumExposures` | Required exposure events before evaluation |
 | `windowMinutes` | Lookback window |
 
 ## Rollback strategies

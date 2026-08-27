@@ -142,7 +142,7 @@ Every other context field is available for policy targeting conditions, exactly 
 
 This is the one thing an OpenFeature integration must not skip.
 
-A **resolve records a decision** (the intent-to-treat / ITT event) — it means "this unit *would* get this variant." A **true exposure** means "this unit actually saw the treatment," and it's a separate, explicit signal. The provider never turns a resolve into an exposure automatically (doing so would erase the ITT-vs-treated distinction), so you fire exposure at render time via the reserved tracking event:
+A **resolve records a decision** (the intent-to-treat / ITT event) — it means "this unit *would* get this allocation." A **true exposure** means "this unit actually saw the treatment," and it's a separate, explicit signal. The provider never turns a resolve into an exposure automatically (doing so would erase the ITT-vs-treated distinction), so you fire exposure at render time via the reserved tracking event:
 
 ```typescript
 // After the user actually sees the treated experience:
@@ -220,14 +220,14 @@ Every resolution carries Traffical internals in `flagMetadata` under the `traffi
 |-----|-------------|
 | `traffical.decisionId` | The decision this resolution belongs to. **Echo this back on `$traffical.exposure`.** |
 | `traffical.policyId` / `traffical.policyKey` | The policy that produced the assignment. |
-| `traffical.allocationId` / `traffical.allocationKey` | The allocation (arm) the unit landed in. |
+| `traffical.allocationId` / `traffical.allocationKey` | The allocation the unit landed in. |
 | `traffical.layerId` | The owning layer for this flag. |
 | `traffical.bucket` | The bucket index. Omitted when `-1` (no bucketed allocation). |
 | `traffical.propensity` | Selection probability. Omitted for static policies; **not exposed on web**. |
 | `traffical.modelVersion` | Bandit model version. Omitted for static policies; **not exposed on web**. |
 | `traffical.configVersion` | The config bundle version that produced this decision. |
 
-Metadata reflects the flag's **owning layer** — never a sibling experiment's layer that the unit happens to be bucketed into. On web, bandit internals (`propensity`, `modelVersion`) are gated out because `flagMetadata` is visible in browser devtools.
+Metadata reflects the flag's **owning layer** — never a sibling policy's layer that the unit happens to be bucketed into. On web, bandit internals (`propensity`, `modelVersion`) are gated out because `flagMetadata` is visible in browser devtools.
 
 ## Tracking rewards
 
@@ -247,7 +247,7 @@ The provider always sets the `unitKey` from the request's `targetingKey` (server
 
 By default, one parameter is one flag, each with its own exposure. Deterministic bucketing keeps a unit consistent across flags, so this is the natural model.
 
-When several parameters make up **one variant that must be measured together**, model them as a single `json` object-flag instead. One flag → one variant → one exposure, and it's the ITT-parity option (the whole bundle is decided and exposed as a unit):
+When several parameters make up **one treatment that must be measured together**, model them as a single `json` object-flag instead. One flag → one `variant` → one exposure, and it's the ITT-parity option (the whole bundle is decided and exposed as a unit):
 
 ```typescript
 const checkout = await client.getObjectValue(
@@ -268,13 +268,13 @@ client.track("$traffical.exposure", { targetingKey: "user_789" }, {
 });
 ```
 
-Reach for the object-flag when parameters are interdependent (they only make sense evaluated together) or when experiments must share one ITT population. Keep separate flags when parameters vary independently.
+Reach for the object-flag when parameters are interdependent (they only make sense evaluated together) or when tests must share one ITT population. Keep separate flags when parameters vary independently.
 
 ## Measurement fidelity
 
 A few honest properties worth knowing:
 
-- **ITT is reshaped, not inflated.** Denominators are per-unit, so resolve-without-render and repeat resolves don't inflate ITT. But because sibling `attributionOnly` layers are dropped from the ITT source, per-key resolution records a co-running experiment's ITT only when *its own* flag is resolved. Batched per-request decisions (server) and the object-flag pattern restore native parity when you need co-measured populations.
+- **ITT is reshaped, not inflated.** Denominators are per-unit, so resolve-without-render and repeat resolves don't inflate ITT. But because sibling `attributionOnly` layers are dropped from the ITT source, per-key resolution records a co-running policy's ITT only when *its own* flag is resolved. Batched per-request decisions (server) and the object-flag pattern restore native parity when you need co-measured populations.
 - **Exposures gate the primary path** (ToT, SRM, optimization) — see the warning above.
 - **Reward metrics need only `unit_key`;** the attribution array is auxiliary (dashboard breakdowns).
 - **Propensity is captured faithfully** on the exposure event and is future-enabling (off-policy evaluation), not a present correctness requirement. Its capture depends on exposures firing and on never re-deciding.

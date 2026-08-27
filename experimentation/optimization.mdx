@@ -3,21 +3,21 @@ title: "Optimization"
 description: "Adaptive policies that learn from rewards: Thompson Sampling, UCB1, Epsilon-Greedy, per-entity bandits, and contextual bandits."
 ---
 
-Adaptive policies go beyond static A/B tests. Instead of fixed allocations, the optimizer shifts traffic toward better-performing variants based on observed rewards — automatically, continuously, and without code changes.
+Adaptive policies go beyond static A/B tests. Instead of a fixed traffic split, the optimizer shifts traffic toward better-performing allocations based on observed rewards — automatically, continuously, and without code changes.
 
 ## When to use adaptive policies
 
 Use adaptive policies when:
 
-- You want to minimise regret — the cost of showing the inferior variant longer than necessary.
-- The best variant may change over time (seasonality, mix shifts).
+- You want to minimise regret — the cost of showing the inferior allocation longer than necessary.
+- The best allocation may change over time (seasonality, mix shifts).
 - You want continuous optimization rather than a one-time decision.
 - You want personalized selection based on user context (contextual bandits).
 
 Stick with static A/B tests when:
 
 - You need a clean point-in-time decision with an unambiguous winner for stakeholders.
-- The cost of the variant is large enough that you want a deliberate ramp afterwards (use [rollouts](/experimentation/rollouts)).
+- The cost of the treatment is large enough that you want a deliberate ramp afterwards (use [rollouts](/experimentation/rollouts)).
 - Your goal metric is delayed or noisy (the engine will still work, but a static test gives you a more interpretable result).
 
 ## Algorithms
@@ -25,9 +25,9 @@ Stick with static A/B tests when:
 | Algorithm | What it does | Best for |
 |-----------|-------------|----------|
 | `thompson_bernoulli` | Thompson Sampling. Bayesian exploration/exploitation — Beta-Bernoulli for conversion goals, Gaussian with measured variance for count/sum goals. | The default. Binary outcomes and per-user counts or values alike |
-| `epsilon_greedy` | Mostly exploits the best-known variant; explores randomly with probability ε. | Simple baseline with predictable exploration rate |
+| `epsilon_greedy` | Mostly exploits the best-known allocation; explores randomly with probability ε. | Simple baseline with predictable exploration rate |
 | `ucb1` | Upper Confidence Bound. Optimistic exploration that naturally decreases over time; the bound scales with the measured spread of your rewards for count/sum goals. | A deterministic, parameter-free explorer — works with all goal types |
-| `linear_contextual` | Personalized scoring per user via a trained linear model. Resolved locally. | Personalization — when the best variant depends on user context |
+| `linear_contextual` | Personalized scoring per user via a trained linear model. Resolved locally. | Personalization — when the best allocation depends on user context |
 
 Not sure which to pick — or how the goal event shapes what the optimizer learns? See [Choosing an optimization algorithm](/experimentation/choosing-an-algorithm).
 
@@ -79,7 +79,7 @@ As data accrues, the policy page tracks progress through four phases — *explor
 
 | Knob | What it does |
 |------|--------------|
-| `minExposuresBeforeShift` | The engine won't change allocations until the policy has seen at least this many total exposures across all allocations. Prevents premature shifts on noisy early data. |
+| `minExposuresBeforeShift` | The engine won't change the split until the policy has seen at least this many total exposure events across all allocations. Prevents premature shifts on noisy early data. |
 | `maxShiftPerUpdate` | Caps how much traffic can move in a single update (e.g. 0.1 = at most 10% of traffic shifts per cycle). |
 | `windowSizeMinutes` | How often the engine re-evaluates. Shorter windows = faster reaction, but noisier. |
 
@@ -94,13 +94,13 @@ The optimizer's reward source is the policy's **primary metric** — its warehou
 Two things to know about this contract:
 
 - **The primary metric is authoritative.** Re-pointing the policy's primary metric re-points the optimizer on its next tick. A policy without a resolvable primary metric can't start, and a running one reports a "no goal metric" health failure instead of silently optimizing nothing.
-- **Metrics that should go down work too.** A goal metric with a *decrease* desired direction (error rate, time-to-complete, support contacts) makes the bandit minimize: traffic shifts toward the variant with the lowest reward.
+- **Metrics that should go down work too.** A goal metric with a *decrease* desired direction (error rate, time-to-complete, support contacts) makes the bandit minimize: traffic shifts toward the allocation with the lowest reward.
 
 Adaptive policies also require the project to actually be served by Traffical. If yours is a measurement-only deployment — something else entirely decides who sees what, and Traffical purely analyzes — mark the project **externally served** in project settings: adaptive policies are then blocked from starting and the optimizer skips the project, since nothing would read the traffic splits it writes. Note that routing assignment data through your own pipeline (the [BYO assignment logging](/sdks/php#byo-warehouse-native-assignment-logging) pattern) is *not* external serving — the SDK still serves the traffic there, and adaptive optimization works end to end.
 
 ## Contextual bandits
 
-The `linear_contextual` algorithm personalizes selection: different users get different variants based on context features. The training pipeline learns coefficients per allocation per feature; those coefficients ship in the config bundle; the SDK uses them to score each allocation for the current user at resolution time.
+The `linear_contextual` algorithm personalizes selection: different users get different allocations based on context features. The training pipeline learns coefficients per allocation per feature; those coefficients ship in the config bundle; the SDK uses them to score each allocation for the current user at resolution time.
 
 ### What it looks like in code
 
@@ -188,7 +188,7 @@ Declared fields are encoded deterministically regardless of the traffic window, 
 
 ### When to use contextual bandits
 
-When the optimal variant differs per user, and you can describe "who they are" with a handful of features:
+When the optimal allocation differs per user, and you can describe "who they are" with a handful of features:
 
 - Homepage layout by engagement level and device type
 - CTA copy by referral source and purchase history

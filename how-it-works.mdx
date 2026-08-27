@@ -72,7 +72,7 @@ Parameters not touched by any active policy keep their default value. Resolution
 <Accordion title="Why bucketing works this way">
 **Deterministic.** The same unit key always lands in the same bucket for a given layer, so a user sees a consistent assignment across sessions and surfaces — without storing per-user assignments anywhere.
 
-**Independent across layers.** Each layer mixes its own ID into the hash, so a user's bucket in one layer carries no information about its bucket in another. This is what lets concurrent experiments coexist without contaminating each other.
+**Independent across layers.** Each layer mixes its own ID into the hash, so a user's bucket in one layer carries no information about its bucket in another. This is what lets concurrent policies coexist without contaminating each other.
 
 **Configurable granularity.** `bucketCount` (`1000` by default) controls how finely traffic can be sliced. A higher count enables finer-grained allocation ranges and smoother ramps.
 </Accordion>
@@ -101,7 +101,7 @@ The defaults you specify in code are the floor. Traffical can only raise the cei
 
 ## Events
 
-When a parameter is resolved, the SDK emits an **exposure event** that records the user's assignment for each layer they were exposed to. When your code calls `track()`, the SDK emits a **track event** that records a user outcome (a purchase, a click, a signup).
+When a parameter is resolved, the SDK emits an **exposure event** recording that the user experienced their allocation in each layer they touched. When your code calls `track()`, the SDK emits a **track event** that records a user outcome (a purchase, a click, a signup).
 
 Both kinds are batched in memory and shipped in the background. The Traffical service uses them for two things:
 
@@ -120,7 +120,7 @@ You can also compute metrics from your own data warehouse — see [warehouse-nat
     Mutual exclusivity and orthogonal bucketing.
   </Card>
   <Card title="Policies" icon="route" href="/concepts/policies">
-    How allocations and conditions assign users to variants.
+    How allocations and conditions determine who sees what.
   </Card>
   <Card title="Projects & environments" icon="folder-tree" href="/concepts/projects-and-environments">
     The hierarchy your SDK keys point at.

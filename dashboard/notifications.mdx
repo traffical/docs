@@ -3,7 +3,7 @@ title: "Notifications"
 description: "Your notification feed, the bell, acknowledgements, email and Slack delivery, routing rules, and the delivery audit log."
 ---
 
-Traffical keeps working when you're not looking — experiments reach significance, health checks trip, agents propose transitions. Notifications are how that reaches you: an in-app feed and bell for everyone, email delivery you opt into, org-wide routing to shared Slack channels and inboxes, and an audit log of every delivery.
+Traffical keeps working when you're not looking — policies reach significance, health checks trip, agents propose transitions. Notifications are how that reaches you: an in-app feed and bell for everyone, email delivery you opt into, org-wide routing to shared Slack channels and inboxes, and an audit log of every delivery.
 
 <Frame caption="Notifications feed">
   <img src="/images/placeholders/notifications-feed.png" alt="Notifications feed with All, Unread, and Needs ack tabs" />
@@ -16,7 +16,7 @@ Every notification belongs to one of four categories:
 | Category | What's in it |
 |----------|--------------|
 | **Policy** | A [policy health check](/dashboard/policy-health) changes status — a guardrail or SRM check starts failing, or recovers — and policy configuration changes. |
-| **Experiment** | Measurement readouts: a metric reaches [significance](/statistics/significance) (win or loss), or an experiment is ready to resolve. |
+| **Experiment** | Measurement readouts: a metric reaches [significance](/statistics/significance) (win or loss), or a policy is ready to resolve. |
 | **Data** | Data-quality alerts — ingested event volume drops well below what's expected. |
 | **System** | Operational and governance events: a [workflow run](/dashboard/pipeline) fails, an agent proposes or executes a transition on a [change](/concepts/changes) (see [approvals & autonomy](/governance/approvals-and-autonomy)), and platform announcements. |
 
@@ -137,7 +137,7 @@ Use the audit when someone asks "why didn't I get that alert?" — you can see w
     The approval flow that proposed-transition notifications feed.
   </Card>
   <Card title="Changes" icon="git-branch" href="/dashboard/changes">
-    Where experiment and lifecycle notifications link to.
+    Where measurement and lifecycle notifications link to.
   </Card>
   <Card title="Roles & permissions" icon="lock" href="/governance/roles-and-permissions">
     Who can manage destinations, routing, and the audit log.

@@ -1,0 +1,74 @@
+---
+title: "Terminology"
+description: "The shared vocabulary for assignment events, unique units, enrolled units, allocations, and analysis signals — what each count means and when to use which term."
+---
+
+Traffical's dashboard, API, and analyses all use the same small vocabulary for the things a running policy produces and the things an analysis counts. This page defines that vocabulary. Every other page uses these terms in exactly these senses.
+
+## Assignment events
+
+An **assignment event** is every decision or exposure row produced by a running policy, repeats included. It measures serving volume — not a sample size.
+
+Assignment events are the umbrella term. They comprise two kinds:
+
+- **Decision event** — the SDK resolved an allocation for a unit — the intent-to-treat (ITT) signal, whether or not the unit saw it.
+- **Exposure event** — a unit actually experienced its allocation — the treatment-on-the-treated (TOT) signal.
+
+Both kinds fire automatically. A single unit generates many assignment events over time: every resolution produces a decision event, and every read of a parameter value produces an exposure event (deduplicated within a session). When a surface counts raw event rows without distinguishing the two kinds, that count is a count of assignment events.
+
+## The three counts
+
+Surfaces that report volume use three counts, each strictly smaller than the last:
+
+| Count | Definition | What it answers |
+|-------|------------|-----------------|
+| **Assignment events** | Every decision or exposure row produced by a running policy, repeats included. | How much is this policy serving? |
+| **Unique units** | Distinct unit keys seen in the window. Each unit counts once, however often it appears. | How many distinct units did the policy touch? |
+| **Enrolled units** | The analysis sample: units attributed to the allocation of their first assignment. Units seen in more than one allocation are excluded. | How big is the sample the analysis reads? |
+
+The three form a funnel: assignment events ⊃ unique units ⊃ enrolled units. Deduplicating assignment events by unit key gives you unique units; attributing each unique unit to the allocation of its first assignment — and excluding units seen in more than one allocation — gives you enrolled units.
+
+<Note>
+Only enrolled units are a sample size. Statistical results — significance, confidence intervals, runtime estimates — are computed over enrolled units, never over raw assignment events.
+</Note>
+
+## Allocations and traffic splits
+
+An **allocation** is a named bundle of parameter overrides a policy serves, with a share of its traffic. `control`, `treatment`, `low_price` — each is an allocation. Allocation is the canonical noun; other tools call the same thing a "variant" or an "arm".
+
+The **traffic split** is how a policy's traffic divides across its allocations — for example, 50% / 50%, or 90% / 10% during a ramp. Percentages on a policy always describe traffic, so they read "traffic" or "traffic split".
+
+## Decision log vs decision events
+
+These two share a word but have nothing else in common:
+
+- **Decision events** are runtime data: one row per SDK resolution, the ITT half of assignment events.
+- The **decision log** is the governance audit trail of decision records — approvals, ramps, promotions, guardrail breaches — capturing who did what and why at each lifecycle moment. See [the decision log](/dashboard/decisions).
+
+A policy serving a million decision events writes no decision records; approving its measurement plan writes one.
+
+## Analysis signal
+
+The **analysis signal** is which assignment signal an analysis reads:
+
+- **Decision events** give an intent-to-treat (ITT) analysis: every unit the policy resolved an allocation for counts, whether or not the unit saw it. ITT catches problems that stop an allocation from rendering.
+- **Exposure events** give a treatment-on-the-treated (TOT) analysis: only units that actually experienced their allocation count. TOT measures the effect on units the change really reached.
+
+In warehouse-native mode, an [assignment definition](/concepts/warehouse-native#assignment-definitions) declares its Signal — decision or exposure, or mixed when a `source_type` column is mapped and each row says which kind it is.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Decisions & attribution" icon="link" href="/concepts/assignments">
+    How a resolution becomes assignment events and how outcomes attribute back.
+  </Card>
+  <Card title="Events & metrics" icon="bolt" href="/concepts/events-and-metrics">
+    The event payloads behind decision, exposure, and track events.
+  </Card>
+  <Card title="Policies" icon="scale-balanced" href="/concepts/policies">
+    Allocations, traffic splits, and policy states.
+  </Card>
+  <Card title="Glossary" icon="book-open" href="/reference/glossary">
+    The full A–Z reference of every term in the docs.
+  </Card>
+</CardGroup>

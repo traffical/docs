@@ -7,13 +7,13 @@ This page is the technical companion to [Variance reduction (CUPED)](/statistics
 
 ## The adjustment
 
-For each unit, CUPED replaces the in-experiment outcome `Y` with:
+For each unit, CUPED replaces the measured outcome `Y` with:
 
 ```
 Y_adj = Y − θ · (X − X̄)
 ```
 
-where `X` is the unit's pre-experiment covariate, `X̄` is the covariate mean over all units, and:
+where `X` is the unit's pre-exposure covariate, `X̄` is the covariate mean over all units, and:
 
 ```
 θ = Cov(Y, X) / Var(X)
@@ -27,13 +27,13 @@ Var(Y_adj) = Var(Y) · (1 − ρ²)        # ρ = corr(Y, X)
 
 The stronger the correlation between past and present, the more variance comes out.
 
-## Why θ is pooled across arms
+## Why θ is pooled across allocations
 
-Traffical estimates `θ` and `X̄` once, pooling the data from **all arms together**, rather than fitting a coefficient per arm. This is what keeps the adjustment unbiased. A per-arm `θ` would itself depend on the treatment assignment, and the adjustment could then absorb part of a real treatment effect. The pooled `θ` is a single constant applied identically to every unit, and because `X` is measured before exposure, randomization makes the expected covariate equal across arms — so the term `θ · (X − X̄)` has the same expectation in every arm and cancels from the expected lift. The adjustment can shift each arm only by its *chance* imbalance in `X`; it removes noise and cannot manufacture or hide an effect.
+Traffical estimates `θ` and `X̄` once, pooling the data from **all allocations together**, rather than fitting a coefficient per allocation. This is what keeps the adjustment unbiased. A per-allocation `θ` would itself depend on the treatment assignment, and the adjustment could then absorb part of a real treatment effect. The pooled `θ` is a single constant applied identically to every unit, and because `X` is measured before exposure, randomization makes the expected covariate equal across allocations — so the term `θ · (X − X̄)` has the same expectation in every allocation and cancels from the expected lift. The adjustment can shift each allocation only by its *chance* imbalance in `X`; it removes noise and cannot manufacture or hide an effect.
 
-## Arm-level formulas
+## Allocation-level formulas
 
-Everything is computed from per-arm sufficient statistics — `n, Σy, Σy², Σx, Σx², Σxy` — so no row-level data leaves your warehouse. With the pooled `θ` and global mean `X̄`:
+Everything is computed from per-allocation sufficient statistics — `n, Σy, Σy², Σx, Σx², Σxy` — so no row-level data leaves your warehouse. With the pooled `θ` and global mean `X̄`:
 
 ```
 mean_adj  = Ȳ_arm − θ · (X̄_arm − X̄)
@@ -41,11 +41,11 @@ Var(Y_adj) = Var(Y) − 2·θ·Cov(Y, X) + θ²·Var(X)      # per arm
 SE_adj    = √( Var(Y_adj) / n )
 ```
 
-The adjusted mean subtracts the outcome shift predicted by the arm's chance covariate imbalance; the lift is the difference of adjusted means. The per-arm **absolute** value and its interval shown in results stay unadjusted — the adjustment applies to the comparison, not to the reported metric level. Degenerate inputs fall back safely: a constant covariate (`Var(X) = 0`) or an empty arm yields `θ = 0`, i.e. the unadjusted analysis.
+The adjusted mean subtracts the outcome shift predicted by the allocation's chance covariate imbalance; the lift is the difference of adjusted means. The per-allocation **absolute** value and its interval shown in results stay unadjusted — the adjustment applies to the comparison, not to the reported metric level. Degenerate inputs fall back safely: a constant covariate (`Var(X) = 0`) or an empty allocation yields `θ = 0`, i.e. the unadjusted analysis.
 
 ## The covariate
 
-By default the covariate is the **same metric's own value before exposure**. Its window is fixed at experiment start: `[start − lookback, start)`, where the lookback is the day count you configure on the metric. Anchoring to the experiment's start (rather than to each analysis run) means the pre-period never moves as results refresh. Within that window, only events from before the unit's **own first exposure** count — a unit that entered mid-experiment can never have post-exposure behavior leak into its covariate.
+By default the covariate is the **same metric's own value before exposure**. Its window is fixed at the policy's start: `[start − lookback, start)`, where the lookback is the day count you configure on the metric. Anchoring to the policy's start (rather than to each analysis run) means the pre-period never moves as results refresh. Within that window, only events from before the unit's **own first exposure** count — a unit that entered mid-run can never have post-exposure behavior leak into its covariate.
 
 A unit with no pre-period activity gets a covariate of **zero** — for a same-metric covariate that is the true value of the metric over the window, not missing data, and the adjustment applies to it like any other unit.
 
@@ -55,15 +55,15 @@ A unit with no pre-period activity gets a covariate of **zero** — for a same-m
 - **Average (mean)** — the outcome is the unit's summed value. With winsorization, the cap is applied to the outcome before adjustment; the covariate is not capped.
 - **Composite** — a composite emits the same sum-style per-unit outcome as an average metric and takes the identical adjustment path.
 
-**Count metrics are not adjusted today.** The count aggregation carries only per-arm event totals — not the per-unit sum of squares and covariate cross-products (`Σy²`, `Σxy`) that fitting `θ` and computing the adjusted variance require — and its standard error uses a Poisson-style approximation rather than a sample variance. Until count metrics carry full sufficient statistics, they're analysed unadjusted.
+**Count metrics are not adjusted today.** The count aggregation carries only per-allocation event totals — not the per-unit sum of squares and covariate cross-products (`Σy²`, `Σxy`) that fitting `θ` and computing the adjusted variance require — and its standard error uses a Poisson-style approximation rather than a sample variance. Until count metrics carry full sufficient statistics, they're analysed unadjusted.
 
 **Ratio metrics are not adjusted today.** A ratio's estimand is a ratio of two means, with a standard error from the delta method over the joint statistics of numerator and denominator. A single linear shift of a per-unit outcome doesn't map onto that estimator — correct variance reduction for a ratio means adjusting numerator and denominator jointly inside the delta method, which is its own estimator and isn't wired yet.
 
-If the metric type is unsupported, or any arm is missing the covariate statistics, the whole metric is analysed unadjusted — the adjustment is never applied to only some arms.
+If the metric type is unsupported, or any allocation is missing the covariate statistics, the whole metric is analysed unadjusted — the adjustment is never applied to only some allocations.
 
 ## Downstream of the adjustment
 
-CUPED runs **upstream of the test**. It replaces each arm's (mean, standard error) before the treatment-versus-control difference is assembled, so both the fixed-horizon test and the [anytime-valid confidence sequence](/statistics/sequential-testing-technical) consume the adjusted estimates without change. Under sequential testing, the smaller standard error narrows the sequence at every look while the time-uniform guarantee is untouched.
+CUPED runs **upstream of the test**. It replaces each allocation's (mean, standard error) before the treatment-versus-control difference is assembled, so both the fixed-horizon test and the [anytime-valid confidence sequence](/statistics/sequential-testing-technical) consume the adjusted estimates without change. Under sequential testing, the smaller standard error narrows the sequence at every look while the time-uniform guarantee is untouched.
 
 ## What to expect
 

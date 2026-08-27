@@ -29,9 +29,9 @@ The **Changes** card sets project-wide guardrails that the [New Change wizard](/
 
 | Setting | Default | What it drives |
 |---------|---------|----------------|
-| **Target days to significance** | 14 | New A/B changes auto-size the experiment allocation — the share of the layer the test reserves — so the experiment projects to reach significance within this many days, based on measured traffic and the goal metric's baseline. |
+| **Target days to significance** | 14 | New A/B changes auto-size the experiment allocation — the share of the layer the test reserves — so the test projects to reach significance within this many days, based on measured traffic and the goal metric's baseline. |
 | **Min / max allocation %** | 5 / 80 | Clamp the auto-sized recommendation and bound the wizard's **Experiment allocation** slider. When the recommendation gets clamped, the wizard says so and shows the projected duration at the clamped value. |
-| **Min / max canary %** | 1 / 10 | Bound the wizard's **Canary traffic** slider — the initial exposure a canary phase can request. |
+| **Min / max canary %** | 1 / 10 | Bound the wizard's **Canary traffic** slider — the initial traffic share a canary phase can request. |
 
 These are guardrails, not mandates: operators can drag the sliders to override the recommendation per change, within the bounds you set here. The card refuses to save a min above its max.
 
@@ -39,7 +39,7 @@ These are guardrails, not mandates: operators can drag the sliders to override t
 
 The **Analysis** card sets project-wide statistics defaults. Each policy inherits them unless it overrides the setting explicitly — the effective rule is always *policy setting if set, otherwise the project default*.
 
-- **CUPED variance reduction** — use pre-experiment data to shrink confidence intervals and reach significance sooner, without biasing results. Off by default. See [Variance reduction (CUPED)](/statistics/cuped).
+- **CUPED variance reduction** — use pre-exposure data to shrink confidence intervals and reach significance sooner, without biasing results. Off by default. See [Variance reduction (CUPED)](/statistics/cuped).
 - **Sequential testing** — anytime-valid results: peek as often as you like and the false-positive rate still holds, in exchange for slightly wider intervals. Off by default. See [Sequential testing](/statistics/sequential-testing).
 - **Default target MDE (%)** — the minimum detectable effect that [measurement progress](/statistics/measurement-progress) tracks against when nothing more specific sets one. The precedence is: the [measurement protocol](/governance/measurement-protocols), then the policy's metric attachment, then the metric definition, then this project default. Leave it empty to fall back to the 5% system default.
 
@@ -59,7 +59,7 @@ Every pipeline starts on **Default** — the platform cadence, shown in parenthe
 
 | Pipeline | What it does | Default | Intervals you can pick |
 |----------|--------------|---------|------------------------|
-| **Analysis (lite)** | Recomputes experiment results and policy health | Automatic — adaptive policies are analyzed more often than A/B tests | 5, 10, 15, 20, 30, 60 min |
+| **Analysis (lite)** | Recomputes measured results and policy health | Automatic — adaptive policies are analyzed more often than A/B tests | 5, 10, 15, 20, 30, 60 min |
 | **Dashboard rollup** | Refreshes the aggregates behind dashboard charts | 5 min | 5, 10, 15, 20, 30, 60 min |
 | **Assignment extract** | Extracts fresh assignment data — the shared input that rollups and analysis read | 5 min | 5, 10, 15, 20, 30, 60 min |
 | **Fact extract** | Runs your fact definitions' SQL against the warehouse | 15 min | 15, 30 min; 1, 2, 4, 6, 12 h |
@@ -73,7 +73,7 @@ Usage metering feeds [usage and billing](/dashboard/usage-and-billing); a longer
 
 ## SDK configuration
 
-The **SDK** tab shows the state of the SDK-facing config bundle per environment — its current version and how many parameters, layers, and policies it carries — with actions to view the bundle JSON and force a rebuild. Below it, **SDK Event Sync** controls whether SDK-emitted events (exposures, decisions, track events) are written into your connected warehouse on a schedule, with sync status, last-run stats, and a manual trigger. Projects on the Traffical-managed warehouse ingest SDK events automatically, so the sync section only appears when you bring your own warehouse. The sync cadence itself lives in [pipeline scheduling](#pipeline-scheduling) above.
+The **SDK** tab shows the state of the SDK-facing config bundle per environment — its current version and how many parameters, layers, and policies it carries — with actions to view the bundle JSON and force a rebuild. Below it, **SDK Event Sync** controls whether SDK-emitted events (exposure, decision, and track events) are written into your connected warehouse on a schedule, with sync status, last-run stats, and a manual trigger. Projects on the Traffical-managed warehouse ingest SDK events automatically, so the sync section only appears when you bring your own warehouse. The sync cadence itself lives in [pipeline scheduling](#pipeline-scheduling) above.
 
 <Frame caption="SDK configuration tab">
   <img src="/images/placeholders/sdk-settings.png" alt="SDK configuration tab placeholder" />
@@ -101,7 +101,7 @@ The **Maintenance** tab runs project-level operations — data backfills, integr
 
 ## Archiving and deleting
 
-At the bottom of the **General** tab, the danger zone holds **Archive Project**. Archiving hides the project from the project list and stops all background jobs — optimization, metric refreshes, syncs, rollups. It's blocked while any policy is running: complete or pause running policies first, so archiving never silently kills a live experiment.
+At the bottom of the **General** tab, the danger zone holds **Archive Project**. Archiving hides the project from the project list and stops all background jobs — optimization, metric refreshes, syncs, rollups. It's blocked while any policy is running: complete or pause running policies first, so archiving never silently kills a live policy.
 
 Archiving is reversible: restore the project any time from the organization page under the **Archived** filter. Permanent deletion is a separate, second step — only archived projects can be deleted, from that same organization page, and it requires typing the project's name to confirm. Deletion removes all configuration — environments, parameters, policies, metrics, definitions, and decision log history — and can't be undone. Already-ingested event data and any tables synced into your warehouse are not removed.
 

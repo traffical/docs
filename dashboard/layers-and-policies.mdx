@@ -3,7 +3,7 @@ title: "Layers & policies in the dashboard"
 description: "Managing layers and reading the policy detail page — the verdict banner, its seven tabs, measurement progress, and per-policy analysis settings."
 ---
 
-The **Layers** page is where every experiment, rollout, and feature-flag policy lives. Layers keep concurrent experiments cleanly separated; policies decide who sees what within a layer. This page walks the dashboard surfaces — for the underlying model, see [Layers](/concepts/layers) and [Policies](/concepts/policies).
+The **Layers** page is where every A/B test, rollout, and feature-flag policy lives. Layers keep concurrent policies cleanly separated; policies decide who sees what within a layer. This page walks the dashboard surfaces — for the underlying model, see [Layers](/concepts/layers) and [Policies](/concepts/policies).
 
 <Frame caption="Layers list">
   <img src="/images/placeholders/layers-list.png" alt="Layer cards with policy summaries and state filters" />
@@ -44,10 +44,10 @@ Active policies are ordered by priority — when a user is eligible for more tha
 
 ## Creating a policy
 
-**Create Policy** opens a modal for the essentials: name, an auto-generated key (the stable identifier used in SDK events and warehouse assignment data), kind, the traffic allocation — defaulting to a 50/50 Control / Treatment split — the optimization goal for adaptive policies, optional targeting conditions, and optionally an eligible bucket range. The policy is created in **draft** — you configure parameter overrides for each allocation (and can refine splits and targeting) on its detail page before starting it. Creating and editing policies requires a role with policy write access — see [Roles and permissions](/governance/roles-and-permissions).
+**Create Policy** opens a modal for the essentials: name, an auto-generated key (the stable identifier used in SDK events and warehouse assignment data), kind, the traffic split — defaulting to 50/50 Control / Treatment — the optimization goal for adaptive policies, optional targeting conditions, and optionally an eligible bucket range. The policy is created in **draft** — you configure parameter overrides for each allocation (and can refine splits and targeting) on its detail page before starting it. Creating and editing policies requires a role with policy write access — see [Roles and permissions](/governance/roles-and-permissions).
 
 <Frame caption="Create policy">
-  <img src="/images/placeholders/create-policy-modal.png" alt="Create Policy modal with name, key, kind, goal, and traffic allocation fields" />
+  <img src="/images/placeholders/create-policy-modal.png" alt="Create Policy modal with name, key, kind, goal, and traffic split fields" />
 </Frame>
 
 ### Choosing the goal
@@ -71,9 +71,9 @@ Everything else is organized into seven tabs:
 
 | Tab | What it answers |
 |-----|-----------------|
-| **Overview** | Where does the experiment stand right now? |
+| **Overview** | Where does the policy stand right now? |
 | **Setup** | How is it configured — splits, parameters, measurement targets? |
-| **Measurement** | What do the measured results say, and how far along is the experiment? |
+| **Measurement** | What do the measured results say, and how far along is the measurement? |
 | **Diagnostics** | Is it serving correctly? Flagged `(!)` while any health check is warning or failing. |
 | **Decisions** | What was decided, when, by whom, and why? |
 | **History** | How did allocations, rollout steps, and configuration evolve? |
@@ -90,7 +90,7 @@ A running policy opens with one plainly stated verdict. It is derived from real 
 1. **Completed outcome.** A completed policy states its result — "*checkout_v2* won" — with the final lift.
 2. **Health breach.** While any health check is failing, the banner reads **"Serving issue detected"** and points you to Diagnostics. No win is claimed and promotion is suppressed — the split may not be serving correctly, so results can't be trusted yet.
 3. **Winner.** An adaptive policy whose optimizer has converged on a leader, or a static policy with a statistically significant measured winner.
-4. **Still learning.** No significant winner yet — the banner names the trending variant, if any, and tells you to keep running.
+4. **Still learning.** No significant winner yet — the banner names the trending allocation, if any, and tells you to keep running.
 
 The banner is deliberately honest about the standard of evidence. When a primary metric is attached, **measured significance** — not the optimizer's posterior — decides what counts as a win:
 
@@ -102,21 +102,21 @@ For static policies the measured primary metric *is* the verdict: the winner is 
 
 ## Overview tab
 
-A **draft** policy's Overview shows a launch-readiness checklist, the planned traffic allocation, and a configuration summary — everything to review before starting.
+A **draft** policy's Overview shows a launch-readiness checklist, the planned traffic split, and a configuration summary — everything to review before starting.
 
 Once running, the Overview answers "where does this stand" without a tab switch:
 
-- **KPI band** — four numbers: lifetime **Exposures**, **Traffic** (the share of the layer's buckets the policy's allocations cover), **Lift vs control**, and **Health**. With a primary metric attached, the lift KPI shows the *measured* lift of the best challenger; it stays uncolored and flagged "not yet significant" until the result is conclusive, and the sign of a win follows the metric's desired direction. Without a metric it falls back to the optimizer's estimate.
+- **KPI band** — four numbers: lifetime **Assignment events** (serving volume — decision and exposure rows, repeats included), **Traffic** (the share of the layer's buckets the policy's allocations cover), **Lift vs control**, and **Health**. With a primary metric attached, the lift KPI shows the *measured* lift of the best challenger; it stays uncolored and flagged "not yet significant" until the result is conclusive, and the sign of a win follows the metric's desired direction. Without a metric it falls back to the optimizer's estimate.
 - **Serving health** — the compact health summary; each check opens its history. See [Policy health](/dashboard/policy-health).
-- **Live allocation** — the current split bar plus a per-variant digest: traffic share, exposures, and average reward or conversion rate for adaptive policies, with the leader badged. Completed policies show the final split.
-- **Primary metric strip** — measured results per variant against control with confidence-interval bars. This is the same snapshot the Measurement tab renders, kept separate from the optimizer's learning signal so measured truth and bandit estimates never blur into one card.
+- **Live allocation** — the current split bar plus a per-allocation digest: traffic share, assignment events, and average reward or conversion rate for adaptive policies, with the leader badged. Completed policies show the final split.
+- **Primary metric strip** — measured results per allocation against control with confidence-interval bars. This is the same snapshot the Measurement tab renders, kept separate from the optimizer's learning signal so measured truth and bandit estimates never blur into one card.
 - **Rollout progress** while a rollout is ramping, and — on completed policies — a **How it closed** card with the closing decision record.
 
 ## Setup tab
 
 Setup is the configuration home:
 
-- **Configuration** — algorithm, goal, minimum exposures before traffic shifts, and context fields for contextual policies. Editable while in draft.
+- **Configuration** — algorithm, goal, minimum exposure events before traffic shifts, and context fields for contextual policies. Editable while in draft.
 - **Splits & parameters** — the allocation bar (toggle between policy scope and layer scope) and the per-allocation parameter override editor. Once a policy starts, splits and overrides are **locked** for assignment stability — the optimizer owns the live split. Duplicate the policy to iterate.
 - **Measurement targets** — the resolved target MDE per attached metric, each with a source badge showing where the value came from (policy override, metric default, project default, or assumed). Targets stamped by a [measurement protocol](/governance/measurement-protocols) are locked and change only through a protocol amendment. Guardrail metrics target their threshold instead — no MDE needed.
 - A rail summarizes the rollout configuration (ramp, status, on-violation behavior) and the model for adaptive policies.
@@ -129,30 +129,30 @@ Measurement is where you read results.
   <img src="/images/placeholders/policy-measurement-tab.png" alt="Measurement tab with per-metric significance results and the measurement progress card" />
 </Frame>
 
-The **results panel** lists every attached metric with per-variant point estimates, confidence intervals, and significance — see [Significance](/statistics/significance) for how the numbers are computed and [Metrics](/dashboard/metrics) for attaching them.
+The **results panel** lists every attached metric with per-allocation point estimates, confidence intervals, and significance — see [Significance](/statistics/significance) for how the numbers are computed and [Metrics](/dashboard/metrics) for attaching them.
 
 If an adaptive policy optimizes a goal event but has no metric attached yet, the tab offers a bridge instead: **create a conversion-rate metric from the goal event** in one click (or attach an existing metric) to get statistical significance with confidence intervals on top of the optimization signal.
 
-Adaptive policies also get their model behavior here: the optimization status panel, a convergence readout (exploring → learning → converging → converged), and the per-arm learning state. The converged advice applies the same standard of evidence as the verdict banner — once the optimizer converges, the tab only suggests completing the policy if the leader's measured lift is significant; otherwise it says to keep running until it reaches significance. Per-entity policies show how many entities are being independently optimized and which variant wins across them; contextual policies show training status and per-context model behavior instead.
+Adaptive policies also get their model behavior here: the optimization status panel, a convergence readout (exploring → learning → converging → converged), and the per-allocation learning state. The converged advice applies the same standard of evidence as the verdict banner — once the optimizer converges, the tab only suggests completing the policy if the leader's measured lift is significant; otherwise it says to keep running until it reaches significance. Per-entity policies show how many entities are being independently optimized and which allocation wins across them; contextual policies show training status and per-context model behavior instead.
 
 ### Measurement progress
 
-The **measurement progress card** tracks how close the experiment is to its target minimum detectable effect:
+The **measurement progress card** tracks how close the measurement is to its target minimum detectable effect:
 
 - The target MDE with its source, a progress bar, and a **Target reached** terminal state
-- **Detectable now** — the effect size the current sample could reliably detect, converging toward the target
+- **Detectable now** — the effect size the current [enrolled units](/concepts/terminology#the-three-counts) could reliably detect, converging toward the target
 - An estimated time remaining with its as-of time — or an honest "no traffic accruing recently" when nothing is arriving
-- For static tests with more than two arms, the limiting arm that gates overall progress
+- For static tests with more than two allocations, the limiting allocation that gates overall progress
 - For adaptive policies, progress is measured on the leader-vs-control pair — the comparison that actually gates completion; contextual policies get no runtime estimate, since winners vary per context
 
-Paused policies freeze the estimates; completed policies show a retrospective ("this experiment could reliably detect effects of ±2.1% or larger"). Draft policies get a what-if planner instead: enter a baseline rate and target MDE to see the required sample per variant before launching. The math behind all of this is covered in [Measurement progress](/statistics/measurement-progress).
+Paused policies freeze the estimates; completed policies show a retrospective ("This experiment could reliably detect effects of ±2.1% or larger"). Draft policies get a what-if planner instead: enter a baseline rate and target MDE to see the required enrolled units per allocation before launching. The math behind all of this is covered in [Measurement progress](/statistics/measurement-progress).
 
 ## Diagnostics tab
 
 Diagnostics answers "is it serving correctly":
 
 - **Health checks** as clickable pills — each opens its per-window history
-- The **assignments chart** — exposures and traffic share over a selectable window
+- The **assignments chart** — assignment events and traffic share over a selectable window
 - For static policies, an **SRM history** chart tracking sample-ratio mismatch over time
 - **Recent transitions** — every per-check pass / warn / fail change
 
@@ -187,7 +187,7 @@ History is the raw evolution record:
 From the header you can:
 
 - **Start / Pause / Complete** — completing is final: the policy stops being evaluated and its results are preserved.
-- **Promote…** — available on running policies with two or more allocations and no active rollout, and from the completed verdict banner. Promoting creates a *new* static draft policy serving the winning variant, with a rollout pre-configured to complete the source policy when it finishes — so the winner ships behind health gates. It writes a decision record to the source policy's timeline.
+- **Promote…** — available on running policies with two or more allocations and no active rollout, and from the completed verdict banner. Promoting creates a *new* static draft policy serving the winning allocation, with a rollout pre-configured to complete the source policy when it finishes — so the winner ships behind health gates. It writes a decision record to the source policy's timeline.
 - **Duplicate** — fork the configuration into a new draft. This is the way to iterate, since splits and overrides lock once a policy starts.
 - **Convert to change** — wrap a standalone policy in a [change](/concepts/changes).
 - **Configure Rollout** — attach a progressive rollout while in draft; see [Rollouts](/experimentation/rollouts).
@@ -196,7 +196,7 @@ From the header you can:
 ## Tips
 
 - **Always start in draft.** Build out the allocations and conditions, then start when you're ready. Switching state is fast; a misconfigured running policy is a panic.
-- **Use the eligible bucket range** for non-overlapping experiments rather than separate layers. Layers are for parameters; ranges are for sub-segments of the same layer. The swim-lanes view shows you exactly what overlaps.
+- **Use the eligible bucket range** for non-overlapping policies rather than separate layers. Layers are for parameters; ranges are for sub-segments of the same layer. The swim-lanes view shows you exactly what overlaps.
 - **Attach a primary metric to adaptive policies.** Without one, the optimizer's posterior is the only signal and no measured verdict gates promotion. With one, you get the full standard of evidence.
 - **Name allocations descriptively.** `control` and `treatment` are conventional, but `low_price_5` is more useful than `treatment_b` six months later.
 

@@ -1,6 +1,6 @@
 ---
 title: "Warehouse-native"
-description: "Compute experiment metrics directly from your own data warehouse. Define assignments and facts as SQL — Traffical aggregates and runs significance tests."
+description: "Compute metrics directly from your own data warehouse. Define assignments and facts as SQL — Traffical aggregates and runs significance tests."
 ---
 
 Traffical can compute metrics from two sources:
@@ -30,7 +30,7 @@ Warehouse-native is built on four kinds of definitions. The names are deliberate
 
 | Definition | What it describes |
 |------------|-------------------|
-| **Entity** | The unit of randomization (User, Company, Device). What kind of thing gets assigned to a variant. |
+| **Entity** | The unit of randomization (User, Company, Device). What kind of thing gets assigned to an allocation. |
 | **Assignment** | Where assignments live — SQL that returns one row per (entity, time, policy, allocation). |
 | **Fact** | Where outcomes live — SQL that returns events you want to measure (purchases, signups, ticket creates). |
 | **Metric** | How to aggregate a fact into a number per allocation (conversion rate, sum, count). |
@@ -47,11 +47,11 @@ entities:
     keyType: companyId
 ```
 
-The entity's key type must match the unit key of the project's experiments.
+The entity's key type must match the project's unit key.
 
 ### Assignment definitions
 
-An assignment definition is the SQL that produces the mapping between an entity and the variant it was assigned to. This is what tells Traffical "user 123 saw `treatment` of `pricing_test` at 10:30am".
+An assignment definition is the SQL that produces the mapping between an entity and the [allocation](/concepts/terminology#allocations-and-traffic-splits) it was assigned to. This is what tells Traffical "user 123 saw `treatment` of `pricing_test` at 10:30am".
 
 ```yaml
 assignments:
@@ -73,6 +73,8 @@ Required columns:
 - `assigned_at` — when the assignment took effect
 - `policy_key` — must match the `key` of a Traffical policy
 - `allocation_key` — must match the `key` of one of that policy's allocations
+
+An assignment definition also declares its **Signal** — the [analysis signal](/concepts/terminology#analysis-signal) its rows carry: decision events (intent-to-treat) or exposure events (treatment-on-the-treated). If your source holds both kinds, map a `source_type` column and declare the signal as mixed; each row then says which kind it is.
 
 If you're using a Traffical SDK to do the assigning, you get the same effect for free — the SDK ships exposure events to Traffical and the platform manages the assignment table for you. You only need to write an assignment definition if assignments come from somewhere else.
 
@@ -123,9 +125,11 @@ Available aggregations:
 
 | Aggregation | Numerator | Denominator | Output |
 |-------------|-----------|-------------|--------|
-| `conversion_rate` | Unique entities with at least one fact event | Unique entities exposed | Proportion |
-| `sum` | Sum of `valueColumn` across fact events | Unique entities exposed | Per-entity average |
-| `count` | Count of fact events | Unique entities exposed | Per-entity rate |
+| `conversion_rate` | Enrolled units with at least one fact event | Enrolled units | Proportion |
+| `sum` | Sum of `valueColumn` across fact events | Enrolled units | Per-entity average |
+| `count` | Count of fact events | Enrolled units | Per-entity rate |
+
+The denominator is always the [enrolled units](/concepts/terminology#the-three-counts) of the analysis: units attributed to the allocation of their first assignment, with units seen in more than one allocation excluded.
 
 ## The pipeline
 
@@ -141,7 +145,7 @@ Results land in the dashboard.
 
 ```mermaid
 flowchart LR
-    A["Assignment source<br/>SDK exposures<br/>or warehouse SQL"] --> P[Pipeline]
+    A["Assignment source<br/>SDK exposure events<br/>or warehouse SQL"] --> P[Pipeline]
     F["Fact source<br/>SDK track events<br/>or warehouse SQL"] --> P
     P -->|join + aggregate| Stats["Per-allocation stats"]
     Stats --> Sig["Significance"]
@@ -159,7 +163,7 @@ Connections are configured per project in the dashboard. Supported warehouses: P
 
 Most setups end up hybrid:
 
-- SDK-managed assignments for new experiments (no SQL to write)
+- SDK-managed assignments for new policies (no SQL to write)
 - Warehouse facts for outcomes that live in the warehouse anyway (orders, renewals)
 - Traffical-native track events for outcomes the SDK captures naturally (clicks, page views)
 

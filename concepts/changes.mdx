@@ -16,37 +16,37 @@ The Changes surface is enabled per organization. If you don't see **Changes** in
 Policies are precise but low-level: bucket ranges, priorities, allocations. Nothing in a policy says *why* it exists, what counts as success, or whether anyone approved exposing users to it. A change makes the safe path the default path:
 
 - **Intent first** — you can't create a change without stating what it's for.
-- **Measurement before traffic** — no exposure until a measurement plan is approved (or qualifies for auto-approval).
+- **Measurement before traffic** — no traffic until a measurement plan is approved (or qualifies for auto-approval).
 - **Guardrails while running** — each phase is monitored against its plan's guardrails, with configurable responses to breaches.
 - **An audit trail throughout** — every start, advance, promotion, completion, and revert produces a decision record with the evidence it was based on.
 
 ## Lifecycle templates
 
-When you create a change you pick one of three lifecycle templates. The template determines the phases the change moves through and the arm shape it exposes.
+When you create a change you pick one of three lifecycle templates. The template determines the phases the change moves through and the allocation shape it serves.
 
-| Template | Phases | Arms |
-|----------|--------|------|
-| **Gradual rollout** | setup → canary → rollout → complete | One treatment. The rest of traffic keeps the current default — no control arm, no experiment. |
+| Template | Phases | Allocations |
+|----------|--------|-------------|
+| **Gradual rollout** | setup → canary → rollout → complete | One treatment. The rest of traffic keeps the current default — no control allocation, no A/B comparison. |
 | **Canary → Experiment → Rollout** | setup → canary → experiment → rollout → complete | Control vs one treatment. Control is implicit — the current parameter default — so the result compares the winner against the real status quo. |
-| **Adaptive optimization** | setup → adaptive → complete | Control plus multiple candidate arms, continuously optimized within guardrails. |
+| **Adaptive optimization** | setup → adaptive → complete | Control plus multiple candidate allocations, continuously optimized within guardrails. |
 
-The wizard recommends a template based on the change's computed [risk class](#risk-class). A low-risk change is recommended **Gradual rollout** — skip the experiment, validate on a canary, ramp. Medium risk and above is recommended **Canary → Experiment → Rollout**: validate safety on a small slice, measure impact with a proper controlled experiment, then ramp the winner. **Adaptive optimization** is never auto-recommended — you pick it deliberately.
+The wizard recommends a template based on the change's computed [risk class](#risk-class). A low-risk change is recommended **Gradual rollout** — skip the experiment phase, validate on a canary, ramp. Medium risk and above is recommended **Canary → Experiment → Rollout**: validate safety on a small slice, measure impact properly in the experiment phase, then ramp the winner. **Adaptive optimization** is never auto-recommended — you pick it deliberately.
 
 ## Phases
 
 Each phase is a lifecycle step with its own configuration, state, and outcome.
 
-- **Setup** — the drafting stage. You define the variant values, surfaces, and objective. No traffic is exposed; a change can sit in setup indefinitely.
-- **Canary** — a small exposure (1% by default) to validate safety before committing. Canaries are judged on health metrics and the plan's minimums (runtime, exposures), not on winning.
+- **Setup** — the drafting stage. You define the allocation values, surfaces, and objective. No traffic is served; a change can sit in setup indefinitely.
+- **Canary** — a small traffic slice (1% by default) to validate safety before committing. Canaries are judged on health metrics and the plan's minimums (runtime, exposure events), not on winning.
 - **Experiment** — a 50/50 control-vs-treatment test measuring the objective. It runs until the evidence supports a verdict: winner selected, no winner, or inconclusive.
-- **Rollout** — ramps the winning variant toward the full layer in health-gated steps. See [rollouts](/experimentation/rollouts) for the ramp mechanics.
-- **Adaptive** — a multi-arm adaptive policy shifts traffic toward better-performing arms within the plan's guardrails. Bandits need volume to learn, so adaptive phases default to the whole layer rather than a canary slice.
+- **Rollout** — ramps the winning allocation toward the full layer in health-gated steps. See [rollouts](/experimentation/rollouts) for the ramp mechanics.
+- **Adaptive** — an adaptive policy shifts traffic toward better-performing allocations within the plan's guardrails. Bandits need volume to learn, so adaptive phases default to the whole layer rather than a canary slice.
 - **Complete** — the terminal step. The winning values are promoted to the parameter defaults, and the change closes with a recorded outcome.
 
 Five transitions move a change between phases: **start**, **advance**, **promote** (select a winner), **complete**, and **revert**. Each transition shows a preview — resolved traffic placement, readiness checks, approval requirements, and the decision record it will write — before you confirm.
 
 <Tip>
-**A/B canaries reserve ahead.** In the canary → experiment → rollout template, the canary carves the full experiment allocation up front (50% of the layer by default) but exposes only the canary percentage of each arm — the preview shows "exposes X% · reserves Y%". Advancing to the experiment reuses the same buckets, so a user who was in the treatment arm during the canary stays there. No cohort is contaminated by re-randomization.
+**A/B canaries reserve ahead.** In the canary → experiment → rollout template, the canary reserves the experiment phase's full traffic share up front (50% of the layer by default) but serves only the canary percentage of each allocation — the transition preview shows both the served and the reserved share. Advancing to the experiment phase reuses the same buckets, so a user who was in the treatment allocation during the canary stays there. No cohort is contaminated by re-randomization.
 </Tip>
 
 ## How changes relate to policies and layers
@@ -71,7 +71,7 @@ flowchart TB
     R -.-> P3
 ```
 
-When a phase starts, Traffical creates a new policy for it: it resolves free bucket space in the layer, builds the allocations from the change's variants, and attaches the approved measurement plan's metrics and guardrails. When the change advances, the previous phase's policy is completed and a new one is created for the next phase. Completed policies remain as the change's history — each phase's evidence is anchored to the policy that produced it.
+When a phase starts, Traffical creates a new policy for it: it resolves free bucket space in the layer, builds the allocations from the values defined in setup, and attaches the approved measurement plan's metrics and guardrails. When the change advances, the previous phase's policy is completed and a new one is created for the next phase. Completed policies remain as the change's history — each phase's evidence is anchored to the policy that produced it.
 
 This is the reconciliation between the two lifecycles you'll see in the product:
 
@@ -86,7 +86,7 @@ This is the reconciliation between the two lifecycles you'll see in the product:
 The change never owns bucket ranges, priorities, or ramp state — those stay on the policy, resolved fresh at each transition. You can still work at the policy level directly; changes are a layer of meaning and governance on top, not a replacement.
 
 <Note>
-An existing standalone policy can be wrapped into a change, which is how pre-existing experiments appear in the Changes list. The wrapped change mirrors the policy's current state — a running policy becomes an active change.
+An existing standalone policy can be wrapped into a change, which is how pre-existing policies appear in the Changes list. The wrapped change mirrors the policy's current state — a running policy becomes an active change.
 </Note>
 
 ## Intent, objective, and success criteria
@@ -99,7 +99,7 @@ Every change carries its own definition of success:
 - **Risks** — known risks to monitor while the change moves through its phases.
 - **Surfaces** — the primary [surface](/concepts/surfaces) where the change lands, plus any additional impacted surfaces.
 
-These aren't decoration. The objective's primary metric becomes the experiment's goal metric, the surfaces drive the risk class, and the risks and criteria stay on the change that every approval and decision record points back to.
+These aren't decoration. The objective's primary metric becomes the phase policy's goal metric, the surfaces drive the risk class, and the risks and criteria stay on the change that every approval and decision record points back to.
 
 ## Risk class
 
@@ -144,7 +144,7 @@ A pause lands on the phase's policy, so affected users immediately fall through 
 
 Humans act through the dashboard — the [Changes pages](/dashboard/changes) cover creating, advancing, approving, and completing, gated by [roles and permissions](/governance/roles-and-permissions).
 
-Agents act through the [MCP server](/tools/mcp-server) — under the same governance, not around it. An agent's effective autonomy per action is resolved from the change's risk class and your organization's autonomy policies. Safety actions (pause, revert, reduce exposure) are never gated on risk class — the risk matrix always clears them for direct execution, subject to the agent's granted scope and the organization's write mode. Expanding exposure executes directly only on low-risk changes. Promoting a winner into the product default is always a proposal — a mandatory human checkpoint. A proposal binds the evidence snapshot the agent decided on, plus an expiry timestamp, for audit — and the start and advance gates run again when the approved transition actually executes, so an approval alone never exposes traffic on stale evidence.
+Agents act through the [MCP server](/tools/mcp-server) — under the same governance, not around it. An agent's effective autonomy per action is resolved from the change's risk class and your organization's autonomy policies. Safety actions (pause, revert, reduce traffic) are never gated on risk class — the risk matrix always clears them for direct execution, subject to the agent's granted scope and the organization's write mode. Expanding traffic executes directly only on low-risk changes. Promoting a winner into the product default is always a proposal — a mandatory human checkpoint. A proposal binds the evidence snapshot the agent decided on, plus an expiry timestamp, for audit — and the start and advance gates run again when the approved transition actually executes, so an approval alone never serves traffic on stale evidence.
 
 Either way, every transition writes a decision record: who acted, what the evidence said, and what changed. The change is the unit your audit trail is organized around.
 

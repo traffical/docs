@@ -9,21 +9,21 @@ Quick answers, with links to the full story. If a term is unfamiliar, check the 
 
 ### Do I need a data warehouse to start?
 
-No. Traffical-native events work out of the box: install an [SDK](/sdks/overview), resolve a parameter, and call `track()` — the platform stores and aggregates everything, and you can run your [first experiment](/guides/first-experiment) in minutes. A warehouse connection is optional, for when the outcomes you care about live in your own tables — see [warehouse-native](/concepts/warehouse-native). You can mix both sources in one project; the dashboard treats them identically.
+No. Traffical-native events work out of the box: install an [SDK](/sdks/overview), resolve a parameter, and call `track()` — the platform stores and aggregates everything, and you can run your [first A/B test](/guides/first-experiment) in minutes. A warehouse connection is optional, for when the outcomes you care about live in your own tables — see [warehouse-native](/concepts/warehouse-native). You can mix both sources in one project; the dashboard treats them identically.
 
 ### What's the difference between a layer and a policy?
 
-A [layer](/concepts/layers) is a traffic container: a pool of mutually exclusive policies over a disjoint set of parameters. A [policy](/concepts/policies) is the rule inside it that assigns parameter values to users — every A/B test, rollout, and adaptive optimizer is a policy. Within a layer, a user is in at most one policy at a time; across layers, assignments are statistically independent thanks to [orthogonal bucketing](/concepts/layers#orthogonal-bucketing), which is what makes concurrent experiments safe.
+A [layer](/concepts/layers) is a traffic container: a pool of mutually exclusive policies over a disjoint set of parameters. A [policy](/concepts/policies) is the rule inside it that assigns parameter values to users — every A/B test, rollout, and adaptive optimizer is a policy. Within a layer, a user is in at most one policy at a time; across layers, assignments are statistically independent thanks to [orthogonal bucketing](/concepts/layers#orthogonal-bucketing), which is what makes concurrent experimentation safe.
 
 ### What is a bucket, and why are there 1000 of them?
 
 A bucket is a deterministic hash slot: each layer computes `hash(unitKey + layerId) % bucketCount`, so the same unit always lands in the same bucket with no lookup table — that's why [assignments](/concepts/assignments) are stable across requests. Policies divide the bucket space into allocation ranges, and 1000 buckets gives you 0.1% granularity — fine enough for precise splits and smooth [rollout](/experimentation/rollouts) ramps. It's a project-level setting; projects that want finer control can use 10,000 instead.
 
-## Experiments & statistics
+## Measurement & statistics
 
-### Can I change allocations mid-experiment?
+### Can I change allocations mid-flight?
 
-For adaptive policies, that's the whole point — the engine shifts ranges continuously, and the analysis is built for it. For a static A/B test it's mechanically possible but usually a mistake: bucketing is deterministic, so resizing ranges moves users between variants and mixes their exposure histories. If you need more exposure, scale both arms proportionally so the split ratio never drifts — [change](/concepts/changes) transitions do exactly this with ramp-to-target, and A/B canaries reserve the full experiment allocation up front so advancing reuses the same buckets with no re-randomization. After any manual edit, watch the **Sample ratio mismatch** check in [policy health](/dashboard/policy-health).
+For adaptive policies, that's the whole point — the engine shifts ranges continuously, and the analysis is built for it. For a static A/B test it's mechanically possible but usually a mistake: bucketing is deterministic, so resizing ranges moves users between allocations and mixes their exposure histories. If you need more traffic, scale both allocations proportionally so the traffic split never drifts — [change](/concepts/changes) transitions do exactly this with ramp-to-target, and A/B canaries reserve the experiment phase's full traffic share up front so advancing reuses the same buckets with no re-randomization. After any manual edit, watch the **Sample ratio mismatch** check in [policy health](/dashboard/policy-health).
 
 ### Does sequential testing let me peek at results?
 
@@ -31,25 +31,25 @@ Yes — that's precisely what it's for. With [sequential testing](/statistics/se
 
 ### When does CUPED help, and which metric types support it?
 
-[CUPED](/statistics/cuped) helps when pre-experiment behavior predicts in-experiment behavior — high-variance metrics like revenue or engagement, measured on units that have history in your product. It's available on **average (mean)** and **conversion-rate** metrics, and it needs two switches: a covariate lookback window on the [metric](/dashboard/metrics) itself, and CUPED enabled on the policy (or as the project default). Units with no pre-period history are analysed without adjustment, so it helps where it can and stays out of the way where it can't.
+[CUPED](/statistics/cuped) helps when pre-exposure behavior predicts measured behavior — high-variance metrics like revenue or engagement, measured on units that have history in your product. It's available on **average (mean)** and **conversion-rate** metrics, and it needs two switches: a covariate lookback window on the [metric](/dashboard/metrics) itself, and CUPED enabled on the policy (or as the project default). Units with no pre-period history are analysed without adjustment, so it helps where it can and stays out of the way where it can't.
 
-### How do I know how much longer an experiment needs?
+### How do I know how much longer a measurement needs?
 
-The [measurement progress](/statistics/measurement-progress) card on the policy page answers exactly this: the effect size you set out to detect, the effect detectable right now, and an estimated time remaining derived from each arm's recent accrual. The target resolves from your [measurement protocol](/governance/measurement-protocols), policy, metric, or project defaults — a 5% relative MDE is assumed if nothing is set. On a draft policy the same card becomes a what-if planner for sample-size estimates before launch.
+The [measurement progress](/statistics/measurement-progress) card on the policy page answers exactly this: the effect size you set out to detect, the effect detectable right now, and an estimated time remaining derived from each allocation's recent accrual. The target resolves from your [measurement protocol](/governance/measurement-protocols), policy, metric, or project defaults — a 5% relative MDE is assumed if nothing is set. On a draft policy the same card becomes a what-if planner for sample-size estimates before launch.
 
 ### How do holdouts work?
 
-Model a holdout with [eligible bucket ranges](/concepts/layers#eligible-bucket-ranges): for a 5% holdout, every policy in the layer gets an eligible range covering buckets 50–999, so buckets 0–49 never match any policy and always receive parameter defaults. Comparing the holdout against everyone else measures the *cumulative* impact of all your experiments — the full pattern is in [canonical experiments](/guides/canonical-experiments#holdout-group). Rotate the holdout every 6–12 months so it doesn't drift for unrelated reasons. If you want a program-level number without reserving traffic, [impact methodology](/statistics/impact-methodology) is the modeled alternative.
+Model a holdout with [eligible bucket ranges](/concepts/layers#eligible-bucket-ranges): for a 5% holdout, every policy in the layer gets an eligible range covering buckets 50–999, so buckets 0–49 never match any policy and always receive parameter defaults. Comparing the holdout against everyone else measures the *cumulative* impact of all your policies — the full pattern is in [experimentation patterns](/guides/canonical-experiments#holdout-group). Rotate the holdout every 6–12 months so it doesn't drift for unrelated reasons. If you want a program-level number without reserving traffic, [impact methodology](/statistics/impact-methodology) is the modeled alternative.
 
 ## Optimization
 
 ### When should I use an adaptive policy instead of an A/B test?
 
-Use an [adaptive policy](/experimentation/optimization) when regret matters — you want to stop paying for the losing variant as soon as possible, optimize continuously, or the best variant may change over time. Stick with a static [A/B test](/experimentation/ab-testing) when you need a clean point-in-time verdict for stakeholders, or when the goal metric is delayed or noisy. The trade-off is explicit: bandits concentrate traffic on the leader, so the losing arms accrue data more slowly and statistical significance arrives later than in a fixed 50/50 test — see [choosing an algorithm](/experimentation/choosing-an-algorithm) for the full decision guide.
+Use an [adaptive policy](/experimentation/optimization) when regret matters — you want to stop paying for the losing allocation as soon as possible, optimize continuously, or the best allocation may change over time. Stick with a static [A/B test](/experimentation/ab-testing) when you need a clean point-in-time verdict for stakeholders, or when the goal metric is delayed or noisy. The trade-off is explicit: bandits concentrate traffic on the leader, so the losing allocations accrue data more slowly and statistical significance arrives later than in a fixed 50/50 test — see [choosing an algorithm](/experimentation/choosing-an-algorithm) for the full decision guide.
 
-### Why does my winning variant say "winning traffic" instead of "winning"?
+### Why does my winning allocation say "winning traffic" instead of "winning"?
 
-The wording is deliberate. On an adaptive policy, "winning traffic" means the optimizer has shifted traffic toward that variant — but the *measured* lift on the primary metric isn't statistically significant yet. Bandit convergence is a weaker statistical claim than a significant confidence interval, so "winning" is reserved for the [measured verdict](/statistics/significance), and the dashboard will tell you to keep the policy running before promoting. See [what to expect while it runs](/experimentation/choosing-an-algorithm#what-to-expect-while-it-runs).
+The wording is deliberate. On an adaptive policy, "winning traffic" means the optimizer has shifted traffic toward that allocation — but the *measured* lift on the primary metric isn't statistically significant yet. Bandit convergence is a weaker statistical claim than a significant confidence interval, so "winning" is reserved for the [measured verdict](/statistics/significance), and the dashboard will tell you to keep the policy running before promoting. See [what to expect while it runs](/experimentation/choosing-an-algorithm#what-to-expect-while-it-runs).
 
 <Frame caption="An adaptive policy where the optimizer leads but measurement is still pending">
   <img src="/images/placeholders/faq-winning-traffic-banner.png" alt="Adaptive policy verdict banner reading 'treatment is winning traffic' with the measured lift still pending significance" />
@@ -61,7 +61,7 @@ The optimizer's reward is the policy's **primary metric** — picking a goal eve
 
 ### Why hasn't my adaptive policy shifted traffic yet?
 
-By design, the optimizer is careful: it won't move traffic until the policy reaches the minimum total exposures across all allocations (100 by default), it only re-evaluates once per window (hourly by default), and each update caps how much traffic can move. Check the **Optimization eligible** pill in [policy health](/dashboard/policy-health) — it distinguishes "not enough exposures yet" and "too soon since the last run" from an actual error. If it's failing rather than warning, see [troubleshooting](/reference/troubleshooting).
+By design, the optimizer is careful: it won't move traffic until the policy reaches the minimum total exposure events across all allocations (100 by default), it only re-evaluates once per window (hourly by default), and each update caps how much traffic can move. Check the **Optimization eligible** pill in [policy health](/dashboard/policy-health) — it distinguishes "not enough exposures yet" and "too soon since the last run" from an actual error. If it's failing rather than warning, see [troubleshooting](/reference/troubleshooting).
 
 ## Data & warehouse
 
@@ -69,7 +69,7 @@ By design, the optimizer is careful: it won't move traffic until the policy reac
 
 Postgres, BigQuery, Snowflake, Databricks, and ClickHouse — see the [connectors overview](/connectors/overview). A connection needs read access to your source tables and read + write access to a Traffical-owned schema for intermediate results, configured per project in the dashboard.
 
-### Can I run experiments without sending Traffical any events?
+### Can I measure without sending Traffical any events?
 
 Yes. In a warehouse-only setup, an [assignment definition](/concepts/warehouse-native#the-four-definition-types) (SQL over your own assignment table) tells Traffical who saw what, facts and metrics aggregate outcomes from your tables, and the pipeline joins them and runs the same significance tests. This is also the standard [migration pattern](/guides/canonical-experiments#warehouse-native-external-assignments) when another tool's assignments already live in your warehouse. Adaptive optimization works too — on projects with no events, the goal step becomes a [metric picker](/experimentation/choosing-an-algorithm#no-events-pick-a-goal-metric).
 

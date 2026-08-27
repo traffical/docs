@@ -1,15 +1,15 @@
 ---
-title: "Canonical experiments"
+title: "Experimentation patterns"
 description: "Patterns by surface and shape — backend, web, mobile, SSR, cross-surface, per-entity, batch, rollout, contextual, warehouse-native, multi-tenant."
 ---
 
-This is a pattern catalog. Each section describes a common shape an experiment takes, when to reach for it, and how to model it in Traffical. They're ordered from simplest to most complex — if you're new to the platform, work through them in order.
+This is a pattern catalog. Each section describes a common shape experimentation takes, when to reach for it, and how to model it in Traffical. They're ordered from simplest to most complex — if you're new to the platform, work through them in order.
 
 ## Backend algorithm
 
 **Use case.** Testing server-side logic the user never sees directly — search ranking, recommendation algorithms, pricing models, ML hyperparameters, cache TTLs, fraud thresholds.
 
-**Why it's the simplest case.** One surface, one repo, one SDK, no rendering concerns. The variant is invisible — only its downstream effects matter.
+**Why it's the simplest case.** One surface, one repo, one SDK, no rendering concerns. The allocation is invisible — only its downstream effects matter.
 
 **SDK.** `@traffical/node` in `bundle` mode (the default). The bundle is fetched at startup and cached in memory. Resolution is sub-millisecond.
 
@@ -57,7 +57,7 @@ Layer: Search Ranking
     └── neural:  search.ranking_algo = "neural_v2"
 ```
 
-**Metrics.** A `search_click` track event, aggregated as a conversion rate against `search` exposures. Or warehouse-native: a fact definition against your warehouse's click events table.
+**Metrics.** A `search_click` track event, aggregated as a conversion rate against `search` exposure events. Or warehouse-native: a fact definition against your warehouse's click events table.
 
 ## Web UI
 
@@ -149,9 +149,9 @@ function Onboarding() {
 | 2 | `localConfig` bundle (baked at build time) | Always |
 | 3 | Caller `defaults` | Always |
 
-For first-launch experiments (onboarding), embed a `localConfig` bundle built in CI. Otherwise the first session always sees defaults.
+For policies that must apply on first launch (onboarding), embed a `localConfig` bundle built in CI. Otherwise the first session always sees defaults.
 
-**Context enrichment.** `defaultDeviceInfoProvider` adds `appVersion`, `osName`, `osVersion`, `locale`, `screenWidth`, `screenHeight`, `deviceModel` to every resolution. Use these in policy conditions for OS-specific or version-specific experiments.
+**Context enrichment.** `defaultDeviceInfoProvider` adds `appVersion`, `osName`, `osVersion`, `locale`, `screenWidth`, `screenHeight`, `deviceModel` to every resolution. Use these in policy conditions for OS-specific or version-specific targeting.
 
 ## SSR + client hydration
 
@@ -196,7 +196,7 @@ export async function load({ fetch }) {
 
 The server resolves with the bundle. The client picks up the same bundle via `localConfig`. Both sides use the same hashing in `@traffical/core`, so the same userId hashes to the same allocation. No FOOC, no second fetch, no swap on hydration.
 
-See the [SSR patterns](/sdks/ssr) page for Next.js variants and pitfalls.
+See the [SSR patterns](/sdks/ssr) page for the Next.js version of this pattern and its pitfalls.
 
 ## Cross-surface feature flag
 
@@ -232,7 +232,7 @@ parameters:
 
 ## Backend → frontends
 
-**Use case.** The backend makes the experiment decision, and the result affects how multiple frontends render — recommendations, prices, search results.
+**Use case.** The backend makes the decision, and the result affects how multiple frontends render — recommendations, prices, search results.
 
 **Why it's different from a cross-surface flag.** Here there's one decision, made server-side, communicated to clients via API responses. Frontends *don't* re-resolve — they attribute their events to the backend's decision.
 
@@ -270,7 +270,7 @@ function RecommendationWidget({ recommendations, decisionId }) {
 }
 ```
 
-The `decisionId` is the link the SDK uses to include the backend's layer assignment in the frontend's per-event `attribution` array. Pass it from the backend response through to `track()` on the client. If you skip it, the frontend's cumulative attribution covers only the *frontend's* decisions — the backend's experiment won't show up in dashboard breakdowns. (Pipeline-level metrics still work via the temporal `unit_key` join, but the dashboard's per-layer split loses the backend layer.)
+The `decisionId` is the link the SDK uses to include the backend's layer assignment in the frontend's per-event `attribution` array. Pass it from the backend response through to `track()` on the client. If you skip it, the frontend's cumulative attribution covers only the *frontend's* decisions — the backend's policy won't show up in dashboard breakdowns. (Pipeline-level metrics still work via the temporal `unit_key` join, but the dashboard's per-layer split loses the backend layer.)
 
 ## Per-entity adaptive
 
@@ -320,7 +320,7 @@ If `context.imageCount = 5`, the SDK creates allocations `["0", "1", "2", "3", "
 
 ## Email and batch
 
-**Use case.** Experiments in offline/batch systems — email subject lines, push notification copy, scheduled report formats.
+**Use case.** Experimentation in offline/batch systems — email subject lines, push notification copy, scheduled report formats.
 
 **Why it's different.** No persistent SDK process. The outcome events come from external systems (email service, push service), not directly from a Traffical SDK. Attribution has to be threaded through the external system.
 
@@ -386,11 +386,11 @@ Layer: Feature flags
       onHealthViolation: "pause"
 ```
 
-During forward auto-ramp, bucket ranges grow monotonically — a user at 5% stays in the new variant at 10%, 25%, 100%. If the rollout shrinks (manual rollback, health-violation rollback, or a manual `set-percentage` to a lower value), the range shrinks too and users near its edge fall out of the variant. That's intentional — a rollback should actually pull users back.
+During forward auto-ramp, bucket ranges grow monotonically — a user at 5% stays in the treatment at 10%, 25%, 100%. If the rollout shrinks (manual rollback, health-violation rollback, or a manual `set-percentage` to a lower value), the range shrinks too and users near its edge fall out of the allocation. That's intentional — a rollback should actually pull users back.
 
 ## Contextual bandit (personalized)
 
-**Use case.** The best variant depends on the user. High-engagement users see one homepage layout; new users see another.
+**Use case.** The best allocation depends on the user. High-engagement users see one homepage layout; new users see another.
 
 **How it works.** The training pipeline learns a linear model per allocation from historical exposures + outcomes. Coefficients ship in the bundle. The SDK scores each allocation for the current user's context and selects via softmax — locally, no network call.
 
@@ -466,18 +466,18 @@ WHERE event_time BETWEEN '{{start_date}}' AND '{{end_date}}'
 
 Policy keys must match Traffical policy keys; allocation keys must match allocation keys. The pipeline joins on those, computes the per-allocation stats, and runs significance.
 
-**Hybrid is the common shape.** SDK-managed for new experiments, warehouse-native for legacy. They coexist in the same project; the dashboard treats them identically.
+**Hybrid is the common shape.** SDK-managed policies for new work, warehouse-native for legacy assignments. They coexist in the same project; the dashboard treats them identically.
 
 See [warehouse-native](/concepts/warehouse-native) for the full setup.
 
 ## Multi-tenant SaaS
 
-**Use case.** SaaS products where the unit of randomization is the company, not the user. All users in a company see the same variant so the in-company experience is consistent.
+**Use case.** SaaS products where the unit of randomization is the company, not the user. All users in a company see the same allocation so the in-company experience is consistent.
 
 **What's different.**
 
 - **Unit key is `companyId`**, not `userId`. Set on the project: `hashing.unitKey: companyId`.
-- **Fewer units, longer experiments.** 10k companies vs 1M users means smaller samples; you'll need longer to reach significance.
+- **Fewer units, longer runtimes.** 10k companies vs 1M users means far fewer enrolled units; you'll need longer to reach significance.
 - **Clustered analysis.** Outcomes are often measured per user (support tickets per user, sessions per user) while randomization is per company. Cluster-robust standard errors are needed for valid inference.
 
 ```typescript
@@ -506,13 +506,13 @@ Layer: Billing
     conditions: [{ field: "plan", op: "in", values: ["pro", "enterprise"] }]
 ```
 
-For mixed-level experiments (randomize per company, measure per user), keep the analysis cluster-robust. The dashboard surfaces this when the experiment is configured that way.
+For mixed-level designs (randomize per company, measure per user), keep the analysis cluster-robust. The dashboard surfaces this when the policy is configured that way.
 
 ## Holdout group
 
-**Use case.** Reserve a fraction of users from *every* experiment for some long stretch of time. The holdout never sees any treatment. By comparing the holdout to everyone else, you measure the *cumulative* impact of all the experiments you ran.
+**Use case.** Reserve a fraction of users from *every* policy for some long stretch of time. The holdout never sees any treatment. By comparing the holdout to everyone else, you measure the *cumulative* impact of all the policies you ran.
 
-**Why it matters.** Individually, experiments often show small effects that are hard to assemble into "did we move the needle this quarter?" A holdout is the cleanest way to answer that question.
+**Why it matters.** Individually, policies often show small effects that are hard to assemble into "did we move the needle this quarter?" A holdout is the cleanest way to answer that question.
 
 **How to model it.** Use the **eligible bucket range** on every policy in a layer. Say you want a 5% holdout — every policy in that layer gets `eligibleBucketRange: [50, 999]` (95% of traffic). Buckets 0–49 never match any policy → those users always get parameter defaults.
 
@@ -536,7 +536,7 @@ Then define a metric that compares users with bucket `< 50` against users with b
 
 **Examples.**
 
-- Brand marketing experiments (a TV campaign in city A vs city B)
+- Brand marketing tests (a TV campaign in city A vs city B)
 - Pricing tests where users in the same region must see the same price
 - Regulatory or compliance tests (a new disclosure required in some jurisdictions)
 
@@ -551,7 +551,7 @@ project:
     bucketCount: 1000
 ```
 
-Or — more commonly — keep the user-keyed project and pass the geo unit as the unit key for *this specific experiment*. The SDK supports custom unit-key fields when the policy declares it.
+Or — more commonly — keep the user-keyed project and pass the geo unit as the unit key for *this specific policy*. The SDK supports custom unit-key fields when the policy declares it.
 
 Even simpler: use a normal user-keyed project, but add a condition on the policy that restricts it to specific regions:
 
@@ -564,9 +564,9 @@ Layer: Pricing experiments
 
 The "control" group is then "everyone in matched comparison cities" — chosen using a synthetic-control or difference-in-differences design.
 
-**Analysis.** Geo-randomized experiments almost always end up in the warehouse for analysis. Significance is tricky — you have *N = 10 cities*, not *N = 10,000 users*. Per-city outcomes are aggregated; you compare aggregate-level treated vs aggregate-level untreated. Synthetic control methods are standard here.
+**Analysis.** Geo-randomized designs almost always end up in the warehouse for analysis. Significance is tricky — you have *N = 10 cities*, not *N = 10,000 users*. Per-city outcomes are aggregated; you compare aggregate-level treated vs aggregate-level untreated. Synthetic control methods are standard here.
 
-**Tip.** Pair cities by pre-experiment characteristics (population, traffic, conversion rate) and randomize within pairs. Pairs reduce variance, and Traffical's targeting conditions make pair-aware assignment straightforward.
+**Tip.** Pair cities by pre-treatment characteristics (population, traffic, conversion rate) and randomize within pairs. Pairs reduce variance, and Traffical's targeting conditions make pair-aware assignment straightforward.
 
 ## Summary
 

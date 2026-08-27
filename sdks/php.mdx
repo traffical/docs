@@ -91,7 +91,7 @@ The `context` array is used for:
 
 ### Defaults
 
-Always pass defaults for every parameter you read. They're the fallback when no policy matches, when the bundle isn't loaded yet, or when Traffical is unreachable — and they make your code's intent explicit even when there's no active experiment.
+Always pass defaults for every parameter you read. They're the fallback when no policy matches, when the bundle isn't loaded yet, or when Traffical is unreachable — and they make your code's intent explicit even when there's no active policy.
 
 ## Decisions vs `getParams`
 
@@ -129,7 +129,7 @@ $client->track(
 $client->track('add_to_cart', ['sku' => 'ABC-123'], new TrackOptions(unitKey: 'user_789'));
 ```
 
-If you're running an adaptive policy, the optimizer uses these events as reward signals to learn which variants perform best.
+If you're running an adaptive policy, the optimizer uses these events as reward signals to learn which allocations perform best.
 
 ## Server mode
 
@@ -237,12 +237,12 @@ The SDK never throws during resolution. If the bundle isn't loaded yet — or ne
 
 <CardGroup cols={2}>
   <Card title="A/B testing" icon="flask" href="/experimentation/ab-testing">
-    Run a static experiment.
+    Run a static A/B test.
   </Card>
   <Card title="Warehouse-native" icon="warehouse" href="/concepts/warehouse-native">
     Compute metrics from your own data.
   </Card>
-  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+  <Card title="Experimentation patterns" icon="book-open" href="/guides/canonical-experiments">
     Patterns for backend, batch, and cross-surface tests.
   </Card>
   <Card title="API reference" icon="code" href="/api/overview">

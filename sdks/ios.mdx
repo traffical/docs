@@ -97,7 +97,7 @@ Each getter takes an optional `context:` argument for targeting; when omitted, t
 
 ## Decisions and `getParams`
 
-When you need the full decision — or want to delay the exposure until the variant is actually shown — use `decide(context:defaults:)`. It returns a `TrafficalDecisionResult` with a `decisionId`, the resolved `assignments`, and per-layer `metadata`. Both `decide` and `getParams` take **context first, defaults second**:
+When you need the full decision — or want to delay the exposure event until the treatment is actually shown — use `decide(context:defaults:)`. It returns a `TrafficalDecisionResult` with a `decisionId`, the resolved `assignments`, and per-layer `metadata`. Both `decide` and `getParams` take **context first, defaults second**:
 
 ```swift
 let decision = traffical.decide(
@@ -177,12 +177,12 @@ traffical.identify("user_789")     // overwrites the stored ID; clears session d
 ```
 
 <Warning>
-**Bucketing changes at login.** The pre-login (UUID) bucket and the post-login (`user_789`) bucket are computed from different inputs, so a user may cross between variants at login. This is inherent to having a single unit of randomization per project. If you need assignments stable across login, run the experiment on logged-in users only, or call `identify()` before the SDK ever resolves the parameter.
+**Bucketing changes at login.** The pre-login (UUID) bucket and the post-login (`user_789`) bucket are computed from different inputs, so a user may cross between allocations at login. This is inherent to having a single unit of randomization per project. If you need assignments stable across login, run the policy on logged-in users only, or call `identify()` before the SDK ever resolves the parameter.
 </Warning>
 
 ## Device-info provider
 
-Attach a `DeviceInfoProvider` to enrich the evaluation context with device fields — app version, OS, locale, screen size — so you can target experiments by them. The bundled `DefaultDeviceInfoProvider` reads app version/build, locale, timezone, OS name/version, and (on UIKit platforms) screen dimensions and device model:
+Attach a `DeviceInfoProvider` to enrich the evaluation context with device fields — app version, OS, locale, screen size — so you can target policies by them. The bundled `DefaultDeviceInfoProvider` reads app version/build, locale, timezone, OS name/version, and (on UIKit platforms) screen dimensions and device model:
 
 ```swift
 traffical = TrafficalClient(options: .init(
@@ -222,9 +222,9 @@ The Swift engine (`TrafficalCore`) is validated against the spec's deterministic
 
 <CardGroup cols={2}>
   <Card title="A/B testing" icon="flask" href="/experimentation/ab-testing">
-    Run a static experiment.
+    Run a static A/B test.
   </Card>
-  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+  <Card title="Experimentation patterns" icon="book-open" href="/guides/canonical-experiments">
     Patterns for backend, batch, and cross-surface tests.
   </Card>
   <Card title="CLI" icon="terminal" href="/tools/cli">

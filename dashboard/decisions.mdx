@@ -5,7 +5,11 @@ description: "An audit trail of every policy lifecycle change — who did what, 
 
 The **Decision log** is the audit trail for every meaningful change in the project: policy state transitions, allocation overrides, rollout actions, manual completions, optimization milestones, guardrail breaches.
 
-It's both a debugging tool ("why did this experiment pause itself last night?") and a compliance tool ("show every change to this policy in the last quarter").
+It's both a debugging tool ("why did this policy pause itself last night?") and a compliance tool ("show every change to this policy in the last quarter").
+
+<Note>
+Despite the shared word, the decision log is unrelated to [decision events](/concepts/terminology#decision-log-vs-decision-events). Decision events are runtime assignment events the SDK emits; the decision log holds governance decision records — approvals, ramps, promotions.
+</Note>
 
 <Frame caption="Decision log">
   <img src="/images/placeholders/decisions-list.png" alt="Decision log placeholder" />

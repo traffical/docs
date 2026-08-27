@@ -1,9 +1,9 @@
 ---
 title: "Events & metrics"
-description: "Exposure, decision, and track events — what gets captured and how it powers experiments and optimization."
+description: "Exposure, decision, and track events — what gets captured and how it powers measurement and optimization."
 ---
 
-Events are how Traffical sees what happened in your application: which variants users were exposed to and what they did afterwards. Events power metric dashboards, statistical significance calculations, and the optimizer that learns from user behaviour. Events are the raw material; [metrics](/dashboard/metrics) aggregate them into the numbers experiments are judged on, computed with the methods in the [statistics overview](/statistics/overview).
+Events are how Traffical sees what happened in your application: which allocations users experienced and what they did afterwards. Events power metric dashboards, statistical significance calculations, and the optimizer that learns from user behaviour. Events are the raw material; [metrics](/dashboard/metrics) aggregate them into the numbers policies are judged on, computed with the methods in the [statistics overview](/statistics/overview).
 
 There are three kinds of events.
 
@@ -11,7 +11,7 @@ There are three kinds of events.
 
 <Tabs>
   <Tab title="Exposure">
-    **Exposure events** are emitted automatically when the SDK resolves parameters. They record the user's assignment for each layer they touched.
+    **Exposure events** are emitted automatically when your code reads resolved parameter values. They record that the unit actually experienced its allocation in each layer it touched — the treatment-on-the-treated (TOT) signal.
 
     ```json
     {
@@ -32,7 +32,7 @@ There are three kinds of events.
 
     Exposure events are deduplicated within a session, so the same user/assignment combination isn't tracked over and over.
 
-    They form the denominator in conversion-rate metrics: how many users were exposed to each variant.
+    They feed the denominator in conversion-rate metrics — the [enrolled units](/concepts/terminology#the-three-counts) in each allocation.
   </Tab>
   <Tab title="Track">
     **Track events** are the events your code emits to record user outcomes — purchases, signups, clicks, anything that matters.
@@ -60,7 +60,7 @@ There are three kinds of events.
     The `decisionId` links the track event back to a parameter resolution. Track events are the reward signals for adaptive policies — and the numerators in conversion-rate metrics.
   </Tab>
   <Tab title="Decision">
-    **Decision events** are emitted automatically alongside exposures. They record the SDK's full decision — the parameters resolved, the unit key, the assignments — so you can measure intent-to-treat even when an exposure doesn't fire (e.g. the user navigates away before seeing the variant).
+    **Decision events** are emitted automatically alongside exposure events. They record the SDK's full decision — the parameters resolved, the unit key, the assignments — the intent-to-treat (ITT) signal, so you can measure even when an exposure event doesn't fire (e.g. the user navigates away before seeing their allocation).
 
     ```json
     {
@@ -78,6 +78,8 @@ There are three kinds of events.
     Decision events can be turned off (`trackDecisions: false`) if you only want to measure treatment-on-treated.
   </Tab>
 </Tabs>
+
+Decision and exposure events together are a policy's [assignment events](/concepts/terminology) — its serving volume, repeats included.
 
 ## Event definitions
 
@@ -168,7 +170,7 @@ The SDK supports two attribution modes:
 
 | Mode | Behaviour | Use when |
 |------|-----------|----------|
-| `cumulative` (default) | A track event is attributed to **every** layer the user has been exposed to in the session. | Cross-page funnels (catalog → PDP → checkout) where multiple experiments contributed to the outcome. |
+| `cumulative` (default) | A track event is attributed to **every** layer the user has been exposed to in the session. | Cross-page funnels (catalog → PDP → checkout) where multiple policies contributed to the outcome. |
 | `decision` | A track event is attributed only to the layers from the specific decision it's tied to. | When you need strict single-decision attribution (often warehouse-native analyses). |
 
 For batch and offline systems (email sends, push notifications) you can pass `decisionId` through your external system and back in when the outcome event arrives. See the [email / batch pattern](/guides/canonical-experiments#email-and-batch).
@@ -206,7 +208,7 @@ If you'd rather compute metrics from your own data warehouse instead of (or in a
     Compute metrics directly from your data warehouse.
   </Card>
   <Card title="A/B testing" icon="flask" href="/experimentation/ab-testing">
-    End-to-end experiment with events.
+    An end-to-end A/B test with events.
   </Card>
   <Card title="Optimization" icon="chart-line" href="/experimentation/optimization">
     Events as reward signals for adaptive policies.

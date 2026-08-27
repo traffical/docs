@@ -12,7 +12,7 @@ For each treatment allocation, the engine compares its metric value against cont
 - **Lift** — the difference between treatment and control. Reported both in absolute terms and as a relative percentage of control.
 - **Standard error** — how much that lift would wobble from sampling alone, built from each allocation's variance and sample size.
 - **Confidence interval** — the range of lifts compatible with the data at your confidence level (95% by default). When the interval excludes zero, the result is significant.
-- **p-value** — the probability of seeing a lift this large if the variants were truly identical.
+- **p-value** — the probability of seeing a lift this large if the allocations were truly identical.
 
 A result is **significant** when the confidence interval on the lift does not contain zero — equivalently, when the p-value falls below `1 − confidence`.
 
@@ -50,4 +50,4 @@ With few units, intervals are correctly wide and results stay non-significant �
 ## Where to go next
 
 - To **watch results as they accrue** without inflating false positives, use [sequential testing](/statistics/sequential-testing).
-- To **reach significance sooner**, add a pre-experiment covariate with [CUPED](/statistics/cuped).
+- To **reach significance sooner**, add a pre-exposure covariate with [CUPED](/statistics/cuped).

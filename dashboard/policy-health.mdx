@@ -1,12 +1,12 @@
 ---
 title: "Policy health"
-description: "Diagnostics for running policies: exposures flowing, sample ratio, per-allocation floors, freshness, guardrails, and optimizer eligibility."
+description: "Diagnostics for running policies: assignments flowing, sample ratio, per-allocation floors, freshness, guardrails, and optimizer eligibility."
 ---
 
 The **Policy health** view tracks the runtime behaviour of every running policy
-and flags the failure modes that quietly invalidate experiments — missing
-exposures, sample-ratio mismatches, freshness gaps, breached guardrails,
-and stuck optimizers.
+and flags the failure modes that quietly invalidate results — missing
+assignment events, sample-ratio mismatches, freshness gaps, breached
+guardrails, and stuck optimizers.
 
 It's the runtime sibling of the
 [launch-readiness checklist](/dashboard/layers-and-policies#overview-tab)
@@ -22,9 +22,9 @@ Open any policy detail page:
 
 - The **Overview** tab shows a compact health hero that auto-collapses when
   everything is green. Click any pill to see per-check detail. The tab's
-  **Live allocation** digest also shows traffic share and exposures per
-  variant, so a variant that stopped receiving exposures stands out at a
-  glance.
+  **Live allocation** digest also shows traffic share and assignment events
+  per allocation, so an allocation that stopped receiving traffic stands out
+  at a glance.
 - The **Diagnostics** tab (between **Measurement** and **Decisions**) shows
   the full assignments time-series, optional SRM history chart, and the
   transition log. Its tab label carries a `(!)` while any check is warning
@@ -37,7 +37,7 @@ phase.
 
 | Check                       | Sources                                                                        | Pass / Warn / Fail                                                                          |
 | --------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| **Exposures flowing**       | Hourly per-allocation counts from the pipeline rollup                          | Pass: any in last 15 min. Warn: none in 1 h but some in 24 h. Fail: none in 24 h.           |
+| **Assignments flowing**     | Hourly per-allocation assignment-event counts from the pipeline rollup         | Pass: any in last 15 min. Warn: none in 1 h but some in 24 h. Fail: none in 24 h.           |
 | **Sample ratio mismatch**   | Chi-squared on observed vs expected ratios                                     | Pass: p ≥ 0.01. Warn: 0.001 ≤ p < 0.01. Fail: p < 0.001 **and** > 0.1 pp absolute deviation. |
 | **Per-allocation floor**    | Lifetime totals per allocation                                                 | Pass: all ≥ floor. Warn: some below floor. Fail: any at zero while others are healthy.      |
 | **Data freshness**          | Pipeline rollup `computedAt` + watermarks                                      | Pass: < 30 min. Warn: < 6 h. Fail: > 24 h.                                                  |

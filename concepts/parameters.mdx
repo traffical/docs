@@ -3,7 +3,7 @@ title: "Parameters"
 description: "Parameters are typed configuration values with defaults — the building block of everything in Traffical."
 ---
 
-A **parameter** is a typed configuration value with a default. Parameters are the atomic unit in Traffical: experiments, feature flags, rollouts, and adaptive optimization are all [policies](/concepts/policies) that override parameter values for selected users.
+A **parameter** is a typed configuration value with a default. Parameters are the atomic unit in Traffical: A/B tests, feature flags, rollouts, and adaptive optimization are all [policies](/concepts/policies) that override parameter values for selected users.
 
 ## Parameter types
 
@@ -142,7 +142,7 @@ Run `traffical push` to sync. Parameters managed via the CLI are marked as **syn
 
 ## How parameters relate to other concepts
 
-- [Layers](/concepts/layers) — every parameter belongs to exactly one layer. Layers exist so concurrent experiments don't interfere.
+- [Layers](/concepts/layers) — every parameter belongs to exactly one layer. Layers exist so concurrent policies don't interfere.
 - [Policies](/concepts/policies) — policies override parameter defaults for users matching their conditions and falling in their bucket ranges.
 - [Surfaces](/concepts/surfaces) — a parameter can be bound to the surfaces that consume it (checkout, a pricing service, an email). Each binding records how the surface uses the value, which drives measurement context and risk for [changes](/concepts/changes).
 - [Events](/concepts/events-and-metrics) — track events let the optimizer learn which parameter values perform best.

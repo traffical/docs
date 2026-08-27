@@ -9,7 +9,7 @@ description: "iOS and Android via React Native — cold-start strategy, AsyncSto
 
 Mobile has constraints web and backend don't:
 
-- **Cold start.** On first launch there's no cached bundle and no network response yet. The user sees the app before any experiment can resolve.
+- **Cold start.** On first launch there's no cached bundle and no network response yet. The user sees the app before any policy can resolve.
 - **Offline use.** Users open the app on planes and in subways. Resolution must work without connectivity.
 - **App store latency.** Code changes take days. Parameter changes via Traffical are instant — this is the whole point of having a remote configuration system at all.
 - **Background suspension.** The app may be paused for hours and resumed. Cached assignments need refreshing.
@@ -102,7 +102,7 @@ Resolution checks three sources in order:
 | 2 | `localConfig` bundle (baked into the app binary) | Always (compiled in) | As of the last app build |
 | 3 | Caller `defaults` from `getParams` | Always | Hardcoded fallback |
 
-**First launch, no localConfig:** the user sees defaults until the first network call returns. If your first-launch onboarding is a critical experiment, embed a `localConfig` bundle built during CI:
+**First launch, no localConfig:** the user sees defaults until the first network call returns. If your first-launch onboarding is a critical test, embed a `localConfig` bundle built during CI:
 
 ```tsx
 <TrafficalRNProvider config={{
@@ -121,7 +121,7 @@ Resolution checks three sources in order:
 
 ## Device-info enrichment
 
-The SDK can enrich `context` with device info — useful for OS-specific experiments and analytics. You supply the data through a `deviceInfoProvider`: any object implementing the `DeviceInfoProvider` interface. The SDK ships the interface (`DeviceInfoProvider` / `DeviceInfo` types) but does **not** ship a built-in implementation, so you provide one — typically backed by `react-native-device-info` plus React Native's `Platform` and `Dimensions`:
+The SDK can enrich `context` with device info — useful for OS-specific targeting and analytics. You supply the data through a `deviceInfoProvider`: any object implementing the `DeviceInfoProvider` interface. The SDK ships the interface (`DeviceInfoProvider` / `DeviceInfo` types) but does **not** ship a built-in implementation, so you provide one — typically backed by `react-native-device-info` plus React Native's `Platform` and `Dimensions`:
 
 ```typescript
 export interface DeviceInfoProvider {
@@ -165,7 +165,7 @@ const deviceInfoProvider: DeviceInfoProvider = {
 <TrafficalRNProvider config={{ orgId, projectId, env, apiKey, deviceInfoProvider }}>
 ```
 
-The returned fields merge into `context` on every resolution, so they're available for policy conditions — e.g. `osName eq "ios"` for an iOS-only experiment.
+The returned fields merge into `context` on every resolution, so they're available for policy conditions — e.g. `osName eq "ios"` for an iOS-only policy.
 
 <Warning>
 **Version-string targeting is a known gap.** The numeric comparison operators (`gt`/`gte`/`lt`/`lte`) only compare **numbers** — a condition like `appVersion gte "2.0.0"` won't match, because `"2.0.0"` is a string. To gate on a minimum version today, target an exact set of versions with `in`, or expose a numeric build number (`appBuildNumber`) and compare that. Semver-aware version conditions are not yet supported.
@@ -204,8 +204,8 @@ Persistence is backed by `AsyncStorage` automatically — the provider registers
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="Mobile experiment pattern" icon="mobile" href="/guides/canonical-experiments#mobile-app">
-    Onboarding and in-app experiments.
+  <Card title="Mobile app pattern" icon="mobile" href="/guides/canonical-experiments#mobile-app">
+    Onboarding and in-app tests.
   </Card>
   <Card title="How it works" icon="gears" href="/how-it-works">
     Evaluation modes and resolution.

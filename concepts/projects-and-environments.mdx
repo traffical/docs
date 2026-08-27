@@ -31,11 +31,11 @@ A project is the unit of experimentation. It contains:
 
 Two projects never share a config bundle. They can share parameter naming conventions, but not state.
 
-A typical setup is one project per product surface, or one per logical product. A B2C marketplace might have one project (`proj_marketplace`). A B2B SaaS might have two — one keyed on `userId` for user-level experiments, one keyed on `companyId` for company-level experiments.
+A typical setup is one project per product surface, or one per logical product. A B2C marketplace might have one project (`proj_marketplace`). A B2B SaaS might have two — one keyed on `userId` for user-level randomization, one keyed on `companyId` for company-level randomization.
 
 ### Environment
 
-An environment is a runtime variant of the project. Production, staging, and development share the same parameters, layers, and policies — but each environment has its own **parameter default overrides** and its own **API keys**.
+An environment is a runtime instance of the project. Production, staging, and development share the same parameters, layers, and policies — but each environment has its own **parameter default overrides** and its own **API keys**.
 
 What an environment lets you do:
 
@@ -45,7 +45,7 @@ What an environment lets you do:
 
 What an environment does **not** do:
 
-- **Policies are not environment-scoped.** A policy is created in the project — it applies to every environment. Pausing a policy pauses it everywhere. If you need an experiment to run only in production (or only in staging), use [targeting conditions](/concepts/policies#targeting-conditions) keyed on a context field your SDK sends (e.g. `env` or `deployment_stage`).
+- **Policies are not environment-scoped.** A policy is created in the project — it applies to every environment. Pausing a policy pauses it everywhere. If you need a policy to run only in production (or only in staging), use [targeting conditions](/concepts/policies#targeting-conditions) keyed on a context field your SDK sends (e.g. `env` or `deployment_stage`).
 - **Layers, policies, allocations, conditions, and event definitions live at the project level.** They're the same across environments.
 
 Every project comes with `production`, `staging`, and `development` out of the box. You can create more if you need (`preview`, `qa`, per-team environments).
@@ -80,7 +80,7 @@ project:
 
 You can also pick:
 
-- `companyId` for B2B / multi-tenant SaaS where every user in an organization should see the same variant
+- `companyId` for B2B / multi-tenant SaaS where every user in an organization should see the same allocation
 - `deviceId` for pre-login mobile experiences
 - `sessionId` for cohort-based randomization
 - a custom key — anything stable the SDK can read out of `context`
@@ -95,13 +95,13 @@ The unit key choice is hard to change later. If you start with `userId` and swit
 
 For browser SDKs, you often don't have a `userId` yet — the user hasn't logged in. The browser SDK auto-generates a UUID on first visit (the "stable ID"), stores it in `localStorage` with a cookie fallback, and uses it as the value of the project's unit-key field. So a project keyed on `userId` ends up with the UUID standing in for `userId` until you call `identify(realUserId)`.
 
-Calling `identify()` overwrites the stable ID with the real user ID. From that point on, bucketing uses the real value — which produces different buckets from the anonymous phase. **A user who saw the treatment variant while anonymous may see control after login**, and there's no built-in way to preserve the anonymous assignment across the login boundary (different unit-key value → different hash → different bucket).
+Calling `identify()` overwrites the stable ID with the real user ID. From that point on, bucketing uses the real value — which produces different buckets from the anonymous phase. **A user who saw the treatment allocation while anonymous may see control after login**, and there's no built-in way to preserve the anonymous assignment across the login boundary (different unit-key value → different hash → different bucket).
 
-For experiments where this matters, target logged-in users only (a policy condition on a context field your SDK sends, or simply running the experiment server-side after the user has been identified).
+Where this matters, target logged-in users only (a policy condition on a context field your SDK sends, or simply resolving server-side after the user has been identified).
 
 ## Bundle scope
 
-Every config bundle is built for exactly one (project, environment) pair. The SDK fetches the bundle for the IDs you initialize it with, and every parameter, layer, and policy in scope is included. You don't need to specify which experiments to load.
+Every config bundle is built for exactly one (project, environment) pair. The SDK fetches the bundle for the IDs you initialize it with, and every parameter, layer, and policy in scope is included. You don't need to specify which policies to load.
 
 ```typescript
 const traffical = await createTrafficalClient({

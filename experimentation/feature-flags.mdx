@@ -18,7 +18,7 @@ parameters:
     default: false
 ```
 
-Flip the default in the dashboard (or push `default: true` via the CLI) and every user gets the new value on the next bundle refresh. No experiment, no policy — just a remote-controlled boolean.
+Flip the default in the dashboard (or push `default: true` via the CLI) and every user gets the new value on the next bundle refresh. No test, no policy — just a remote-controlled boolean.
 
 ```typescript
 const { params } = useTraffical({
@@ -74,7 +74,7 @@ If the new payment provider starts failing, flip the default to `false` in the d
 
 For a faster guarantee, combine this with a [progressive rollout](/experimentation/rollouts) that monitors a health metric (e.g. error rate) — Traffical will auto-pause or auto-rollback before a human notices.
 
-## Flags as the entry point to experiments
+## Flags as the entry point to experimentation
 
 A common pattern: start a feature behind a percentage rollout, watch the metrics, then graduate the flag into a full A/B test by adding a treatment allocation with a different value.
 
@@ -82,7 +82,7 @@ That's not a migration — it's a one-line change to the same policy. The parame
 
 ## What feature flags can't do alone
 
-If you find yourself adding more booleans to control variant behaviour (`show_new_layout`, `use_new_copy`, `apply_new_discount` — all in the same experiment), you're hitting the wall of the boolean model. Switch to typed parameters:
+If you find yourself adding more booleans to control treatment behaviour (`show_new_layout`, `use_new_copy`, `apply_new_discount` — all in the same policy), you're hitting the wall of the boolean model. Switch to typed parameters:
 
 ```yaml
 parameters:
@@ -91,7 +91,7 @@ parameters:
   checkout.discount_pct:  { type: number,  default: 0 }
 ```
 
-One policy can override all three together. One A/B test compares "classic" against "v2" without three correlated booleans masquerading as one experiment.
+One policy can override all three together. One A/B test compares "classic" against "v2" without three correlated booleans masquerading as one test.
 
 ## Next steps
 
@@ -100,7 +100,7 @@ One policy can override all three together. One A/B test compares "classic" agai
     Progressive ramp with health checks.
   </Card>
   <Card title="A/B testing" icon="flask" href="/experimentation/ab-testing">
-    From a flag to a real experiment.
+    From a flag to a real A/B test.
   </Card>
   <Card title="Parameters" icon="sliders" href="/concepts/parameters">
     Beyond booleans — typed values.

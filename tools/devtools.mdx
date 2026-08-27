@@ -5,7 +5,7 @@ description: "Inspect SDK state, current assignments, and exposure events live i
 
 The DevTools bookmarklet is a debugging surface that overlays on any page where a Traffical client SDK is running. It lets you see exactly what the SDK is doing — which parameters resolved to which values, why, and what events were emitted.
 
-DevTools is independent of the [visual editor](/tools/visual-editor): the visual editor authors experiments, DevTools inspects them.
+DevTools is independent of the [visual editor](/tools/visual-editor): the visual editor authors tests, DevTools inspects them.
 
 ## What you can see
 
@@ -16,7 +16,7 @@ DevTools is independent of the [visual editor](/tools/visual-editor): the visual
 
 ## What you can do
 
-- **Override a parameter** — force a value locally for the current browser session. Useful for testing the treatment variant without being assigned to it.
+- **Override a parameter** — force a value locally for the current browser session. Useful for testing the treatment allocation without being assigned to it.
 - **Force a refresh** — re-fetch the bundle on demand.
 - **Identify** — switch the unit key to a different user ID and watch the assignments reshuffle.
 
@@ -33,7 +33,7 @@ The panel is signed in to Traffical via your dashboard session; it can see human
 
 ## When to use it
 
-- Diagnosing why a user is in the wrong variant (wrong bucket? wrong context? policy paused?)
-- Testing the treatment variant of an experiment without being assigned to it
-- Walking through an experiment with a colleague who isn't on your team
+- Diagnosing why a user is in the wrong allocation (wrong bucket? wrong context? policy paused?)
+- Testing a policy's treatment allocation without being assigned to it
+- Walking through a test with a colleague who isn't on your team
 - Verifying that `identify()` flips assignments cleanly after login

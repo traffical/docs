@@ -1,9 +1,9 @@
 ---
-title: "Your first experiment, end-to-end"
+title: "Your first A/B test, end-to-end"
 description: "From an empty repo to a running A/B test in twenty minutes — CLI init, parameter definition, dashboard policy, SDK code, reading results."
 ---
 
-This walks you all the way through running your first experiment. By the end you'll have a parameter defined in code, a static A/B policy running in the dashboard, an SDK reading the parameter, track events flowing in, and a results dashboard you can read.
+This walks you all the way through running your first A/B test. By the end you'll have a parameter defined in code, a static A/B policy running in the dashboard, an SDK reading the parameter, track events flowing in, and a results dashboard you can read.
 
 We'll test a checkout button colour change against a Node.js backend. The same flow works for React, Svelte, mobile, etc. — only the SDK package changes.
 
@@ -52,7 +52,7 @@ parameters:
 
 ## 3. Define the parameter you want to test
 
-Open `.traffical/config.yaml` and add the parameter we'll experiment on:
+Open `.traffical/config.yaml` and add the parameter we'll test:
 
 ```yaml
 namespaces:
@@ -137,11 +137,11 @@ traffical.track("purchase", {
 
 The SDK batches events in the background. Run a few purchases (real or test). Within a minute or so you should see them showing up in the dashboard's **Events** tab.
 
-## 7. Create the experiment policy
+## 7. Create the policy
 
 Now the fun part. In the dashboard:
 
-1. Open **Layers** and pick the base layer (created automatically). Or create a new layer if you want this experiment in its own pool.
+1. Open **Layers** and pick the base layer (created automatically). Or create a new layer if you want this test in its own pool.
 2. Click **New policy**.
 3. Configure it:
    - **Kind**: Static
@@ -176,18 +176,18 @@ For the dashboard to show results, you need to tell it which event to measure an
 3. Pick the `purchase` event.
 4. Aggregation: **conversion rate** (we want to know which colour produces more purchases per exposed user).
 
-The dashboard will start computing per-allocation conversion rates as exposures and events flow in.
+The dashboard will start computing per-allocation conversion rates as exposure and track events flow in.
 
 ## 10. Read the results
 
 After enough traffic accumulates, the policy detail page will show:
 
-- Exposures per allocation
-- Conversion rate per allocation (purchases / exposed users)
+- Assignment events per allocation
+- Conversion rate per allocation (purchasing enrolled units / enrolled units)
 - Confidence interval on each
 - A significance indicator when the result becomes statistically meaningful
 
-"Enough traffic" depends on your baseline conversion rate and the size of the effect you're trying to detect — see [Experiment design](/guides/experiment-design#size-your-experiment) for sizing.
+"Enough traffic" depends on your baseline conversion rate and the size of the effect you're trying to detect — see [Experiment design](/guides/experiment-design#size-the-measurement) for sizing.
 
 ## 11. Decide and ship
 
@@ -201,10 +201,10 @@ When you have a winner:
 
 You've now seen the whole loop. From here:
 
-- **Add more variants.** A static policy can have any number of allocations.
+- **Add more allocations.** A static policy can have any number of them.
 - **Promote to a rollout.** Instead of flipping straight to the new default, attach a [rollout](/experimentation/rollouts) that ramps the winner gradually with health checks.
 - **Try adaptive.** Replace the static policy with an [adaptive one](/experimentation/optimization) — the engine will shift traffic toward the winner automatically.
-- **Layer experiments.** Run a second experiment on a different parameter at the same time. Put it in a different [layer](/concepts/layers) and they won't contaminate each other.
+- **Layer your tests.** Run a second policy on a different parameter at the same time. Put it in a different [layer](/concepts/layers) and they won't contaminate each other.
 - **Type your events.** Generate TypeScript types for your event definitions so the compiler catches bad track calls. See [Type-safe events](/guides/type-safe-events).
 
 ## Common stumbles
@@ -220,4 +220,4 @@ You've now seen the whole loop. From here:
 - [CLI](/tools/cli) — all commands and flags
 - [Policies](/concepts/policies) — kinds, states, allocations
 - [Experiment design](/guides/experiment-design) — hypothesis, metrics, sizing
-- [Canonical experiments](/guides/canonical-experiments) — patterns for other shapes
+- [Experimentation patterns](/guides/canonical-experiments) — patterns for other shapes

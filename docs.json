@@ -28,6 +28,7 @@
             "group": "Core concepts",
             "icon": "book",
             "pages": [
+              "concepts/terminology",
               "concepts/parameters",
               "concepts/layers",
               "concepts/policies",

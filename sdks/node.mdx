@@ -102,7 +102,7 @@ The `context` object is used for:
 
 ### Defaults
 
-Always pass defaults for every parameter you read. They're the fallback when no policy matches, when the bundle isn't loaded yet, or when Traffical is unreachable — and they make your code's intent explicit even when there's no active experiment.
+Always pass defaults for every parameter you read. They're the fallback when no policy matches, when the bundle isn't loaded yet, or when Traffical is unreachable — and they make your code's intent explicit even when there's no active policy.
 
 ## Decisions vs `getParams`
 
@@ -262,9 +262,9 @@ This sends any buffered events and stops the background refresh.
 
 <CardGroup cols={2}>
   <Card title="A/B testing" icon="flask" href="/experimentation/ab-testing">
-    Run a static experiment.
+    Run a static A/B test.
   </Card>
-  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+  <Card title="Experimentation patterns" icon="book-open" href="/guides/canonical-experiments">
     Patterns for backend, batch, and cross-surface tests.
   </Card>
   <Card title="CLI" icon="terminal" href="/tools/cli">

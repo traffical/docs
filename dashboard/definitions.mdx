@@ -23,7 +23,7 @@ Most projects have one entity (`user` keyed on `userId`). B2B / multi-tenant pro
 
 ## Assignments
 
-An **assignment definition** is the SQL that produces the user → variant mapping for warehouse-native experiments.
+An **assignment definition** is the SQL that produces the unit → [allocation](/concepts/terminology#allocations-and-traffic-splits) mapping for warehouse-native measurement.
 
 <Frame caption="Assignments list">
   <img src="/images/placeholders/assignments.png" alt="Assignments placeholder" />
@@ -34,6 +34,7 @@ Each row in the list:
 - Name
 - Entity it's keyed on
 - Source — SQL (warehouse) or SDK-managed (auto-generated from exposure events)
+- Signal — the [analysis signal](/concepts/terminology#analysis-signal) the rows carry: decision, exposure, or mixed
 - Last run timestamp and status
 
 Most projects don't need any assignment definitions — SDK-managed assignments are created automatically when the SDK emits exposure events. You only need an explicit assignment definition when assignments come from somewhere other than a Traffical SDK (a migration from another tool, a custom assignment service, a warehouse table maintained outside Traffical).
@@ -50,7 +51,8 @@ In the editor:
 2. **Pick the entity** (user, company)
 3. **Pick the warehouse connection**
 4. **Write the SQL.** It must return columns: the entity key (e.g. `user_id`), `assigned_at`, `policy_key`, `allocation_key`. Use `{{start_date}}` and `{{end_date}}` template variables for time scoping.
-5. **Preview** — the dashboard runs a small `LIMIT 10` sample to verify the columns and types.
+5. **Set the Signal** — declare whether the rows are decision events (intent-to-treat) or exposure events (treatment-on-the-treated). If the source holds both kinds, map a `source_type` column and declare the signal as mixed.
+6. **Preview** — the dashboard runs a small `LIMIT 10` sample to verify the columns and types.
 
 The `policy_key` column values must match `key` fields on Traffical policies. The `allocation_key` values must match allocation `key` fields. This is how the pipeline knows which Traffical policy the warehouse data corresponds to.
 

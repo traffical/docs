@@ -22,7 +22,7 @@ flowchart LR
 
 ## Why protocols
 
-Without a standard, every experiment picks its metrics ad hoc — and the fifth checkout experiment measures something subtly different from the first four. Protocols move that decision from each change to the team: whoever owns measurement defines and certifies the standard, and every change on a covered surface gets the right metrics, guardrails, and statistical requirements without anyone re-deciding them. Agents starting changes through the [MCP server](/tools/mcp-server) face exactly the same standard as humans in the dashboard.
+Without a standard, every policy picks its metrics ad hoc — and the fifth checkout test measures something subtly different from the first four. Protocols move that decision from each change to the team: whoever owns measurement defines and certifies the standard, and every change on a covered surface gets the right metrics, guardrails, and statistical requirements without anyone re-deciding them. Agents starting changes through the [MCP server](/tools/mcp-server) face exactly the same standard as humans in the dashboard.
 
 ## What a protocol contains
 
@@ -59,7 +59,7 @@ Guardrails are the "do no harm" side of the plan. Each rule sets:
 - **Threshold** — the relative regression tolerated before the guardrail fires, entered as a percentage (e.g. 1%)
 - **Severity** — `warning` flags the change for review; `blocking` is enforced automatically: when a blocking guardrail turns failing on a running phase, the monitor applies the phase's armed breach action — pausing the [policy](/concepts/policies) by default, reverting or recording only when configured — and writes a [decision record](/dashboard/decisions) citing the evidence.
 
-A guardrail can be restricted to specific phases (canary, experiment, rollout, adaptive): it's only evaluated on the phases it names, and one with no restriction applies to every phase. That lets a strict error-rate guardrail police the canary while a looser revenue guardrail waits for the experiment.
+A guardrail can be restricted to specific phases (canary, experiment, rollout, adaptive): it's only evaluated on the phases it names, and one with no restriction applies to every phase. That lets a strict error-rate guardrail police the canary while a looser revenue guardrail waits for the experiment phase.
 
 ### Diagnostic rules
 
@@ -71,12 +71,12 @@ Beyond metrics and guardrails, a protocol can set phase-specific requirements:
 
 | Phase | Requirements |
 |-------|--------------|
-| **Canary** | Health metrics, blocking guardrails, minimum runtime (hours), minimum exposures |
-| **Experiment** | Primary metric, guardrails, minimum runtime, minimum sample size, and statistical design targets — relative MDE, alpha, and power |
+| **Canary** | Health metrics, blocking guardrails, minimum runtime (hours), minimum exposure events |
+| **Experiment** | Primary metric, guardrails, minimum runtime, minimum enrolled units, and statistical design targets — relative MDE, alpha, and power |
 | **Rollout** | Health metrics; whether to roll back automatically on a violation |
 | **Adaptive** | Guardrails; approval mode for the optimizer's moves (automatic, human approval, or agent recommendation) |
 
-The experiment design targets drive runtime and sample-size estimates for the change. When you leave them blank, system defaults apply — alpha 0.05, power 0.80, relative MDE 5% — and the estimates are labeled as assumed. See [Statistics](/statistics/overview) for how significance is computed.
+The statistical design targets drive runtime and sample-size estimates for the change. When you leave them blank, system defaults apply — alpha 0.05, power 0.80, relative MDE 5% — and the estimates are labeled as assumed. See [Statistics](/statistics/overview) for how significance is computed.
 
 ## Protocol lifecycle
 
@@ -156,7 +156,7 @@ Protocols live under **Metrics** → **Protocols**. The list shows every protoco
 
 <Steps>
   <Step title="Create a draft">
-    Click **New protocol**. Name it, set the applicability (surfaces, change templates, risk classes), and add metric rules, guardrails, and the experiment design targets (MDE, alpha, power).
+    Click **New protocol**. Name it, set the applicability (surfaces, change templates, risk classes), and add metric rules, guardrails, and the statistical design targets (MDE, alpha, power).
   </Step>
   <Step title="Certify it">
     On the protocol page, click **Certify**. Certification requires every referenced metric to be certified and asks for explicit confirmation — from that point the version is immutable and starts matching changes as certified coverage.

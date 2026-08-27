@@ -3,7 +3,7 @@ title: "Dashboard tour"
 description: "A guided walkthrough of the Traffical dashboard — where to find what, and what each section is for."
 ---
 
-The dashboard lives at [dashboard.traffical.io](https://dashboard.traffical.io). It's where you create projects, define parameters, run experiments, watch metrics, and manage everything that doesn't fit in code.
+The dashboard lives at [dashboard.traffical.io](https://dashboard.traffical.io). It's where you create projects, define parameters, run A/B tests, watch metrics, and manage everything that doesn't fit in code.
 
 This is a tour. Each section links to a deeper walkthrough.
 
@@ -54,7 +54,7 @@ Some sidebar items appear only when you hold the matching [permission](/governan
     The product contexts changes land in — where risk is classified and [measurement protocols](/governance/measurement-protocols) attach.
   </Card>
   <Card title="Layers" icon="layer-group" href="/dashboard/layers-and-policies">
-    Traffic containers and the policies inside them. The bulk of day-to-day experiment work.
+    Traffic containers and the policies inside them. The bulk of day-to-day experimentation work.
   </Card>
   <Card title="Parameters" icon="sliders" href="/dashboard/parameters">
     All parameters in the project — synced (from CLI) and dashboard-only.
@@ -66,7 +66,7 @@ Some sidebar items appear only when you hold the matching [permission](/governan
     Metric definitions and their results.
   </Card>
   <Card title="Decisions" icon="clock-rotate-left" href="/dashboard/decisions">
-    Audit log of every policy lifecycle change.
+    The decision log — the audit trail of every policy lifecycle change.
   </Card>
   <Card title="AI Status" icon="robot" href="#the-ai-optimization-page">
     Every adaptive policy, grouped by convergence state. Toured below.
@@ -112,9 +112,9 @@ The settings group holds [project settings](/dashboard/settings): warehouse conn
 
 The project's landing page answers "how is this project doing right now":
 
-- **KPI cards** — active layers broken down by policy state, plus exposures, unique users, and reward rate over the last 24 hours, each with a trend sparkline.
+- **KPI cards** — active layers broken down by policy state, plus [assignment events](/concepts/terminology), [unique units](/concepts/terminology#the-three-counts), and reward rate over the last 24 hours, each with a trend sparkline.
 - **Impact** — what your concluded changes are worth ([below](#impact)).
-- **Traffic Overview** — decisions, exposures, tracks, and rewards per day, alongside a view of layer bucket allocation.
+- **Traffic Overview** — decision, exposure, and track events plus rewards per day, alongside a view of layer bucket allocation.
 - **Recent activity** — the latest project events, so you catch what teammates (and the optimizer) did.
 
 Data refreshes automatically about every five minutes; the header shows the timestamp of the data you're looking at.
@@ -144,9 +144,9 @@ The **AI Status** entry in the sidebar opens the **AI Optimization** page: every
 </Frame>
 
 - **Converged** — the optimizer has settled: one allocation now carries most of the traffic. These prompt you to review the result and complete the policy to lock in the winner.
-- **Learning** — still exploring: each card shows the live allocation split, the algorithm (Thompson Sampling, Epsilon Greedy, UCB1), the goal it optimizes, and exposures so far.
+- **Learning** — still exploring: each card shows the live allocation split, the algorithm (Thompson Sampling, Epsilon Greedy, UCB1), the goal it optimizes, and exposure events so far.
 
-Above the groups, a summary strip totals running adaptive policies, 24-hour exposures, estimated lift, and the time of the optimizer's last action. Non-running policies collapse out of the way below, and a **Recent Activity** feed shows each traffic shift the optimizer made — previous split and new split side by side — so allocation moves are never a mystery. (Optimization milestones also land in the [decision log](/dashboard/decisions).)
+Above the groups, a summary strip totals running adaptive policies, 24-hour exposure events, estimated lift, and the time of the optimizer's last action. Non-running policies collapse out of the way below, and a **Recent Activity** feed shows each traffic shift the optimizer made — previous split and new split side by side — so allocation moves are never a mystery. (Optimization milestones also land in the [decision log](/dashboard/decisions).)
 
 Use this page as your daily check on autonomous optimization: is anything converged and waiting on you, is anything erroring, is the lift holding up. See [Choosing an algorithm](/experimentation/choosing-an-algorithm) for picking between the algorithms.
 
@@ -155,8 +155,8 @@ Use this page as your daily check on autonomous optimization: is anything conver
 Most teams work like this:
 
 1. **Author parameters in code** via `.traffical/config.yaml` and `traffical push`.
-2. **Create policies in the dashboard** — that's where experiments are configured.
-3. **Watch metrics during the experiment** — visit the policy detail page.
+2. **Create policies in the dashboard** — that's where A/B tests and rollouts are configured.
+3. **Watch metrics while the policy runs** — visit the policy detail page.
 4. **Promote the winner** — update the parameter default and mark the policy complete.
 
 Parameters live in code (the source of truth). Policies live in the dashboard (because they change frequently and need approval workflows). Events and metric definitions can live in either, depending on team preference.
@@ -167,19 +167,19 @@ Every member of your organization holds one role — **Viewer**, **Member**, **A
 
 ## Audit trail
 
-Every change in the dashboard is captured in the [decision log](/dashboard/decisions) — policy state transitions, allocation overrides, rollout actions, manual completions, optimization milestones. Use it to answer "who turned this on / who paused it / who promoted that variant".
+Every change in the dashboard is captured in the [decision log](/dashboard/decisions) — policy state transitions, allocation overrides, rollout actions, manual completions, optimization milestones. Use it to answer "who turned this on / who paused it / who promoted that allocation".
 
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="Your first experiment" icon="rocket" href="/guides/first-experiment">
+  <Card title="Your first A/B test" icon="rocket" href="/guides/first-experiment">
     The end-to-end flow from `traffical init` to reading results.
   </Card>
   <Card title="Parameters" icon="sliders" href="/dashboard/parameters">
     Walkthrough of the parameters page.
   </Card>
   <Card title="Layers & policies" icon="layer-group" href="/dashboard/layers-and-policies">
-    Where experiments live.
+    Where policies live.
   </Card>
   <Card title="Settings → Warehouse" icon="database" href="/dashboard/settings#warehouse">
     Connect Postgres, BigQuery, Snowflake, Databricks, or ClickHouse.

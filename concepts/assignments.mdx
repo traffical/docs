@@ -1,11 +1,11 @@
 ---
 title: "Decisions & attribution"
-description: "How a parameter resolution becomes a decision, how decision IDs flow through your application, and how track events get attributed to experiments."
+description: "How a parameter resolution becomes a decision, how decision IDs flow through your application, and how track events get attributed to policies."
 ---
 
 A **decision** is the SDK's record of resolving parameters for a user. Every time you call `getParams` (or `decide`), the SDK produces a decision: which parameters were resolved, which allocations the user fell into, and a `decisionId` that links downstream events back to this point in time.
 
-Decisions are the backbone of attribution — they're how a `purchase` track event ends up tied to the `treatment` variant of the `pricing_test` policy that the user saw fifteen minutes earlier.
+Decisions are the backbone of attribution — they're how a `purchase` track event ends up tied to the `treatment` [allocation](/concepts/terminology#allocations-and-traffic-splits) of the `pricing_test` policy that the user saw fifteen minutes earlier.
 
 ## The decision object
 
@@ -32,19 +32,19 @@ A single resolution can emit three things:
 
 | Event | Emitted when | Purpose |
 |-------|--------------|---------|
-| **Decision event** | Always (unless `trackDecisions: false`) | Records that the SDK decided. Used for intent-to-treat. |
-| **Exposure event** | When parameter values are read | Records the user saw the variant. Used for treatment-on-treated metrics. |
+| **Decision event** | Always (unless `trackDecisions: false`) | Records that the SDK resolved an allocation for the unit. The intent-to-treat (ITT) signal. |
+| **Exposure event** | When parameter values are read | Records that the unit actually experienced its allocation. The treatment-on-the-treated (TOT) signal. |
 | **Track events** | When you call `track()` | Records outcomes. Causally linked via `decisionId`. |
 
-Exposure and decision events both fire automatically. Track events are explicit.
+Exposure and decision events both fire automatically. Together they are the policy's [assignment events](/concepts/terminology) — every decision or exposure row it produces, repeats included. Track events are explicit.
 
 <Accordion title="Decision vs exposure: when does it matter?">
 Suppose a user lands on a page where the SDK resolves a layout parameter — the SDK records a decision. But the user closes the tab before the layout renders.
 
-- A **decision-event-based** analysis counts this user in the variant they were assigned to. This is intent-to-treat: the experiment offered them the variant, regardless of whether they saw it.
-- An **exposure-event-based** analysis only counts users whose code paths actually read the variant. This is treatment-on-treated: only people who really saw the change.
+- A **decision-event-based** analysis counts this user in the allocation they were assigned to. This is intent-to-treat: the policy offered them the allocation, regardless of whether they saw it.
+- An **exposure-event-based** analysis only counts users whose code paths actually read the allocation's values. This is treatment-on-treated: only people who really saw the change.
 
-Most experiments are analysed on exposures, because that's what the user actually experienced. Decisions matter when you want to detect issues that prevent the variant from rendering (e.g. a JS error in the new variant) — a treatment-on-treated analysis would miss those.
+Most measurements read exposure events, because that's what the user actually experienced. Decision events matter when you want to detect issues that prevent an allocation from rendering (e.g. a JS error in the treatment) — a treatment-on-treated analysis would miss those. The [terminology page](/concepts/terminology#analysis-signal) covers choosing an analysis signal.
 </Accordion>
 
 ## The `decisionId`
@@ -80,7 +80,7 @@ The SDK supports two attribution modes:
 
 | Mode | What it does | Use when |
 |------|--------------|----------|
-| `cumulative` (default) | Attributes a track event to **all** the layers the user was exposed to during the session. | The outcome plausibly depends on more than one experiment — e.g. catalog → PDP → checkout funnels. |
+| `cumulative` (default) | Attributes a track event to **all** the layers the user was exposed to during the session. | The outcome plausibly depends on more than one policy — e.g. catalog → PDP → checkout funnels. |
 | `decision` | Attributes only to the specific decision named in the track event. | You need clean single-decision attribution, often for warehouse-native analyses. |
 
 Set the mode on the client:
@@ -121,7 +121,7 @@ See [warehouse-native](/concepts/warehouse-native) for the setup.
   <Card title="Warehouse-native" icon="database" href="/concepts/warehouse-native">
     Use your warehouse as the source of truth for assignments and metrics.
   </Card>
-  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+  <Card title="Experimentation patterns" icon="book-open" href="/guides/canonical-experiments">
     See the patterns where `decisionId` matters.
   </Card>
 </CardGroup>

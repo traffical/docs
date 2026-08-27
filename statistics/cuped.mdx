@@ -1,17 +1,17 @@
 ---
 title: "Variance reduction (CUPED)"
-description: "Use pre-experiment data to shrink confidence intervals and reach significance sooner — without biasing the result."
+description: "Use pre-exposure data to shrink confidence intervals and reach significance sooner — without biasing the result."
 ---
 
-Two users rarely behave the same. A lot of the variation you see during an experiment was already visible **before** it started — a high spender keeps spending, a heavy user keeps engaging. CUPED (Controlled-experiment Using Pre-Experiment Data) uses that history to cancel out the noise it can explain, so what's left is a cleaner view of the effect your change actually had.
+Two users rarely behave the same. A lot of the variation you see during a test was already visible **before** it started — a high spender keeps spending, a heavy user keeps engaging. CUPED (Controlled-experiment Using Pre-Experiment Data) uses that history to cancel out the noise it can explain, so what's left is a cleaner view of the effect your change actually had.
 
 The result: **narrower confidence intervals and faster significance**, with no change to the lift in expectation.
 
 ## The intuition
 
-For each unit, Traffical looks at a **pre-experiment covariate** — typically the same metric measured over a window before the unit was exposed. It then removes the part of the unit's in-experiment outcome that was predictable from that covariate, comparing variants on what remains.
+For each unit, Traffical looks at a **pre-exposure covariate** — typically the same metric measured over a window before the unit was exposed. It then removes the part of the unit's measured outcome that was predictable from that covariate, comparing allocations on what remains.
 
-Because the covariate comes from *before* the experiment, it can't have been affected by the variant. Adjusting for it is therefore **unbiased**: CUPED only removes noise, it never invents or hides an effect.
+Because the covariate comes from *before* exposure, it can't have been affected by the treatment. Adjusting for it is therefore **unbiased**: CUPED only removes noise, it never invents or hides an effect.
 
 <Note>
   How much you gain depends on how well the past predicts the present. The stronger the correlation between the pre-period covariate and the outcome, the more variance comes out and the tighter the interval — a strongly predictive covariate can cut interval width substantially.
@@ -21,14 +21,14 @@ Because the covariate comes from *before* the experiment, it can't have been aff
 
 CUPED is **off by default** and controlled by a setting at two levels:
 
-- **Project default** — set a default for every experiment in the project (for example, "use CUPED everywhere we can").
+- **Project default** — set a default for every policy in the project (for example, "use CUPED everywhere we can").
 - **Per policy** — each policy can turn CUPED on or off explicitly, overriding the project default. Left unset, a policy inherits the project default.
 
-The effective rule is simply: **policy setting if set, otherwise the project default, otherwise off.** Turning the project default on is the easy way to get variance reduction across the board; the per-policy switch is there for the experiments where you want to opt in or out individually.
+The effective rule is simply: **policy setting if set, otherwise the project default, otherwise off.** Turning the project default on is the easy way to get variance reduction across the board; the per-policy switch is there for the policies where you want to opt in or out individually.
 
 ## What it measures
 
-When CUPED is on, it adjusts by a **pre-experiment covariate** — the metric's own value over a window before each unit was exposed (for example, the two weeks before they first saw the experiment). A unit with no pre-period history simply carries a covariate of zero — the metric's true pre-period value. CUPED only ever removes noise — enabling it never makes an interval wider or changes the lift in expectation.
+When CUPED is on, it adjusts by a **pre-exposure covariate** — the metric's own value over a window before each unit was exposed (for example, the two weeks before their first exposure). A unit with no pre-period history simply carries a covariate of zero — the metric's true pre-period value. CUPED only ever removes noise — enabling it never makes an interval wider or changes the lift in expectation.
 
 ## Configuring it on a metric
 
@@ -55,7 +55,7 @@ CUPED works on **Conversion** and **Sum** metrics — a Sum metric is analysed a
 ## When it helps most
 
 - Metrics with **high natural variance** between units — revenue, engagement time, order value.
-- Experiments where users have **history** in your product, so the pre-period covariate is meaningful.
+- Tests where users have **history** in your product, so the pre-period covariate is meaningful.
 - Any time you want a **decision sooner** without lowering your confidence level.
 
 For brand-new users with no pre-period history, the covariate is simply zero, so there's little predictable variation to remove — CUPED helps where history exists and costs nothing where it doesn't.

@@ -3,7 +3,7 @@ title: "Policies"
 description: "Policies control how parameter values are assigned to users within a layer — from static A/B tests to adaptive optimization."
 ---
 
-A **policy** is the rule that overrides parameter values for selected users within a [layer](/concepts/layers). Every experiment, every feature flag rollout, and every adaptive optimizer in Traffical is a policy.
+A **policy** is the rule that overrides parameter values for selected users within a [layer](/concepts/layers). Every A/B test, every feature flag rollout, and every adaptive optimizer in Traffical is a policy.
 
 ```mermaid
 flowchart TB
@@ -29,7 +29,7 @@ flowchart TB
 
 A policy consists of:
 
-- **Allocations** — variants the user can be assigned to, each with a bucket range and a set of parameter overrides
+- **[Allocations](/concepts/terminology#allocations-and-traffic-splits)** — the named bundles of parameter overrides the user can be assigned to, each with a bucket range and a share of the policy's traffic
 - **Conditions** (optional) — context predicates restricting who is eligible
 - **Eligible bucket range** (optional) — restricts the policy to a sub-range of the layer
 - **Algorithm configuration** — only for adaptive policies (Thompson Sampling, contextual bandits, etc.)
@@ -69,8 +69,8 @@ A policy moves through a small lifecycle:
   <Tab title="Adaptive">
     **Adaptive policies** let the optimizer adjust allocations based on observed rewards. Use them for:
 
-    - Continuous traffic shifting toward better-performing variants
-    - Personalized variant selection based on user context (contextual bandits)
+    - Continuous traffic shifting toward better-performing allocations
+    - Personalized allocation selection based on user context (contextual bandits)
     - Per-entity optimization (one bandit per product, per merchant, etc.)
 
     ```
@@ -130,7 +130,7 @@ Adaptive policies specify an algorithm and a goal:
 | Algorithm | Use case |
 |-----------|----------|
 | `thompson_bernoulli` | Binary outcomes (clicked / didn't, converted / didn't). Beta-Bernoulli Thompson Sampling. |
-| `epsilon_greedy` | Exploits the best-known variant most of the time; explores randomly with probability epsilon. |
+| `epsilon_greedy` | Exploits the best-known allocation most of the time; explores randomly with probability epsilon. |
 | `ucb1` | Upper Confidence Bound. Optimistic exploration that decreases naturally over time. |
 | `linear_contextual` | Personalized scoring per user. The SDK uses context features and trained coefficients (shipped in the bundle) to score each allocation locally. |
 
@@ -169,7 +169,7 @@ See the [per-entity adaptive pattern](/guides/canonical-experiments#per-entity-a
 
 ## Contextual bandits (personalized policies)
 
-A contextual bandit personalizes the assignment based on user context features. Different users see different variants — and the model learns which features predict which variant performs best.
+A contextual bandit personalizes the assignment based on user context features. Different users see different allocations — and the model learns which features predict which allocation performs best.
 
 The training pipeline produces coefficients per allocation. Those coefficients ship in the config bundle. At resolution time the SDK computes a score per allocation from the user's context and selects via softmax — all locally, no network call.
 
@@ -188,7 +188,7 @@ A policy can optionally narrow itself to a sub-range of the layer:
 { "eligibleBucketRange": { "start": 0, "end": 499 } }
 ```
 
-With the default 1000 buckets, this policy covers the first half of the layer. Only users whose layer bucket falls within this range see the policy. Outside that range, the policy is invisible. This is the simplest way to run several non-overlapping experiments inside one layer.
+With the default 1000 buckets, this policy covers the first half of the layer. Only users whose layer bucket falls within this range see the policy. Outside that range, the policy is invisible. This is the simplest way to run several non-overlapping policies inside one layer.
 
 ## Next steps
 
@@ -202,7 +202,7 @@ With the default 1000 buckets, this policy covers the first half of the layer. O
   <Card title="Rollouts" icon="forward" href="/experimentation/rollouts">
     Turn a policy into a progressive rollout with health checks.
   </Card>
-  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+  <Card title="Experimentation patterns" icon="book-open" href="/guides/canonical-experiments">
     The common patterns and how to model them.
   </Card>
 </CardGroup>

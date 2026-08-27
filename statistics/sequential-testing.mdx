@@ -16,17 +16,17 @@ When you enable sequential analysis, Traffical reports an **anytime-valid confid
 More precisely: the probability that the sequence *ever* shows a significant result when there's truly no difference is held at or below your chosen level (5% at the 95% setting), **across every look combined** — not per look. You can check after every batch of data and stop the instant the interval excludes zero, with the guarantee intact.
 
 <Note>
-  This is the right mode for **continuous monitoring** and for automated systems that evaluate experiments repeatedly. There's no peeking penalty to budget and no pre-committed sample size to wait out.
+  This is the right mode for **continuous monitoring** and for automated systems that evaluate results repeatedly. There's no peeking penalty to budget and no pre-committed sample size to wait out.
 </Note>
 
 ## What it costs
 
 Anytime-validity isn't free — the protection comes from a **wider interval**. At any single look, a confidence sequence is broader than the fixed-horizon interval for the same data, because it has to stay valid at every other look too.
 
-The width is tuned by a **target sample size**: the sequence is at its tightest around the sample size you expect the experiment to reach, and looser far from it. Traffical derives that target from your experiment's power analysis — the sample required at your target MDE and power — and falls back to a sensible default when there isn't one.
+The width is tuned by a **target sample size**: the sequence is at its tightest around the sample size you expect the measurement to reach, and looser far from it. Traffical derives that target from the policy's power analysis — the sample required at your target MDE and power — and falls back to a sensible default when there isn't one.
 
 <Tabs>
-  <Tab title="Early in the experiment">
+  <Tab title="Early in the run">
     Intervals are wide. With little data they may be effectively unbounded — the engine is telling you, correctly, that it can't conclude yet. Nothing is significant by accident.
   </Tab>
   <Tab title="Around the target sample size">
@@ -47,13 +47,13 @@ Everything else stays familiar: the lift, the metric types, and [variance reduct
 
 Sequential testing is **off by default** and controlled by a setting at two levels:
 
-- **Project default** — a default for every experiment in the project, set in the project's analysis settings.
+- **Project default** — a default for every policy in the project, set in the project's analysis settings.
 - **Per policy** — each policy can turn it on or off explicitly, overriding the project default. Left unset, a policy inherits the project default.
 
 The effective rule is **policy setting if set, otherwise the project default, otherwise off** — the same model as [CUPED](/statistics/cuped). When it's on for a policy, that policy's results are reported as an anytime-valid confidence sequence instead of a fixed-horizon interval.
 
 <Note>
-  Sequential testing changes how results are *read*, not what data is collected — so you can switch a running experiment between fixed-horizon and sequential and the numbers recompute from the same aggregates.
+  Sequential testing changes how results are *read*, not what data is collected — so you can switch a running policy between fixed-horizon and sequential and the numbers recompute from the same aggregates.
 </Note>
 
 ## Fixed-horizon is still there
@@ -61,7 +61,7 @@ The effective rule is **policy setting if set, otherwise the project default, ot
 Sequential mode is **opt-in**. If your team genuinely pre-commits to a sample size and looks once, the fixed-horizon test gives a tighter interval for that single check and remains the default. Choose sequential when you want the freedom to watch and stop early.
 
 <Tip>
-  Rule of thumb: if anyone — a person or an automated policy — will look at the experiment more than once before it ends, use sequential testing.
+  Rule of thumb: if anyone — a person or an automated process — will look at the results more than once before the run ends, use sequential testing.
 </Tip>
 
 For the underlying math — the half-width formula, the tuning parameter, and why there's no sequential p-value — see the [technical companion](/statistics/sequential-testing-technical).

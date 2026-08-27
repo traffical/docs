@@ -100,7 +100,7 @@ useTraffical({ defaults, tracking: "decision" });  // automatic decision; you ca
 useTraffical({ defaults, tracking: "none" });      // no tracking (SSR, tests)
 ```
 
-`"decision"` is useful when the variant is below the fold — you want to record the decision but only count exposure once the user actually sees the change.
+`"decision"` is useful when the treatment is below the fold — you want to record the decision but only count exposure once the user actually sees the change.
 
 ## Setting context
 
@@ -235,7 +235,7 @@ These are the same options as the [browser SDK](/sdks/javascript#options); pass 
   <Card title="SSR patterns" icon="server" href="/sdks/ssr">
     No FOOC, hydration with the same bundle.
   </Card>
-  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+  <Card title="Experimentation patterns" icon="book-open" href="/guides/canonical-experiments">
     Patterns for web UI and SSR tests.
   </Card>
 </CardGroup>

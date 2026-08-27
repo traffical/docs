@@ -1,6 +1,6 @@
 ---
 title: "A/B testing"
-description: "Run a static experiment end-to-end — define parameters, create a policy, implement in code, measure results."
+description: "Run a static A/B test end-to-end — define parameters, create a policy, implement in code, measure results."
 ---
 
 An A/B test in Traffical is a static [policy](/concepts/policies) within a [layer](/concepts/layers). You define two or more allocations with fixed bucket ranges, and the SDK assigns each user to one allocation based on their bucket. You measure the difference between allocations using events.
@@ -90,19 +90,19 @@ Add conditions to scope the test to a segment. For US English users only:
 }
 ```
 
-Users outside the segment get the parameter's default value. They aren't part of the experiment population — they don't dilute the result.
+Users outside the segment get the parameter's default value. They aren't part of the enrolled units — they don't dilute the result.
 
 See [Policies](/concepts/policies#targeting-conditions) for the full list of operators.
 
 ## Picking the unit key
 
-Bucketing is based on your project's [unit key](/concepts/projects-and-environments#the-unit-key). For most experiments this is `userId`. For B2B / multi-tenant SaaS, you usually want `companyId` instead — every user in a company sees the same variant, which is what your customers will expect. If you need both kinds of experiments, create two projects.
+Bucketing is based on your project's [unit key](/concepts/projects-and-environments#the-unit-key). For most policies this is `userId`. For B2B / multi-tenant SaaS, you usually want `companyId` instead — every user in a company sees the same allocation, which is what your customers will expect. If you need both kinds of randomization, create two projects.
 
 ## Concluding the test
 
 When you've collected enough data:
 
-1. **Pick the winner.** Update the parameter's default value to the winning variant.
+1. **Pick the winner.** Update the parameter's default value to the winning allocation's value.
 2. **Complete the policy.** Set the policy state to `completed`.
 3. **Clean up.** The policy stops being evaluated; all users get the new default. The historical results stay in the dashboard.
 
@@ -110,7 +110,7 @@ No code changes are needed at any point in the lifecycle.
 
 ## Beyond A/B
 
-If two variants isn't enough, just add more allocations to the policy. Three, five, ten — the math still works as long as you've sized your sample for the smaller per-variant population. For continuous optimization across many variants, use an [adaptive policy](/experimentation/optimization) instead.
+If two allocations aren't enough, just add more to the policy. Three, five, ten — the math still works as long as you've sized the measurement for the smaller enrolled units per allocation. For continuous optimization across many allocations, use an [adaptive policy](/experimentation/optimization) instead.
 
 ## Next steps
 
@@ -122,9 +122,9 @@ If two variants isn't enough, just add more allocations to the policy. Three, fi
     Adaptive policies that learn from rewards.
   </Card>
   <Card title="Experiment design" icon="lightbulb" href="/guides/experiment-design">
-    Hypotheses, metrics, guardrails, sample size.
+    Hypotheses, metrics, guardrails, sizing.
   </Card>
-  <Card title="Canonical experiments" icon="book-open" href="/guides/canonical-experiments">
+  <Card title="Experimentation patterns" icon="book-open" href="/guides/canonical-experiments">
     Patterns by surface (web, mobile, backend, SSR).
   </Card>
 </CardGroup>

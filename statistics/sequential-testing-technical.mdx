@@ -22,7 +22,7 @@ What the widening buys is a **time-uniform guarantee**: the probability that the
 
 ## The half-width
 
-At a look with `N` total units across both arms, the sequence is `Δ̂ ± half_width(N)` with:
+At a look with `N` total units across both allocations, the sequence is `Δ̂ ± half_width(N)` with:
 
 ```
 half_width(N) = σ̂_Δ · √N · √( (2 · (N·ρ² + 1)) / (N² · ρ²) · log( √(N·ρ² + 1) / α ) )
@@ -38,7 +38,7 @@ To see the shape, write `σ̂_Δ = s/√N` for a per-unit spread `s`. For large 
 
 `ρ²` depends only on `α` and `N*`. A confidence sequence cannot be uniformly tight at every sample size, so `N*` chooses *where* the tightness goes: the sequence is closest to the fixed-horizon width around `N ≈ N*`, and comparatively looser well below or beyond it. A badly chosen `N*` costs efficiency — wider intervals where you actually stop — but never validity; the guarantee holds for any `N*`.
 
-Traffical derives `N*` from your power target. When an experiment launches under a [measurement plan](/governance/measurement-protocols), `N*` is set to the required total sample size implied by the plan's target MDE, power, and confidence level against the best available baseline — so the sequence is tightest right where the experiment is expected to conclude. Updating the primary metric's target re-tunes it. When no usable power analysis exists, a default of 5,000 applies.
+Traffical derives `N*` from your power target. When a policy launches under a [measurement plan](/governance/measurement-protocols), `N*` is set to the required total sample size implied by the plan's target MDE, power, and confidence level against the best available baseline — so the sequence is tightest right where the measurement is expected to conclude. Updating the primary metric's target re-tunes it. When no usable power analysis exists, a default of 5,000 applies.
 
 ## Decisions, and why there is no sequential p-value
 
@@ -50,11 +50,11 @@ The absence of a sequential p-value is deliberate. A p-value would be recovered 
 
 [Measurement progress](/statistics/measurement-progress) asks the reverse question: how many units until the target effect is detectable? The detectable-effect-now is read straight off the current interval, `κ · half_rel`, where `half_rel` is the half-width of the relative interval and `κ = (z_α + z_power) / z_α` converts an interval half-width into a powered minimum detectable effect (≈ 1.43 at 95% confidence and 80% power).
 
-For the required sample, the `N`-dependent part of the half-width is isolated as a bracket that is monotone decreasing in `N`. The current look pins the scale constant `s`, and the engine then finds the smallest total `N′` whose widened half-width meets the target by integer bisection — exact, because of the monotonicity. Both arms scale by `N′ / N_now`, preserving your traffic split. Because the inversion uses the same formula as the interval itself, the progress readout can never disagree with the significance table.
+For the required sample, the `N`-dependent part of the half-width is isolated as a bracket that is monotone decreasing in `N`. The current look pins the scale constant `s`, and the engine then finds the smallest total `N′` whose widened half-width meets the target by integer bisection — exact, because of the monotonicity. Both allocations scale by `N′ / N_now`, preserving your traffic split. Because the inversion uses the same formula as the interval itself, the progress readout can never disagree with the significance table.
 
 ## Interaction with CUPED
 
-[Variance reduction](/statistics/cuped) happens upstream. CUPED replaces each arm's (mean, standard error) before the difference is formed, so the sequence consumes the already-adjusted `Δ̂` and `σ̂_Δ` without knowing the adjustment happened. A smaller `σ̂_Δ` narrows the sequence at every look; the time-uniform guarantee is untouched. Details in the [CUPED technical companion](/statistics/cuped-technical).
+[Variance reduction](/statistics/cuped) happens upstream. CUPED replaces each allocation's (mean, standard error) before the difference is formed, so the sequence consumes the already-adjusted `Δ̂` and `σ̂_Δ` without knowing the adjustment happened. A smaller `σ̂_Δ` narrows the sequence at every look; the time-uniform guarantee is untouched. Details in the [CUPED technical companion](/statistics/cuped-technical).
 
 ## Degenerate looks
 

@@ -3,9 +3,9 @@ title: "Measurement progress"
 description: "How Traffical answers \"how much longer does this need?\" — the target effect, what's detectable right now, and the estimated time remaining."
 ---
 
-Every running experiment raises the same question: **is it done yet — and if not, how much longer?** The **Measurement progress** card on the policy detail page answers it with three numbers: the effect size you set out to detect, the effect size you could detect *right now*, and an estimate of when the first will catch up with the second.
+Every running test raises the same question: **is it done yet — and if not, how much longer?** The **Measurement progress** card on the policy detail page answers it with three numbers: the effect size you set out to detect, the effect size you could detect *right now*, and an estimate of when the first will catch up with the second.
 
-<Frame caption="Measurement progress on a running experiment">
+<Frame caption="Measurement progress on a running policy">
   <img src="/images/placeholders/measurement-progress-running.png" alt="Measurement progress card showing target, progress bar, detectable-now effect, and estimated time remaining" />
 </Frame>
 
@@ -13,13 +13,13 @@ Everything on the card is computed by the engine from the same numbers that prod
 
 ## The target effect
 
-Progress needs a destination: the **target MDE** (minimum detectable effect) — the smallest relative lift you care about detecting, such as 5%. A smaller target means a more sensitive experiment and a longer runtime.
+Progress needs a destination: the **target MDE** (minimum detectable effect) — the smallest relative lift you care about detecting, such as 5%. A smaller target means a more sensitive measurement and a longer runtime.
 
-You rarely have to set it per experiment. Traffical resolves the target from the most specific place it's been declared, and the card shows a chip naming where the value came from:
+You rarely have to set it per policy. Traffical resolves the target from the most specific place it's been declared, and the card shows a chip naming where the value came from:
 
-1. **Protocol** — the policy was launched through a [change](/concepts/changes) governed by a [measurement protocol](/governance/measurement-protocols) whose approved plan pins experiment design targets (MDE, and optionally confidence and power). The governance commitment wins for the primary metric.
+1. **Protocol** — the policy was launched through a [change](/concepts/changes) governed by a [measurement protocol](/governance/measurement-protocols) whose approved plan pins the design targets (MDE, and optionally confidence and power). The governance commitment wins for the primary metric.
 2. **Policy override** — a target set on the metric attachment for this specific policy.
-3. **Metric default** — a default target on the [metric definition](/dashboard/metrics) itself, shared by every experiment that uses it.
+3. **Metric default** — a default target on the [metric definition](/dashboard/metrics) itself, shared by every policy that uses it.
 4. **Project default** — the project-wide default in the project's analysis settings.
 5. **Assumed** — none of the above is set, so a 5% relative MDE is assumed.
 
@@ -27,7 +27,7 @@ The design assumes 80% power unless a protocol pins its own, and always uses the
 
 ## What you can detect right now
 
-The other half of the readout is **"Detectable now: ±X%"** — the smallest relative lift the experiment could reliably detect with the data collected so far.
+The other half of the readout is **"Detectable now: ±X%"** — the smallest relative lift the measurement could reliably detect with the data collected so far.
 
 There's no separate power calculation behind this number. It's derived directly from the width of the current confidence interval on the lift: a wide interval means only large effects are detectable yet; as data accrues the interval tightens and the detectable effect shrinks toward your target. Because it comes from the same interval the results table shows, it automatically reflects everything that shapes your analysis — [variance reduction](/statistics/cuped), outlier capping, and [sequential testing](/statistics/sequential-testing) included.
 
@@ -35,64 +35,64 @@ There's no separate power calculation behind this number. It's derived directly 
 
 Statistical precision improves with the *square root* of sample size — to detect an effect half as large, you need four times the data. The progress bar uses that quadratic scale, comparing the target to what's detectable now. If your target is 5% and you can currently detect ±10%, you're at 25% progress, not 50% — an honest reflection of the data still to come.
 
-Progress is capped at 100%, with an explicit terminal state: when the detectable effect reaches your target, the bar turns green and reads **Target reached**. At that point the experiment is powered for the effect you asked about — whatever the result says now, you can trust it at your chosen sensitivity.
+Progress is capped at 100%, with an explicit terminal state: when the detectable effect reaches your target, the bar turns green and reads **Target reached**. At that point the measurement is powered for the effect you asked about — whatever the result says now, you can trust it at your chosen sensitivity.
 
 <Note>
-  "Target reached" doesn't mean the result is significant. It means the experiment can now reliably detect an effect of the target size — including confidently concluding there isn't one.
+  "Target reached" doesn't mean the result is significant. It means the measurement can now reliably detect an effect of the target size — including confidently concluding there isn't one.
 </Note>
 
 The headline tracks the **primary metric**. Secondary metrics each get a compact progress row of their own in a collapsible section at the bottom of the card.
 
 ## Estimated time remaining
 
-From the gap between detectable-now and the target, Traffical computes how many more users each variant needs, then divides by each variant's recent accrual rate to produce **"~N days remaining"** and an estimated completion date.
+From the gap between detectable-now and the target, Traffical computes how many more [enrolled units](/concepts/terminology#the-three-counts) each allocation needs, then divides by each allocation's recent accrual rate to produce **"~N days remaining"** and an estimated completion date.
 
 Two things keep the estimate honest:
 
 - **It carries an "as of" stamp.** Estimates refresh on every analysis run (typically every two hours), and the card shows when the numbers were last computed. On a paused policy the last estimate is kept but the countdown is suppressed — **"Paused — estimates frozen"**.
 - **It never fabricates a date.** If no traffic has accrued recently, you'll see **"No traffic accruing recently"** instead of a number. If traffic is flowing but the target is effectively out of reach at current rates, the card says **">10 years at current traffic"** — a prompt to raise the target, widen the audience, or rethink the metric rather than wait.
 
-## Unequal splits and the limiting arm
+## Unequal splits and the limiting allocation
 
-Progress is computed per treatment-versus-control pair, and the headline follows the **slowest pair**. With a 90/10 split, the small arm dominates the interval width — the experiment is only as far along as its most starved comparison, and the required sample is computed at the split you actually configured, not an assumed 50/50.
+Progress is computed per treatment-versus-control pair, and the headline follows the **slowest pair**. With a 90/10 split, the small allocation dominates the interval width — the measurement is only as far along as its most starved comparison, and the required sample is computed at the split you actually configured, not an assumed 50/50.
 
-When a policy has more than two variants, the card names the **limiting arm** and shows how many users it has versus how many it needs, so you can see exactly which comparison is holding the experiment open.
+When a policy has more than two allocations, the card names the **limiting allocation** and shows how many units it has versus how many it needs, so you can see exactly which comparison is holding the measurement open.
 
 ## With sequential testing
 
-When [sequential testing](/statistics/sequential-testing) is on, the confidence interval is an anytime-valid sequence — wider than a fixed-horizon interval at any single look, which is the price of unlimited peeking. Progress accounts for this directly: the detectable-now effect is read off the (wider) sequence, and the required sample size is found by asking the same interval shape how many users it takes to tighten to your target. No optimistic fixed-horizon shortcut — the ETA reflects the test you're actually running.
+When [sequential testing](/statistics/sequential-testing) is on, the confidence interval is an anytime-valid sequence — wider than a fixed-horizon interval at any single look, which is the price of unlimited peeking. Progress accounts for this directly: the detectable-now effect is read off the (wider) sequence, and the required sample size is found by asking the same interval shape how many units it takes to tighten to your target. No optimistic fixed-horizon shortcut — the ETA reflects the test you're actually running.
 
 ## Planning before launch
 
-A draft policy has no data, so the card becomes a **what-if planner**: enter your expected baseline rate (for conversion metrics) and a target MDE — prefilled from your configured defaults, with a chip showing the source — and it returns the users needed per variant and in total.
+A draft policy has no data, so the card becomes a **what-if planner**: enter your expected baseline rate (for conversion metrics) and a target MDE — prefilled from your configured defaults, with a chip showing the source — and it returns the enrolled units needed per allocation and in total.
 
 <Frame caption="What-if planner on a draft policy">
-  <img src="/images/placeholders/measurement-whatif-planner.png" alt="Draft policy planner with baseline rate and target MDE inputs producing a users-per-variant estimate" />
+  <img src="/images/placeholders/measurement-whatif-planner.png" alt="Draft policy planner with baseline rate and target MDE inputs producing a units-per-allocation estimate" />
 </Frame>
 
-For adaptive policies the planner notes that estimates assume even splits — the optimizer will shift traffic between arms as it learns, so treat the number as a starting point rather than a commitment.
+For adaptive policies the planner notes that estimates assume even splits — the optimizer will shift traffic between allocations as it learns, so treat the number as a starting point rather than a commitment.
 
 ## Guardrail metrics
 
-Guardrails don't need a target MDE — their threshold *is* the target. A guardrail with a **relative** threshold (say, "flag if this drops more than 2%") is tracked against that size: its row in the metric results reads **Underpowered** until the experiment can reliably distinguish a real 2% regression from noise, then shows a **Powered** check. Guardrails don't appear on the progress card itself. Guardrails with **absolute** thresholds bound a level rather than a lift, so they aren't tracked this way.
+Guardrails don't need a target MDE — their threshold *is* the target. A guardrail with a **relative** threshold (say, "flag if this drops more than 2%") is tracked against that size: its row in the metric results reads **Underpowered** until the measurement can reliably distinguish a real 2% regression from noise, then shows a **Powered** check. Guardrails don't appear on the progress card itself. Guardrails with **absolute** thresholds bound a level rather than a lift, so they aren't tracked this way.
 
 ## Adaptive and contextual policies
 
-For [adaptive policies](/experimentation/optimization), progress tracks the **leader versus control** — the comparison whose measured significance actually gates completion. That's deliberate: the optimizer starves losing arms by design, so their comparisons would never finish, and holding the experiment open for them would be misleading.
+For [adaptive policies](/experimentation/optimization), progress tracks the **leader versus control** — the comparison whose measured significance actually gates completion. That's deliberate: the optimizer starves losing allocations by design, so their comparisons would never finish, and holding the measurement open for them would be misleading.
 
 Contextual policies get no runtime estimate at all. When the winner varies per context, there is no single "done" — the card shows the target for reference and leaves it there.
 
-## After the experiment ends
+## After the test ends
 
 A completed policy shows a retrospective instead of a bar:
 
-<Frame caption="Measurement summary on a completed experiment">
+<Frame caption="Measurement summary on a completed policy">
   <img src="/images/placeholders/measurement-progress-completed.png" alt="Completed policy measurement summary with the retrospective detectable-effect sentence" />
 </Frame>
 
 > This experiment could reliably detect effects of **±3.2%** or larger on **Checkout conversion** (80% power, 95% confidence).
 
-That sentence is the honest summary of what the experiment could and couldn't see. If the final result was "no significant effect" but the experiment could only detect ±12%, a meaningful smaller effect may simply have been invisible — context that matters when the result feeds into [impact reporting](/statistics/impact-methodology).
+That sentence is the honest summary of what the test could and couldn't see. If the final result was "no significant effect" but the test could only detect ±12%, a meaningful smaller effect may simply have been invisible — context that matters when the result feeds into [impact reporting](/statistics/impact-methodology).
 
 ## Next steps
 
@@ -107,6 +107,6 @@ That sentence is the honest summary of what the experiment could and couldn't se
     How the confidence intervals behind this readout are computed.
   </Card>
   <Card title="Impact methodology" icon="chart-line" href="/statistics/impact-methodology">
-    How finished experiments roll up into reported impact.
+    How shipped wins roll up into reported impact.
   </Card>
 </CardGroup>

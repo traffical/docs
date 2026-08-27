@@ -74,16 +74,16 @@ Metric names follow a convention — `orders.order_total [sum]`, `purchase per c
 
 ### Variance reduction (CUPED)
 
-On **Conversion** and **Sum** metrics you can enable a pre-experiment covariate: the metric's own value over a lookback window (default 14 days) before each unit's exposure. It shrinks confidence intervals and takes effect only when [CUPED](/statistics/cuped) is also enabled on the policy or project. CUPED isn't available for count or ratio metrics.
+On **Conversion** and **Sum** metrics you can enable a pre-exposure covariate: the metric's own value over a lookback window (default 14 days) before each unit's first exposure. It shrinks confidence intervals and takes effect only when [CUPED](/statistics/cuped) is also enabled on the policy or project. CUPED isn't available for count or ratio metrics.
 
 ## Certification
 
 Certifying a metric marks it as a trusted, validated definition — the standard your team measures with. Click **Certify** on the metric's detail page. A certified metric:
 
-- becomes **read-only**, so the definition can't drift under running experiments, and
+- becomes **read-only**, so the definition can't drift under running policies, and
 - is eligible for [measurement protocols](/governance/measurement-protocols) — protocols pick from certified metrics only, and a protocol can itself only be certified when every metric it references is certified. That certified coverage is what lets low-risk changes [auto-approve their measurement plans](/governance/approvals-and-autonomy).
 
-Uncertifying is deliberate: it asks you to type `UNCERTIFY`, since colleagues and running experiments may rely on the definition. Once uncertified, the metric becomes editable again.
+Uncertifying is deliberate: it asks you to type `UNCERTIFY`, since colleagues and running policies may rely on the definition. Once uncertified, the metric becomes editable again.
 
 <Note>
 Metric definitions can also live as config-as-code in a metrics file pushed via the [CLI](/tools/cli) — see the [config file reference](/tools/config-file). Synced metrics show a **Synced** badge, are read-only in the dashboard, and change (including their `certified` flag) only through your file and the next push.
@@ -128,7 +128,7 @@ The **Definition** rail summarizes the source (linked to its event or fact), uni
 A metric is editable while it's neither certified, synced, nor archived — **Uncertify** makes a certified metric editable again. Two ways to retire one:
 
 - **Archive** hides the metric from the catalog and blocks new attachments while preserving every past policy reference. Archiving is refused while a running or paused policy still uses the metric; unarchive restores it any time.
-- **Delete** is only allowed if the metric has never shipped in a non-draft policy. Once it has, the definition is part of the evidence record for those experiments — the server refuses and points you to archive instead.
+- **Delete** is only allowed if the metric has never shipped in a non-draft policy. Once it has, the definition is part of the evidence record for those policies — the server refuses and points you to archive instead.
 
 ## Next steps
 
