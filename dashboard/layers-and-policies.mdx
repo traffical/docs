@@ -3,7 +3,7 @@ title: "Layers & policies in the dashboard"
 description: "Managing layers and reading the policy detail page — the verdict banner, its seven tabs, measurement progress, and per-policy analysis settings."
 ---
 
-The **Layers** page is where every A/B test, rollout, and feature-flag policy lives. Layers keep concurrent policies cleanly separated; policies decide who sees what within a layer. This page walks the dashboard surfaces — for the underlying model, see [Layers](/concepts/layers) and [Policies](/concepts/policies).
+The **Layers** page is where every A/B test, rollout, and feature flag lives. Layers keep concurrent policies cleanly separated; policies decide who sees what within a layer. A [feature flag](/experimentation/feature-flags) is a layer with one parameter. This page walks the dashboard surfaces — for the underlying model, see [Layers](/concepts/layers) and [Policies](/concepts/policies).
 
 <Frame caption="Layers list">
   <img src="/images/placeholders/layers-list.png" alt="Layer cards with policy summaries and state filters" />
@@ -17,7 +17,19 @@ Each card is a [layer](/concepts/layers) with its policies at a glance:
 - How many policies are active, running, and adaptive, plus completed and archived counts
 - The top policies by priority with their state and traffic share
 
-Filter chips narrow the list — **All**, **Has Running**, **All Draft**, **Adaptive** — and search matches layer and policy names. **Create Layer** adds a new one. Group parameters that are tested together in the same layer.
+Filter chips narrow the list — **All**, **Has Running**, **All Draft**, **Adaptive** — and search matches layer and policy names. Group parameters that are tested together in the same layer.
+
+## Creating a layer
+
+**New layer** opens a dialog that starts with a template. The template decides what the layer is created with, and the form only asks what that template needs:
+
+- **Feature flag** — one parameter and an **On** policy serving its on value to every bucket. Asks for the flag name, the key (a parameter group plus a `snake_case` suffix), the type, optional allowed values, the off and on values, and whether to turn it on right away.
+- **Standard** — one draft policy covering 100% of buckets and no parameters. Add parameters, then stack rollouts, A/B tests, and adaptive policies in priority order.
+- **URL redirect** — a `redirect.url` parameter and an adaptive policy that splits visitors of one URL across alternative pages.
+
+The **New layer** button creates a Standard layer; the menu beside it opens the same dialog on **Feature flag** or **URL redirect**. The footer states what will be created, and everything is created in one step: a failed step never leaves a half-built layer behind. Turning a flag on from the dialog is a policy start and follows your organization's [approval rules](/governance/approvals-and-autonomy); when a rule applies, the policy is created as a draft and the approval request is raised for you.
+
+Randomization unit and analysis signal overrides sit behind **Description, randomization unit, analysis signal** and default to the project's settings.
 
 ## Layer detail
 

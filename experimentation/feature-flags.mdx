@@ -1,97 +1,79 @@
 ---
 title: "Feature flags"
-description: "A feature flag is a boolean parameter under a policy. Same primitives, with optional safety from rollouts and targeting."
+description: "A feature flag is a layer with one parameter. Switch it on, roll it out, or test it — the same primitives, created in one step."
 ---
 
-A feature flag in Traffical isn't a separate feature — it's a [boolean parameter](/concepts/parameters) plus a [policy](/concepts/policies) that overrides it for selected users. Everything you do with a feature flag is a special case of the more general parameter model.
+A feature flag in Traffical isn't a separate object. It is a [layer](/concepts/layers) that holds exactly one [parameter](/concepts/parameters). The parameter's default is the **off** value. Turning the flag on starts a [policy](/concepts/policies) that serves the **on** value to every user in the layer. Rolling out narrows that policy to a share of users. Testing adds a second policy with more than one allocation. Every step uses the model the rest of the platform uses, so a flag never has to be migrated into an experiment.
 
-That said, "feature flag" is the most common starting point for teams adopting an experimentation platform, so this page explains the patterns directly.
+## Create a flag
 
-## The simplest possible flag
+In the dashboard, open **Layers** and pick **Feature flag** from the **New layer** menu. The dialog asks for:
 
-A pure on/off toggle for all traffic:
+- **Flag name** — the layer's name. The key is derived from it.
+- **Key** — what your code reads, as a `snake_case` suffix under a parameter group. `checkout.social_proof` is the group `checkout` plus the suffix `social_proof`; the `main` group has no prefix.
+- **Type** — `boolean` by default. A `string` or `number` flag can carry **allowed values**, which turns it into an enum such as `legacy | v2 | hybrid`.
+- **Off value** — the parameter default, what everyone gets while the flag is off.
+- **On value** — what the **On** policy serves.
+- **Turn on now** — creates the On policy running instead of as a draft.
 
-```yaml
-parameters:
-  checkout.redesign_enabled:
-    type: boolean
-    default: false
-```
+One call creates the layer, the parameter, and the On policy together. The footer of the dialog states exactly what will be created, and the confirmation shows the three objects with their state.
 
-Flip the default in the dashboard (or push `default: true` via the CLI) and every user gets the new value on the next bundle refresh. No test, no policy — just a remote-controlled boolean.
+<Frame caption="Create a feature flag">
+  <img src="/images/placeholders/create-layer-flag.png" alt="Create a new layer dialog with the Feature flag template selected" />
+</Frame>
+
+Flags are also defined by the [config file](/tools/config-file) as a boolean parameter with a default. Creating the layer and policy is a dashboard or API step.
+
+## Read it in code
+
+Nothing about the SDK changes. A flag is a parameter:
 
 ```typescript
 const { params } = useTraffical({
-  defaults: { "checkout.redesign_enabled": false },
+  defaults: { "checkout.social_proof": false },
 });
 
-if (params["checkout.redesign_enabled"]) {
-  return <NewCheckout />;
+if (params["checkout.social_proof"]) {
+  return <SocialProof />;
 }
-return <OldCheckout />;
 ```
 
 If Traffical is unreachable, the default in code is what your application sees.
 
-## Targeted flags
+## Switch it on and off
 
-For "enable for internal users" or "enable for a specific company" patterns, create a static policy with conditions:
+Turning a flag on means the **On** policy is running. Turning it off means it is paused. Either way, every user gets the parameter's default while nothing runs. Because on and off are policy transitions, they carry the same audit trail and, where your organization has configured them, the same [approvals](/governance/approvals-and-autonomy) as any other policy start.
 
-```
-Layer: base
-└── Policy: internal_only (static, running)
-    └── treatment: buckets 0–999 → checkout.redesign_enabled = true
-    └── conditions: [{ field: "email", op: "contains", value: "@traffical.io" }]
-```
+The parameter's default stays the off value. Changing the default changes what every policy in the layer treats as the baseline, so use it to change what "off" means, not as the switch.
 
-Users matching the condition get `true`. Everyone else gets the default (`false`). The same pattern works for company-scoped flags, plan-scoped flags, country-scoped flags — any condition you can express against context.
+## Roll it out gradually
 
-## Percentage rollouts
+Narrow the On policy's allocation to a share of the layer and widen it over time with a [rollout](/experimentation/rollouts). Users inside the range get the on value; everyone else keeps the default. Health checks can pause or roll back the ramp before a human notices.
 
-For "release this to 5% of traffic" patterns, attach a [rollout](/experimentation/rollouts) to a static policy:
+## Test it
 
-```
-Layer: base
-└── Policy: new_checkout_rollout (static, running, with rolloutConfig)
-    └── treatment: buckets 0–49 (starting at 5%) → checkout.redesign_enabled = true
-    └── (rollout config ramps to 100% over time)
-```
+Add a policy with two allocations to the flag's layer, one serving the off value and one serving the on value. That policy is an [A/B test](/experimentation/ab-testing) on the flag: same parameter, same layer, same SDK code. When the test is done, complete it and start the On policy with the winning value.
 
-Users in the current bucket range get `true`; everyone else gets `false`. The rollout machinery handles ramping the range over time, optionally with health checks.
+## Kill switches
 
-## Killswitches
+A kill switch is a flag whose off value is `true`. The On policy serves `false`, and you keep it as a draft until you need it. Starting it turns the feature off for every user within the SDK's refresh interval (default 60s). For a faster guarantee, reduce `refreshIntervalMs` on the client.
 
-A killswitch is just a boolean parameter you flip to `false` (or `true`, depending on the polarity) in an emergency. There's no special API:
+## Enum flags
+
+A `string` flag with allowed values `legacy`, `v2`, and `hybrid` is one parameter that can take three values. Off is one of them, on is another, and a test can compare all three. The allowed values are enforced on every policy that overrides the parameter.
+
+## When a flag is not enough
+
+If you find yourself adding more booleans to control one feature (`show_new_layout`, `use_new_copy`, `apply_new_discount`), create a **Standard** layer instead and give it several typed parameters:
 
 ```yaml
 parameters:
-  payments.allow_new_provider:
-    type: boolean
-    default: true
-```
-
-If the new payment provider starts failing, flip the default to `false` in the dashboard and the bundle propagates within the SDK's refresh interval (default 60s). For shorter propagation, reduce `refreshIntervalMs` on the client.
-
-For a faster guarantee, combine this with a [progressive rollout](/experimentation/rollouts) that monitors a health metric (e.g. error rate) — Traffical will auto-pause or auto-rollback before a human notices.
-
-## Flags as the entry point to experimentation
-
-A common pattern: start a feature behind a percentage rollout, watch the metrics, then graduate the flag into a full A/B test by adding a treatment allocation with a different value.
-
-That's not a migration — it's a one-line change to the same policy. The parameter's type doesn't change. The SDK code doesn't change. You just turn one allocation into two.
-
-## What feature flags can't do alone
-
-If you find yourself adding more booleans to control treatment behaviour (`show_new_layout`, `use_new_copy`, `apply_new_discount` — all in the same policy), you're hitting the wall of the boolean model. Switch to typed parameters:
-
-```yaml
-parameters:
-  checkout.layout:        { type: string,  default: "classic" }   # "classic" | "v2" | "v3"
+  checkout.layout:        { type: string,  default: "classic" }
   checkout.headline:      { type: string,  default: "Complete your order" }
   checkout.discount_pct:  { type: number,  default: 0 }
 ```
 
-One policy can override all three together. One A/B test compares "classic" against "v2" without three correlated booleans masquerading as one test.
+One policy overrides all three together, and one A/B test compares the combinations without three correlated booleans posing as one test. A flag layer is not locked either: you can add parameters and policies to it later.
 
 ## Next steps
 
@@ -101,6 +83,9 @@ One policy can override all three together. One A/B test compares "classic" agai
   </Card>
   <Card title="A/B testing" icon="flask" href="/experimentation/ab-testing">
     From a flag to a real A/B test.
+  </Card>
+  <Card title="Layers" icon="layers" href="/concepts/layers">
+    Why a flag gets its own layer.
   </Card>
   <Card title="Parameters" icon="sliders" href="/concepts/parameters">
     Beyond booleans — typed values.

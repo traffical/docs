@@ -60,6 +60,7 @@ Three write scopes sit on top of the read scopes. `tools/list` is **scope-filter
 | `changes:propose` | author draft changes, write proposals, assessments, annotations, request approval — can suggest, but never starts traffic |
 | `changes:operate` | execute transitions (resolver-gated); refresh evidence |
 | `defaults:promote` | promote-to-default / complete-with-default — the highest-risk action keeps its own scope |
+| `layers:write` | create layers from templates (`create_layer`) — configuration authoring, governed by the same rules as the dashboard's layer dialog |
 
 You never mint these fine-grained scopes directly — they come from the coarse scope on the key, or from your role over OAuth. `mgmt:read` grants every `:read` scope; `mgmt:operate` (the **Lifecycle Operate Key** preset) grants all three write scopes; `admin` (**Full Access**) grants everything. A plain `mgmt:write` key grants none of the write scopes, and over OAuth only admins and owners carry them — members and viewers connect read-only. See [API key scopes](/governance/roles-and-permissions#api-key-scopes).
 
@@ -104,6 +105,7 @@ These appear in `tools/list` only when the token carries the scope.
 | `annotate_change` | `changes:propose` | Writes an `annotation` decision record |
 | `refresh_evidence` | `changes:operate` | Recomputes the change's evidence from the latest stored analysis results |
 | `request_approval` | `changes:propose` | Parks a transition in the human approval queue without proposing a specific auto-execution |
+| `create_layer` | `layers:write` | Create a **new layer from a template** in one atomic call: the layer, its parameters, and its first policies. Templates are `feature_flag` (one parameter plus an **On** policy — a [feature flag](/experimentation/feature-flags)), `standard` (one 100% draft policy), and `url_redirect`. `startNow` is honored only in write mode `execute` and through the approval gate; otherwise the policy is created as a draft and `start` says why. Returns the layer, parameter, and policy ids and a console link. |
 
 ## How writes are governed
 
@@ -121,7 +123,7 @@ Lifecycle transitions are **off by default**. A global write mode gates every tr
 
 | Mode | Effect |
 |------|--------|
-| `off` | Transitions rejected outright — `create_change` still authors the draft, but its `start` leg is refused |
+| `off` | Transitions rejected outright — `create_change` still authors the draft, but its `start` leg is refused; `create_layer` is refused |
 | `advisory` | The resolver caps every transition at `propose` — nothing executes, but proposals and notifications flow |
 | `execute` | The resolver's `execute` decisions actually fire |
 

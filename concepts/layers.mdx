@@ -45,7 +45,7 @@ Layers solve this by partitioning the parameter space:
 - **Across layers** — policies can overlap freely because they control different parameters. Independence is guaranteed by orthogonal bucketing.
 
 <Note>
-Every project has a **base layer** that's created automatically. New parameters land in the base layer by default. The base layer can't be deleted.
+Every project has a **base layer** that's created automatically. New parameters land in the base layer by default. The base layer can't be deleted. It holds stable parameters shared across the project. A [feature flag](/experimentation/feature-flags) gets its own layer, so flags never queue behind each other or behind the base layer.
 </Note>
 
 ## Orthogonal bucketing
