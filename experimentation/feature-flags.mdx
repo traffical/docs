@@ -13,10 +13,10 @@ In the dashboard, open **Layers** and pick **Feature flag** from the **New layer
 - **Key** — what your code reads, as a `snake_case` suffix under a parameter group. `checkout.social_proof` is the group `checkout` plus the suffix `social_proof`; the `main` group has no prefix.
 - **Type** — `boolean` by default. A `string` or `number` flag can carry **allowed values**, which turns it into an enum such as `legacy | v2 | hybrid`.
 - **Off value** — the parameter default, what everyone gets while the flag is off.
-- **On value** — what the **On** policy serves.
-- **Turn on now** — creates the On policy running instead of as a draft.
+- **On value** — what the flag's policy serves.
+- **Turn on now** — creates the flag's policy running instead of as a draft.
 
-One call creates the layer, the parameter, and the On policy together. The footer of the dialog states exactly what will be created, and the confirmation shows the three objects with their state.
+One call creates the layer, the parameter, and the flag's policy together. The policy is named `Feature flag — <flag name>`, so it is recognisable in every policy list of the project. The footer of the dialog states exactly what will be created, and the confirmation shows the three objects with their state.
 
 <Frame caption="Create a feature flag">
   <img src="/images/placeholders/create-layer-flag.png" alt="Create a new layer dialog with the Feature flag template selected" />
@@ -42,27 +42,27 @@ If Traffical is unreachable, the default in code is what your application sees.
 
 ## Switch it on and off
 
-Turning a flag on means the **On** policy is running. Turning it off means it is paused. Either way, every user gets the parameter's default while nothing runs. Because on and off are policy transitions, they carry the same audit trail and, where your organization has configured them, the same [approvals](/governance/approvals-and-autonomy) as any other policy start.
+Turning a flag on means the flag's policy is running. Turning it off means it is paused. Either way, every user gets the parameter's default while nothing runs. Because on and off are policy transitions, they carry the same audit trail and, where your organization has configured them, the same [approvals](/governance/approvals-and-autonomy) as any other policy start.
 
 The parameter's default stays the off value. Changing the default changes what every policy in the layer treats as the baseline, so use it to change what "off" means, not as the switch.
 
 ## Target it
 
-Add [targeting conditions](/concepts/policies#targeting-conditions) to the On policy to serve the on value only to users whose context matches: a plan, a country, a list of user ids. A flag's On policy is created with targeting declared as a **live edit**, so the conditions can change while the flag is on. Each change asks for a reason and lands on the audit trail and the policy's decision log. The setting lives on the policy's Settings tab under **Live edits**; an A/B test on the same parameter does not get it, because changing who is measured mid-flight would invalidate the comparison.
+Add [targeting conditions](/concepts/policies#targeting-conditions) to the flag's policy to serve the on value only to users whose context matches: a plan, a country, a list of user ids. A flag's policy is created with targeting declared as a **live edit**, so the conditions can change while the flag is on. Each change asks for a reason and lands on the audit trail and the policy's decision log. The setting lives on the policy's Settings tab under **Live edits**; an A/B test on the same parameter does not get it, because changing who is measured mid-flight would invalidate the comparison.
 
-A flag's On policy is also created with the *Assignments flowing* and *Per-allocation floor* health checks at **Monitor**: a flag targeted at a small audience may see no assignment for hours, and that is not an incident. The other checks keep the project's levels; change any of them under the policy's Settings tab → **Health checks**.
+A flag's policy is also created with the *Assignments flowing* and *Per-allocation floor* health checks at **Monitor**: a flag targeted at a small audience may see no assignment for hours, and that is not an incident. The other checks keep the project's levels; change any of them under the policy's Settings tab → **Health checks**.
 
 ## Roll it out gradually
 
-Narrow the On policy's allocation to a share of the layer and widen it over time with a [rollout](/experimentation/rollouts). Users inside the range get the on value; everyone else keeps the default. Health checks can pause or roll back the ramp before a human notices.
+Narrow the flag policy's allocation to a share of the layer and widen it over time with a [rollout](/experimentation/rollouts). Users inside the range get the on value; everyone else keeps the default. Health checks can pause or roll back the ramp before a human notices.
 
 ## Test it
 
-Add a policy with two allocations to the flag's layer, one serving the off value and one serving the on value. That policy is an [A/B test](/experimentation/ab-testing) on the flag: same parameter, same layer, same SDK code. When the test is done, complete it and start the On policy with the winning value.
+Add a policy with two allocations to the flag's layer, one serving the off value and one serving the on value. That policy is an [A/B test](/experimentation/ab-testing) on the flag: same parameter, same layer, same SDK code. When the test is done, complete it and start the flag's policy with the winning value.
 
 ## Kill switches
 
-A kill switch is a flag whose off value is `true`. The On policy serves `false`, and you keep it as a draft until you need it. Starting it turns the feature off for every user within the SDK's refresh interval (default 60s). For a faster guarantee, reduce `refreshIntervalMs` on the client.
+A kill switch is a flag whose off value is `true`. The flag's policy serves `false`, and you keep it as a draft until you need it. Starting it turns the feature off for every user within the SDK's refresh interval (default 60s). For a faster guarantee, reduce `refreshIntervalMs` on the client.
 
 ## Enum flags
 
