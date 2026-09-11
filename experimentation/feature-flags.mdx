@@ -50,6 +50,8 @@ The parameter's default stays the off value. Changing the default changes what e
 
 Add [targeting conditions](/concepts/policies#targeting-conditions) to the On policy to serve the on value only to users whose context matches: a plan, a country, a list of user ids. A flag's On policy is created with targeting declared as a **live edit**, so the conditions can change while the flag is on. Each change asks for a reason and lands on the audit trail and the policy's decision log. The setting lives on the policy's Settings tab under **Live edits**; an A/B test on the same parameter does not get it, because changing who is measured mid-flight would invalidate the comparison.
 
+A flag's On policy is also created with the *Assignments flowing* and *Per-allocation floor* health checks at **Monitor**: a flag targeted at a small audience may see no assignment for hours, and that is not an incident. The other checks keep the project's levels; change any of them under the policy's Settings tab → **Health checks**.
+
 ## Roll it out gradually
 
 Narrow the On policy's allocation to a share of the layer and widen it over time with a [rollout](/experimentation/rollouts). Users inside the range get the on value; everyone else keeps the default. Health checks can pause or roll back the ramp before a human notices.
