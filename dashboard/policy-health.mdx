@@ -5,7 +5,7 @@ description: "Diagnostics for running policies: assignments flowing, sample rati
 
 The **Policy health** view tracks the runtime behaviour of every running policy
 and flags the failure modes that quietly invalidate results — missing
-assignment events, sample-ratio mismatches, freshness gaps, breached
+[assignment events](/concepts/terminology#assignment-events), sample-ratio mismatches, freshness gaps, breached
 guardrails, and stuck optimizers.
 
 It's the runtime sibling of the
@@ -25,7 +25,7 @@ Open any policy detail page:
   **Live allocation** digest also shows traffic share and assignment events
   per allocation, so an allocation that stopped receiving traffic stands out
   at a glance.
-- The **Diagnostics** tab (between **Measurement** and **Decisions**) shows
+- The **Diagnostics** tab (between **Measurement** and **Decision log**) shows
   the full assignments time-series, optional SRM history chart, and the
   transition log. Its tab label carries a `(!)` while any check is warning
   or failing.

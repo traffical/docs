@@ -105,7 +105,7 @@ Always pass defaults for every parameter you read. They're the fallback when no 
 
 ## Decisions vs `get_params`
 
-`get_params` returns just the resolved values. `decide` returns a `Decision` (`decision_id`, resolved `assignments`, and `metadata` — unit key value, per-layer resolution rows, config version) — useful when you want to record an exposure only when the user actually sees the treatment, or pass the decision ID downstream.
+`get_params` returns just the resolved values. `decide` returns a `Decision` (`decision_id`, resolved `assignments`, and `metadata` — unit key value, per-layer resolution rows, config version) — useful when you want to record an exposure event only when the user actually sees the treatment, or pass the decision ID downstream.
 
 ```python
 decision = client.decide(
@@ -115,7 +115,7 @@ decision = client.decide(
 
 algorithm = decision.assignments["recommendations.algorithm"]
 
-# ...render the variant, then record that the user actually saw it:
+# ...render the allocation, then record that the user actually saw it:
 client.track_exposure(decision)
 ```
 

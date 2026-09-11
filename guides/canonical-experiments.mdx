@@ -392,7 +392,7 @@ During forward auto-ramp, bucket ranges grow monotonically — a user at 5% stay
 
 **Use case.** The best allocation depends on the user. High-engagement users see one homepage layout; new users see another.
 
-**How it works.** The training pipeline learns a linear model per allocation from historical exposures + outcomes. Coefficients ship in the bundle. The SDK scores each allocation for the current user's context and selects via softmax — locally, no network call.
+**How it works.** The training pipeline learns a linear model per allocation from historical exposure events + outcomes. Coefficients ship in the bundle. The SDK scores each allocation for the current user's context and selects via softmax — locally, no network call.
 
 ```tsx
 function Homepage() {

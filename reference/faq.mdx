@@ -31,7 +31,7 @@ Yes — that's precisely what it's for. With [sequential testing](/statistics/se
 
 ### When does CUPED help, and which metric types support it?
 
-[CUPED](/statistics/cuped) helps when pre-exposure behavior predicts measured behavior — high-variance metrics like revenue or engagement, measured on units that have history in your product. It's available on **average (mean)** and **conversion-rate** metrics, and it needs two switches: a covariate lookback window on the [metric](/dashboard/metrics) itself, and CUPED enabled on the policy (or as the project default). Units with no pre-period history are analysed without adjustment, so it helps where it can and stays out of the way where it can't.
+[CUPED](/statistics/cuped) helps when behavior before first assignment predicts measured behavior — high-variance metrics like revenue or engagement, measured on units that have history in your product. It's available on **average (mean)** and **conversion-rate** metrics, and it needs two switches: a covariate lookback window on the [metric](/dashboard/metrics) itself, and CUPED enabled on the policy (or as the project default). Units with no pre-period history are analysed without adjustment, so it helps where it can and stays out of the way where it can't.
 
 ### How do I know how much longer a measurement needs?
 
@@ -61,7 +61,7 @@ The optimizer's reward is the policy's **primary metric** — picking a goal eve
 
 ### Why hasn't my adaptive policy shifted traffic yet?
 
-By design, the optimizer is careful: it won't move traffic until the policy reaches the minimum total exposure events across all allocations (100 by default), it only re-evaluates once per window (hourly by default), and each update caps how much traffic can move. Check the **Optimization eligible** pill in [policy health](/dashboard/policy-health) — it distinguishes "not enough exposures yet" and "too soon since the last run" from an actual error. If it's failing rather than warning, see [troubleshooting](/reference/troubleshooting).
+By design, the optimizer is careful: it won't move traffic until the policy reaches the minimum total exposure events across all allocations (100 by default), it only re-evaluates once per window (hourly by default), and each update caps how much traffic can move. Check the **Optimization eligible** pill in [policy health](/dashboard/policy-health) — it distinguishes "not enough exposure events yet" and "too soon since the last run" from an actual error. If it's failing rather than warning, see [troubleshooting](/reference/troubleshooting).
 
 ## Data & warehouse
 

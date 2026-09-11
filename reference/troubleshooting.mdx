@@ -41,7 +41,7 @@ Find your symptom, work through the likely causes in order, apply the fix. Every
 2. **Wrong environment.** Bundles are per project *and* environment. If you configured overrides in one environment but the SDK fetches another, you'll see that other environment's defaults.
 3. **The served bundle is a stale copy.** A `200` response carrying the `X-Traffical-Bundle-Stale: true` header means the config store was briefly unavailable and Traffical served the last known bundle — a change you *just* published may not be in it. This resolves itself within moments; the stale response carries a shorter cache TTL so clients revalidate aggressively.
 4. **The policy isn't running.** Only policies in the `running` state — and inside their start/end schedule window, if one is set — are included in the bundle. Draft, paused, and completed policies resolve to defaults. Check the policy's state badge on [its detail page](/dashboard/layers-and-policies).
-5. **The unit key is missing from the context.** If the evaluation context doesn't include the project's unit key field (for example `userId`), the layer is skipped entirely: no bucket, no policy match, defaults for every parameter in it — and no exposure is recorded. In multi-entity projects, a layer randomizing on a different entity needs *that* entity's key in the context.
+5. **The unit key is missing from the context.** If the evaluation context doesn't include the project's unit key field (for example `userId`), the layer is skipped entirely: no bucket, no policy match, defaults for every parameter in it — and no exposure event is recorded. In multi-entity projects, a layer randomizing on a different entity needs *that* entity's key in the context.
 6. **Targeting conditions don't match.** A policy whose conditions don't match the context is passed over. Test with a context you know should qualify.
 
 **Fix** — fetch the bundle yourself (`curl` the config endpoint with your SDK key) and look inside: is the parameter there with the value you expect, and is the policy present in its layer? If the policy is missing, it isn't running. If it's present, the problem is on the client side — context, environment, or a failed fetch.
@@ -98,7 +98,7 @@ Find your symptom, work through the likely causes in order, apply the fix. Every
 - **`warning`** flags the change for human review. Nothing is stopped automatically.
 - **`blocking`** is enforced: when a blocking guardrail turns failing on a running phase, the monitor applies the phase's armed breach action — pausing the policy by default; reverting or merely recording only when configured — and writes a [decision record](/dashboard/decisions) citing the evidence. If a change paused itself, this is why; the decision record names the guardrail.
 
-A third state, `insufficient_data`, means the allocation has fewer than 30 users — the guardrail hasn't been evaluated yet and surfaces as a health warning, not a breach.
+A third state, `insufficient_data`, means the allocation has fewer than 30 units — the guardrail hasn't been evaluated yet and surfaces as a health warning, not a breach.
 
 **Fix** — open the decision record to see the metric, threshold, and measured value. If the regression is real, the system did its job — revert or iterate. If the guardrail is misconfigured (wrong direction, a threshold entered as `50` when you meant `0.5%`), fix the protocol: certify a new version and re-resolve affected plans.
 

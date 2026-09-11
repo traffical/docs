@@ -1,6 +1,6 @@
 ---
 title: "Variance reduction (CUPED)"
-description: "Use pre-exposure data to shrink confidence intervals and reach significance sooner — without biasing the result."
+description: "Use data from before first assignment to shrink confidence intervals and reach significance sooner — without biasing the result."
 ---
 
 Two users rarely behave the same. A lot of the variation you see during a test was already visible **before** it started — a high spender keeps spending, a heavy user keeps engaging. CUPED (Controlled-experiment Using Pre-Experiment Data) uses that history to cancel out the noise it can explain, so what's left is a cleaner view of the effect your change actually had.
@@ -9,9 +9,9 @@ The result: **narrower confidence intervals and faster significance**, with no c
 
 ## The intuition
 
-For each unit, Traffical looks at a **pre-exposure covariate** — typically the same metric measured over a window before the unit was exposed. It then removes the part of the unit's measured outcome that was predictable from that covariate, comparing allocations on what remains.
+For each unit, Traffical looks at a **pre-assignment covariate** — typically the same metric measured over a window before the unit's first assignment. It then removes the part of the unit's measured outcome that was predictable from that covariate, comparing allocations on what remains.
 
-Because the covariate comes from *before* exposure, it can't have been affected by the treatment. Adjusting for it is therefore **unbiased**: CUPED only removes noise, it never invents or hides an effect.
+Because the covariate comes from *before* first assignment, it can't have been affected by the treatment. Adjusting for it is therefore **unbiased**: CUPED only removes noise, it never invents or hides an effect.
 
 <Note>
   How much you gain depends on how well the past predicts the present. The stronger the correlation between the pre-period covariate and the outcome, the more variance comes out and the tighter the interval — a strongly predictive covariate can cut interval width substantially.
@@ -28,13 +28,13 @@ The effective rule is simply: **policy setting if set, otherwise the project def
 
 ## What it measures
 
-When CUPED is on, it adjusts by a **pre-exposure covariate** — the metric's own value over a window before each unit was exposed (for example, the two weeks before their first exposure). A unit with no pre-period history simply carries a covariate of zero — the metric's true pre-period value. CUPED only ever removes noise — enabling it never makes an interval wider or changes the lift in expectation.
+When CUPED is on, it adjusts by a **pre-assignment covariate** — the metric's own value over a window before each unit's first assignment (for example, the two weeks before it). A unit with no pre-period history simply carries a covariate of zero — the metric's true pre-period value. CUPED only ever removes noise — enabling it never makes an interval wider or changes the lift in expectation.
 
 ## Configuring it on a metric
 
 CUPED needs **two things** to take effect, by design:
 
-1. **A covariate on the metric.** On the metric itself, enable variance reduction and set the **lookback window** (how many days before exposure to measure the covariate). The covariate defaults to the metric's own value over that window. Available on **Conversion** and **Sum** [metric types](/dashboard/metrics).
+1. **A covariate on the metric.** On the metric itself, enable variance reduction and set the **lookback window** (how many days before first assignment to measure the covariate). The covariate defaults to the metric's own value over that window. Available on **Conversion** and **Sum** [metric types](/dashboard/metrics).
 2. **CUPED enabled on the policy** (or project default), as described above.
 
 If either is missing, the metric is analysed normally — so turning the project default on does nothing until your metrics also carry a covariate, and a metric's covariate is dormant until a policy enables CUPED.

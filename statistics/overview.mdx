@@ -19,7 +19,7 @@ For every metric on a policy, Traffical estimates each allocation's value, the *
     Anytime-valid results: peek as often as you like and the false-positive rate still holds.
   </Card>
   <Card title="Variance reduction (CUPED)" icon="compress" href="/statistics/cuped">
-    Use pre-exposure data to shrink confidence intervals and reach significance sooner.
+    Use data from before first assignment to shrink confidence intervals and reach significance sooner.
   </Card>
   <Card title="Ratio metrics" icon="divide" href="/statistics/ratio-metrics">
     Per-session and per-order metrics where both the numerator and denominator vary.
@@ -38,7 +38,7 @@ How you intend to *look* at the results determines which method keeps you honest
 
 <Tabs>
   <Tab title="Fixed-horizon">
-    You decide a sample size up front, wait until you reach it, and look **once**. This is the classic A/B test. It is the default, and it gives the tightest interval for a single planned check — but every extra peek inflates the chance of a false positive.
+    You decide a sample size — a target count of [enrolled units](/concepts/terminology#the-three-counts) — up front, wait until you reach it, and look **once**. This is the classic A/B test. It is the default, and it gives the tightest interval for a single planned check — but every extra peek inflates the chance of a false positive.
   </Tab>
   <Tab title="Sequential (anytime-valid)">
     You want to watch the results as data arrives and stop the moment they're conclusive. [Sequential testing](/statistics/sequential-testing) makes that safe: the false-positive rate is held at your chosen level **across all looks combined**, so continuous monitoring never erodes the guarantee.

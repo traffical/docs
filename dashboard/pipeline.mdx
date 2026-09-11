@@ -21,6 +21,7 @@ Every execution appears as a **workflow run** with a type:
 | **Fact extract** | Extracts a fact definition's SQL into persistent fact-event storage |
 | **Metric rollup** | Builds per-metric daily/hourly/lifetime time series for dashboards |
 | **Dashboard rollup** | Pre-computes the project dashboard and event explorer |
+| **Entry-point planning rollup** | Caches [qualified units](/concepts/terminology#entry-points-and-qualification) per day, per entry point — the planning volume behind qualification-aware sizing |
 | **Ingest** | Loads warehouse facts and metric aggregates |
 | **Training** | Trains an adaptive-optimization model |
 | **SDK event sync** | Syncs SDK events into your warehouse (when [enabled](/dashboard/settings#sdk-configuration)) |

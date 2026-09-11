@@ -10,7 +10,7 @@ Statistical significance is Traffical's way of separating a real difference from
 For each treatment allocation, the engine compares its metric value against control:
 
 - **Lift** — the difference between treatment and control. Reported both in absolute terms and as a relative percentage of control.
-- **Standard error** — how much that lift would wobble from sampling alone, built from each allocation's variance and sample size.
+- **Standard error** — how much that lift would wobble from sampling alone, built from each allocation's variance and sample size — its count of [enrolled units](/concepts/terminology#the-three-counts), or [qualified units](/concepts/terminology#entry-points-and-qualification) when an entry point gates the sample.
 - **Confidence interval** — the range of lifts compatible with the data at your confidence level (95% by default). When the interval excludes zero, the result is significant.
 - **p-value** — the probability of seeing a lift this large if the allocations were truly identical.
 
@@ -26,7 +26,7 @@ Every metric reduces to a per-unit value, a lift, and a standard error. What dif
 
 <Tabs>
   <Tab title="Binary / proportion">
-    **Conversion rate** — did the unit convert or not. The value is the share of exposed units that converted, and the variance is `p(1 − p)`. Use it for signups, checkouts, click-through, activation.
+    **Conversion rate** — did the unit convert or not. The value is the share of enrolled units that converted, and the variance is `p(1 − p)`. Use it for signups, checkouts, click-through, activation.
   </Tab>
   <Tab title="Mean">
     **Average per unit** — a continuous outcome like revenue per user or time on page. The value is the per-unit mean and the variance is the sample variance of the per-unit totals.
@@ -50,4 +50,4 @@ With few units, intervals are correctly wide and results stay non-significant �
 ## Where to go next
 
 - To **watch results as they accrue** without inflating false positives, use [sequential testing](/statistics/sequential-testing).
-- To **reach significance sooner**, add a pre-exposure covariate with [CUPED](/statistics/cuped).
+- To **reach significance sooner**, add a pre-assignment covariate with [CUPED](/statistics/cuped).

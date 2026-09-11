@@ -101,9 +101,9 @@ The defaults you specify in code are the floor. Traffical can only raise the cei
 
 ## Events
 
-When a parameter is resolved, the SDK emits an **exposure event** recording that the user experienced their allocation in each layer they touched. When your code calls `track()`, the SDK emits a **track event** that records a user outcome (a purchase, a click, a signup).
+When a parameter is resolved, the SDK emits a **decision event** recording that an allocation was resolved for the user — the intent-to-treat (ITT) signal, whether or not they saw it. When your code reads a parameter value, the SDK emits an **exposure event** recording that the user actually experienced their allocation in each layer they touched — the treatment-on-the-treated (TOT) signal. When your code calls `track()`, the SDK emits a **track event** that records a user outcome (a purchase, a click, a signup).
 
-Both kinds are batched in memory and shipped in the background. The Traffical service uses them for two things:
+All of them are batched in memory and shipped in the background. The Traffical service uses them for two things:
 
 - **Metrics** — dashboards and significance calculations
 - **Learning** — the optimizer uses track events as reward signals for adaptive policies

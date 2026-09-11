@@ -15,14 +15,14 @@ Everything here is an **estimate, not a measurement** — the dashboard says so 
 
 ## From a result to a daily number
 
-Each shipped change contributes a **projected daily impact**: the per-user effect it measured, converted to metric units per day, scaled to a full rollout.
+Each shipped change contributes a **projected daily impact**: the per-unit effect it measured, converted to metric units per day, scaled to a full rollout.
 
 ```
-projected / day  =  (per-user effect)  ×  (treatment users ÷ window days)  ÷  (treatment share)
+projected / day  =  (per-unit effect)  ×  (treatment units ÷ window days)  ÷  (treatment share)
 ```
 
-- The **per-user effect** is the absolute difference between the shipped allocation's mean and control's, exactly as measured.
-- **Treatment users ÷ window days** turns that into units per day: how many users per day actually saw the winning allocation during the analysis window.
+- The **per-unit effect** is the absolute difference between the shipped allocation's mean and control's, exactly as measured.
+- **Treatment units ÷ window days** turns that into units per day: how many [enrolled units](/concepts/terminology#the-three-counts) per day the winning allocation accrued during the analysis window.
 - Dividing by the **treatment share** — the shipped allocation's share of eligible traffic, as the unrounded product of the layer's traffic slice and the allocation's split — scales the observed daily total up to what a 100% rollout of that experience would produce.
 
 So a +0.4% conversion effect measured on an allocation that held 10% of eligible traffic projects to ten times its observed daily contribution — that's the point of shipping the winner.

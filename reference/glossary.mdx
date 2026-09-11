@@ -128,6 +128,9 @@ The unit of randomization or measurement (User, Company, Device). Has a `keyType
 ### Entity config
 Configuration on a per-entity adaptive policy that specifies entity keys, resolution mode, and optional dynamic allocations.
 
+### Entry point
+A reusable, timestamped milestone that determines when a unit qualifies for measurement, with [qualification rules](#qualification-rules) selecting which fact rows qualify. Attaching one to a measurement narrows the sample from [enrolled units](#enrolled-units) to [qualified units](#qualified-units). → [Terminology](/concepts/terminology#entry-points-and-qualification)
+
 ### Environment
 A runtime instance of a project (`production`, `staging`, `development`, custom). Bundles and API keys are scoped per environment. → [Projects & environments](/concepts/projects-and-environments)
 
@@ -141,7 +144,7 @@ A declaration of a track event's value type, unit, description, and optional pro
 An immutable, decision-ready snapshot of measured results for a [change phase](#change-phase) — canary health, experiment result, rollout health, adaptive status — with a rule-derived recommendation (`continue`, `advance`, `pause`, `rollback`, `complete`) and full provenance. Refreshing writes a new record and supersedes the old one; [decision records](#decision-record) cite evidence rather than recomputing it. → [Dashboard: Changes](/dashboard/changes)
 
 ### Enrolled units
-The analysis sample: units attributed to the allocation of their first assignment. Units seen in more than one allocation are excluded. Sample sizes and statistical results are computed over enrolled units. → [Terminology](/concepts/terminology#the-three-counts)
+Units attributed to the allocation of their first assignment; units seen in more than one allocation are excluded. The analysis sample when no [entry point](#entry-point) is active — with one active, the sample is [qualified units](#qualified-units). → [Terminology](/concepts/terminology#the-three-counts)
 
 ### Exposure event
 Emitted when a unit actually experiences its allocation (a parameter value is read) — the treatment-on-the-treated (TOT) signal. One kind of [assignment event](#assignment-event). → [Events](/concepts/events-and-metrics)
@@ -245,6 +248,17 @@ A reusable bundle of typed event properties (e.g. `geo: {market, country, curren
 ### Property schema
 Type declarations for a track event's payload properties. Drives codegen, edge validation, and dashboard dimension extraction. → [Type-safe events](/guides/type-safe-events)
 
+## Q
+
+### Qualification rate
+Qualified units divided by enrolled units, shown overall and per allocation. → [Terminology](/concepts/terminology#entry-points-and-qualification)
+
+### Qualification rules
+Conditions on source-fact dimensions that select which fact rows qualify for an [entry point](#entry-point). → [Terminology](/concepts/terminology#entry-points-and-qualification)
+
+### Qualified units
+Enrolled units with a qualifying fact at or after first assignment. The analysis sample when an [entry point](#entry-point) is active. → [Terminology](/concepts/terminology#entry-points-and-qualification)
+
 ## R
 
 ### Resolution
@@ -295,6 +309,9 @@ A parameter created in the dashboard, not present in code. Editable in both dire
 
 ### Targeting
 Restricting a policy to users whose context matches a set of conditions. → [Policies](/concepts/policies#targeting-conditions)
+
+### Time to qualification
+How long after first assignment units reach the [entry point](#entry-point) — the gap between enrollment and qualification, shown as p50/p75/p90. → [Terminology](/concepts/terminology#entry-points-and-qualification)
 
 ### Track event
 A custom event your code emits to record an outcome (purchase, signup, click). Reward signals for adaptive policies; numerators for metrics. → [Events](/concepts/events-and-metrics)

@@ -22,7 +22,7 @@ What the widening buys is a **time-uniform guarantee**: the probability that the
 
 ## The half-width
 
-At a look with `N` total units across both allocations, the sequence is `Δ̂ ± half_width(N)` with:
+At a look with `N` total units across both allocations — [enrolled units](/concepts/terminology#the-three-counts), or [qualified units](/concepts/terminology#entry-points-and-qualification) when an entry point gates the sample — the sequence is `Δ̂ ± half_width(N)` with:
 
 ```
 half_width(N) = σ̂_Δ · √N · √( (2 · (N·ρ² + 1)) / (N² · ρ²) · log( √(N·ρ² + 1) / α ) )

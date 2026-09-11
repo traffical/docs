@@ -56,7 +56,7 @@ Each component is either a **fact + measure** or an **existing metric** (fact-ba
 - **Aggregation** — binary (fired ≥ 1 → 0/1), count, or sum of a measure.
 - **Weight** — a negative weight subtracts; that's how a cost component works.
 - **Cap** (optional) — clamps each unit's value before weighting, so one whale can't dominate the reward.
-- **Window** (optional) — a per-component attribution window, counting only value from *X* to *Y* days after exposure.
+- **Window** (optional) — a per-component attribution window, counting only value from *X* to *Y* days after first assignment.
 
 Per unit, the metric is the sum of the weighted, capped components. It behaves as a per-unit average everywhere downstream — significance, confidence intervals, and [adaptive optimization](/experimentation/optimization) — which is what makes a composite a good goal metric: the optimizer maximizes the net objective directly instead of you hand-tuning one event.
 
@@ -67,14 +67,14 @@ Metric names follow a convention — `orders.order_total [sum]`, `purchase per c
 ### Filters, timeframe, and direction
 
 - **Filters** restrict which events count (e.g. only `status = completed`). Available columns come from properties marked as dimensions on the [event's property schema](/dashboard/events#properties), or from the fact's dimension columns. Operators: equals, not equals, in, not in.
-- **Timeframe** limits attribution to the first *N* days after exposure.
+- **Timeframe** limits attribution to the first *N* days after first assignment.
 - **Unit** is a display label (`USD`, `items`).
 - **Direction** declares whether the metric should **increase** or **decrease** — it colors results and sets the default guardrail direction when the metric is attached as one. Warehouse measures can carry a preferred direction, which pre-fills this field.
 - **Default MDE (%)** is the smallest change worth acting on — the default [measurement-progress](/statistics/measurement-progress) target wherever this metric is attached.
 
 ### Variance reduction (CUPED)
 
-On **Conversion** and **Sum** metrics you can enable a pre-exposure covariate: the metric's own value over a lookback window (default 14 days) before each unit's first exposure. It shrinks confidence intervals and takes effect only when [CUPED](/statistics/cuped) is also enabled on the policy or project. CUPED isn't available for count or ratio metrics.
+On **Conversion** and **Sum** metrics you can enable a pre-assignment covariate: the metric's own value over a lookback window (default 14 days) before each unit's first assignment. It shrinks confidence intervals and takes effect only when [CUPED](/statistics/cuped) is also enabled on the policy or project. CUPED isn't available for count or ratio metrics.
 
 ## Certification
 
@@ -119,7 +119,7 @@ Right after attaching, the scorecard is in a **pending** state: a banner confirm
   <img src="/images/placeholders/metric-detail.png" alt="Metric detail page with volume chart, definition rail, and policies using this metric" />
 </Frame>
 
-The detail page shows the metric's volume over time with a date-range picker (last 30 days by default), and every policy using the metric with its role in each. For conversion metrics the chart shows raw conversions — a *rate* needs an exposed population, so rates live on the per-policy scorecard.
+The detail page shows the metric's volume over time with a date-range picker (last 30 days by default), and every policy using the metric with its role in each. For conversion metrics the chart shows raw conversions — a *rate* needs an [enrolled](/concepts/terminology#the-three-counts) population, so rates live on the per-policy scorecard.
 
 The **Definition** rail summarizes the source (linked to its event or fact), unit, default MDE, measure column, timeframe, and filters, alongside a metadata card with IDs and timestamps.
 

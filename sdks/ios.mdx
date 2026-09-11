@@ -83,7 +83,7 @@ await traffical.close()                   // single teardown verb — awaits a f
 
 ## Typed getters
 
-The typed getters resolve a single parameter against an inline default and **auto-track an exposure** the first time an assignment is seen in the session. There is one per value type:
+The typed getters resolve a single parameter against an inline default and **auto-track an exposure event** the first time an assignment is seen in the session. There is one per value type:
 
 ```swift
 let color   = traffical.string("checkout.button.color", default: "#1E6EFB")
@@ -107,7 +107,7 @@ let decision = traffical.decide(
 
 let algorithm = decision.assignments["recommendations.algorithm"]
 
-// ...render the variant, then record that the user actually saw it:
+// ...render the allocation, then record that the user actually saw it:
 traffical.trackExposure(decision)
 ```
 
@@ -146,7 +146,7 @@ Events are batched in memory and flushed in the background (and on app backgroun
 | `evaluationMode` | `.bundle \| .server` | `.bundle` | Resolve locally from the bundle, or delegate to the edge per call |
 | `refreshIntervalMs` | `Int` | `60000` | Bundle refresh cadence |
 | `attributionMode` | `.cumulative \| .decision` | `.cumulative` | Track-event attribution strategy |
-| `trackDecisions` | `Bool` | `true` | Emit decision events alongside exposures |
+| `trackDecisions` | `Bool` | `true` | Emit decision events alongside exposure events |
 | `disableCloudEvents` | `Bool` | `false` | Stop sending events to Traffical (config is still fetched) |
 | `deduplicateAssignmentLogger` | `Bool` | `true` | Dedup assignment-logger rows |
 | `deduplicateExposures` | `Bool` | `true` | Session-dedup exposure events per (unit, policy, allocation) |
@@ -166,7 +166,7 @@ Pass a `localConfig` bundle to resolve instantly on cold start — before any ne
 
 ## Stable ID and `identify`
 
-On first launch the SDK generates an anonymous UUID and persists it in the **Keychain**, so it survives app reinstall (matching what analytics SDKs do). This value fills the project's unit-key slot on every resolution, so bucketing and exposures work before the user logs in.
+On first launch the SDK generates an anonymous UUID and persists it in the **Keychain**, so it survives app reinstall (matching what analytics SDKs do). This value fills the project's unit-key slot on every resolution, so bucketing and exposure tracking work before the user logs in.
 
 Read it with `getStableId()`. When the user logs in, call `identify(_:)` to swap in the real unit key:
 

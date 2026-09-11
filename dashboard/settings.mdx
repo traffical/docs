@@ -39,7 +39,7 @@ These are guardrails, not mandates: operators can drag the sliders to override t
 
 The **Analysis** card sets project-wide statistics defaults. Each policy inherits them unless it overrides the setting explicitly — the effective rule is always *policy setting if set, otherwise the project default*.
 
-- **CUPED variance reduction** — use pre-exposure data to shrink confidence intervals and reach significance sooner, without biasing results. Off by default. See [Variance reduction (CUPED)](/statistics/cuped).
+- **CUPED variance reduction** — use data from before each unit's first assignment to shrink confidence intervals and reach significance sooner, without biasing results. Off by default. See [Variance reduction (CUPED)](/statistics/cuped).
 - **Sequential testing** — anytime-valid results: peek as often as you like and the false-positive rate still holds, in exchange for slightly wider intervals. Off by default. See [Sequential testing](/statistics/sequential-testing).
 - **Default target MDE (%)** — the minimum detectable effect that [measurement progress](/statistics/measurement-progress) tracks against when nothing more specific sets one. The precedence is: the [measurement protocol](/governance/measurement-protocols), then the policy's metric attachment, then the metric definition, then this project default. Leave it empty to fall back to the 5% system default.
 

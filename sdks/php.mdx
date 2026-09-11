@@ -95,7 +95,7 @@ Always pass defaults for every parameter you read. They're the fallback when no 
 
 ## Decisions vs `getParams`
 
-`getParams` returns just the resolved values. `decide` returns a `DecisionResult` (assignments + a `decisionId` + metadata) — useful when you want to record an exposure only when the user actually sees the treatment, or pass the decision ID downstream.
+`getParams` returns just the resolved values. `decide` returns a `DecisionResult` (assignments + a `decisionId` + metadata) — useful when you want to record an exposure event only when the user actually sees the treatment, or pass the decision ID downstream.
 
 ```php
 $decision = $client->decide(
@@ -105,7 +105,7 @@ $decision = $client->decide(
 
 $algorithm = $decision->assignments['recommendations_algorithm'];
 
-// ...render the variant, then record that the user actually saw it:
+// ...render the allocation, then record that the user actually saw it:
 $client->trackExposure($decision);
 ```
 

@@ -58,7 +58,7 @@ Use `createTrafficalClient` (async) when you can `await` at startup — it waits
 | `configTimeoutMs` | `number` | `10000` | Timeout for the config-bundle fetch; a timeout is treated as a network failure |
 | `eventsTimeoutMs` | `number` | `10000` | Timeout for event-delivery POSTs; on timeout the batch is re-queued for retry |
 | `resolveTimeoutMs` | `number` | `5000` | Timeout for server-mode resolve calls (`POST /v1/resolve`) |
-| `trackDecisions` | `boolean` | `true` | Emit decision events alongside exposures |
+| `trackDecisions` | `boolean` | `true` | Emit decision events alongside exposure events |
 | `decisionDeduplicationTtlMs` | `number` | `3600000` | Window in which the same unit + assignment won't re-emit a decision event |
 | `deduplicateExposures` | `boolean` | `true` | Dedup exposure events per (unit, policy, allocation) within a session |
 | `exposureSessionTtlMs` | `number` | `1800000` | Exposure-dedup session TTL (30 min) |

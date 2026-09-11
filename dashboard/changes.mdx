@@ -71,7 +71,7 @@ The wizard walks six steps. You can jump back to any step you have already passe
     - **No certified protocol matches** — review and approve a measurement plan on the change page before starting traffic.
     - **Critical risk** — starting traffic will require human approval on the change page. This one appears only when a certified protocol matches — the missing-protocol banner takes precedence.
 
-    Creating a change **always produces a draft**. Traffic is never exposed from the wizard — you review placement, the measurement plan, and guardrails on the change page first.
+    Creating a change **always produces a draft**. Traffic never starts from the wizard — you review placement, the measurement plan, and guardrails on the change page first.
   </Step>
 </Steps>
 
@@ -132,14 +132,14 @@ Every phase transition — start, advance, promote a winner, complete, revert �
 
 **Readiness checks.** The console shows each check with pass, warn, or fail status and a passing count. Failures explain themselves and block the action.
 
-**Plan options.** For transitions that expose traffic, the console offers placements:
+**Plan options.** For transitions that start traffic, the console offers placements:
 
 - **Run now** — the requested traffic fits the layer as-is.
 - **Run smaller** — the largest free contiguous gap, when the full request doesn't fit.
 - **Schedule after** — informational: space frees up on a known release signal.
 - **Overlay** — run at top priority over existing policies. Masked policies stop serving in the overlapping buckets. If any masked policy is actively **measuring**, you must tick an explicit acknowledgment that its cohorts will be starved before the action enables.
 
-Each option carries a projected days-to-significance and a provenance badge — **measured**, **assumed**, or **manual**. You can override the requested traffic, MDE, or units per day to recompute the estimates; these overrides affect the preview only.
+Each option carries a projected days-to-significance and a provenance badge — **measured**, **assumed**, or **manual**. You can override the requested traffic, MDE, or [enrolled units](/concepts/terminology#the-three-counts) per day to recompute the estimates; these overrides affect the preview only.
 
 **Ramp to target.** Entering a canary or experiment phase always ramps rather than jumping: traffic starts at a fraction of the phase target and steps up per time window, both allocations scaling proportionally so the traffic split never drifts. Tune the shape — start (1–99% of target), step (1–50% per window), window (5 minutes to 1 day). Reaching the target does not advance the phase; advancing stays evidence-driven.
 

@@ -76,6 +76,8 @@ Beyond metrics and guardrails, a protocol can set phase-specific requirements:
 | **Rollout** | Health metrics; whether to roll back automatically on a violation |
 | **Adaptive** | Guardrails; approval mode for the optimizer's moves (automatic, human approval, or agent recommendation) |
 
+**Enrolled units** — the sample the experiment phase's minimum counts — are units attributed to the allocation of their first assignment; units seen in more than one allocation are excluded.
+
 The statistical design targets drive runtime and sample-size estimates for the change. When you leave them blank, system defaults apply — alpha 0.05, power 0.80, relative MDE 5% — and the estimates are labeled as assumed. See [Statistics](/statistics/overview) for how significance is computed.
 
 ## Protocol lifecycle

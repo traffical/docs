@@ -131,7 +131,7 @@ The **Impact** section aggregates concluded [changes](/concepts/changes) and sta
 - **Per-metric table** — one row per affected metric: daily impact with a confidence interval, the window total (a change shipped mid-window accrues only for its live days), footprint, and a cumulative-impact sparkline. Expand a row to see each contributing change.
 - **Filters** — narrow to a single [surface](/concepts/surfaces), restrict to results where the metric was the change's **primary** metric, and pick any window with the date-range picker (default: the last 90 days).
 - **In flight (unshipped)** — current readings of still-running changes, shown separately and never summed into the totals. A live lift isn't a realized win until the change ships.
-- **Optimization (adaptive policies)** — the estimated value of adaptive traffic allocation, versus a uniform split (and versus control where that comparison is causal). Also display-only, never summed into the totals.
+- **Optimization (adaptive policies)** — the estimated value of adaptive traffic optimization, versus a uniform split (and versus control where that comparison is causal). Also display-only, never summed into the totals.
 
 Impact figures are **estimates, not measurements**. Each shipped win's ship-time result is projected to full rollout, then discounted by its false-positive risk using the program's observed win rate; group totals assume independence between changes, and interactions between overlapping changes and novelty decay are not modeled. The always-visible note under the table restates this, and its popover carries the exact formulas — see [Impact methodology](/statistics/impact-methodology) for the full math.
 
@@ -146,7 +146,7 @@ The **AI Status** entry in the sidebar opens the **AI Optimization** page: every
 - **Converged** — the optimizer has settled: one allocation now carries most of the traffic. These prompt you to review the result and complete the policy to lock in the winner.
 - **Learning** — still exploring: each card shows the live allocation split, the algorithm (Thompson Sampling, Epsilon Greedy, UCB1), the goal it optimizes, and exposure events so far.
 
-Above the groups, a summary strip totals running adaptive policies, 24-hour exposure events, estimated lift, and the time of the optimizer's last action. Non-running policies collapse out of the way below, and a **Recent Activity** feed shows each traffic shift the optimizer made — previous split and new split side by side — so allocation moves are never a mystery. (Optimization milestones also land in the [decision log](/dashboard/decisions).)
+Above the groups, a summary strip totals running adaptive policies, 24-hour exposure events, estimated lift, and the time of the optimizer's last action. Non-running policies collapse out of the way below, and a **Recent Activity** feed shows each traffic shift the optimizer made — previous split and new split side by side — so the optimizer's moves are never a mystery. (Optimization milestones also land in the [decision log](/dashboard/decisions).)
 
 Use this page as your daily check on autonomous optimization: is anything converged and waiting on you, is anything erroring, is the lift holding up. See [Choosing an algorithm](/experimentation/choosing-an-algorithm) for picking between the algorithms.
 

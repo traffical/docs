@@ -89,18 +89,18 @@ function CheckoutButton() {
 | `ready` | `boolean` | `true` once the bundle has loaded at least once |
 | `error` | `Error \| null` | Any non-fatal error from the last refresh |
 | `track` | `(event, options?) => void` | Track an event |
-| `trackExposure` | `() => void` | Manually emit an exposure (for `"decision"` mode) |
+| `trackExposure` | `() => void` | Manually emit an exposure event (for `"decision"` mode) |
 | `flushEvents` | `() => Promise<void>` | Force flush of pending events |
 
 ### Tracking modes
 
 ```tsx
-useTraffical({ defaults, tracking: "full" });      // default — automatic decision + exposure
+useTraffical({ defaults, tracking: "full" });      // default — automatic decision + exposure events
 useTraffical({ defaults, tracking: "decision" });  // automatic decision; you call trackExposure()
 useTraffical({ defaults, tracking: "none" });      // no tracking (SSR, tests)
 ```
 
-`"decision"` is useful when the treatment is below the fold — you want to record the decision but only count exposure once the user actually sees the change.
+`"decision"` is useful when the treatment is below the fold — you want to record the decision but only record the exposure event once the user actually sees the change.
 
 ## Setting context
 
@@ -224,7 +224,7 @@ function DebugPanel() {
 | `refreshIntervalMs` | `number` | `60000` | Bundle refresh interval |
 | `unitKeyFn` | `() => string` | — | Custom unit-key resolution |
 | `contextFn` | `() => Context` | — | Dynamic context — called on every resolution |
-| `trackDecisions` | `boolean` | `true` | Emit decision events alongside exposures |
+| `trackDecisions` | `boolean` | `true` | Emit decision events alongside exposure events |
 | `plugins` | `Plugin[]` | — | SDK plugins |
 
 These are the same options as the [browser SDK](/sdks/javascript#options); pass them all inside `config`.

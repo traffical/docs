@@ -1,6 +1,6 @@
 ---
 title: "Terminology"
-description: "The shared vocabulary for assignment events, unique units, enrolled units, allocations, and analysis signals — what each count means and when to use which term."
+description: "The shared vocabulary for assignment events, unique units, enrolled units, qualified units, allocations, and analysis signals — what each count means and when to use which term."
 ---
 
 Traffical's dashboard, API, and analyses all use the same small vocabulary for the things a running policy produces and the things an analysis counts. This page defines that vocabulary. Every other page uses these terms in exactly these senses.
@@ -24,13 +24,23 @@ Surfaces that report volume use three counts, each strictly smaller than the las
 |-------|------------|-----------------|
 | **Assignment events** | Every decision or exposure row produced by a running policy, repeats included. | How much is this policy serving? |
 | **Unique units** | Distinct unit keys seen in the window. Each unit counts once, however often it appears. | How many distinct units did the policy touch? |
-| **Enrolled units** | The analysis sample: units attributed to the allocation of their first assignment. Units seen in more than one allocation are excluded. | How big is the sample the analysis reads? |
+| **Enrolled units** | Units attributed to the allocation of their first assignment; units seen in more than one allocation are excluded. The analysis sample when no entry point is active. | How big is the sample the analysis reads? |
 
 The three form a funnel: assignment events ⊃ unique units ⊃ enrolled units. Deduplicating assignment events by unit key gives you unique units; attributing each unique unit to the allocation of its first assignment — and excluding units seen in more than one allocation — gives you enrolled units.
 
 <Note>
-Only enrolled units are a sample size. Statistical results — significance, confidence intervals, runtime estimates — are computed over enrolled units, never over raw assignment events.
+Only enrolled units — or [qualified units](#entry-points-and-qualification), when an entry point is active — are a sample size. Statistical results — significance, confidence intervals, runtime estimates — are computed over the sample, never over raw assignment events.
 </Note>
+
+## Entry points and qualification
+
+An **entry point** is a reusable, timestamped milestone that determines when a unit qualifies for measurement — reaching checkout, say, rather than merely visiting the site. Its **qualification rules** are conditions on source-fact dimensions that select which fact rows qualify.
+
+When a measurement has an entry point attached, the funnel gains a fourth step: assignment events ⊃ unique units ⊃ enrolled units ⊃ qualified units.
+
+- **Qualified units** — enrolled units with a qualifying fact at or after first assignment. The analysis sample when an entry point is active.
+- **Qualification rate** — qualified units divided by enrolled units, shown overall and per allocation.
+- **Time to qualification** — how long after first assignment units reach the entry point — the gap between enrollment and qualification, shown as p50/p75/p90.
 
 ## Allocations and traffic splits
 

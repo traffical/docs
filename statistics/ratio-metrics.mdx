@@ -3,16 +3,16 @@ title: "Ratio metrics"
 description: "Per-session and per-order metrics where both the numerator and denominator vary — measured with the delta method."
 ---
 
-Some of the most important metrics aren't a simple average over users. **Revenue per session**, **average order value**, **items per order** — each is a ratio where *both* the top and the bottom change from unit to unit. Ratio metrics measure these correctly.
+Some of the most important metrics aren't a simple average over units. **Revenue per session**, **average order value**, **items per order** — each is a ratio where *both* the top and the bottom change from unit to unit. Ratio metrics measure these correctly.
 
 ## Why a ratio is different
 
-Take revenue per session. If you divided total revenue by total sessions and stopped there, you'd have a number — but no honest sense of how uncertain it is, because the denominator (sessions) is itself random and varies between users.
+Take revenue per session. If you divided total revenue by total sessions and stopped there, you'd have a number — but no honest sense of how uncertain it is, because the denominator (sessions) is itself random and varies between units.
 
 A ratio metric accounts for that. Traffical estimates the ratio and its uncertainty using the **delta method**, which combines the variability of the numerator, the variability of the denominator, and how the two move together. The result is a lift and a confidence interval you can trust, just like any other metric.
 
 <Note>
-  Use a ratio metric whenever the quantity you care about is naturally "X per Y" and Y isn't fixed — per session, per order, per visit. If the denominator is simply the number of exposed units, an [average or conversion-rate metric](/statistics/significance) is the simpler choice.
+  Use a ratio metric whenever the quantity you care about is naturally "X per Y" and Y isn't fixed — per session, per order, per visit. If the denominator is simply the number of [enrolled units](/concepts/terminology#the-three-counts), an [average or conversion-rate metric](/statistics/significance) is the simpler choice.
 </Note>
 
 ## What you configure

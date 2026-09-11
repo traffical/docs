@@ -13,7 +13,7 @@ For each unit, CUPED replaces the measured outcome `Y` with:
 Y_adj = Y − θ · (X − X̄)
 ```
 
-where `X` is the unit's pre-exposure covariate, `X̄` is the covariate mean over all units, and:
+where `X` is the unit's pre-assignment covariate, `X̄` is the covariate mean over all units, and:
 
 ```
 θ = Cov(Y, X) / Var(X)
@@ -29,7 +29,7 @@ The stronger the correlation between past and present, the more variance comes o
 
 ## Why θ is pooled across allocations
 
-Traffical estimates `θ` and `X̄` once, pooling the data from **all allocations together**, rather than fitting a coefficient per allocation. This is what keeps the adjustment unbiased. A per-allocation `θ` would itself depend on the treatment assignment, and the adjustment could then absorb part of a real treatment effect. The pooled `θ` is a single constant applied identically to every unit, and because `X` is measured before exposure, randomization makes the expected covariate equal across allocations — so the term `θ · (X − X̄)` has the same expectation in every allocation and cancels from the expected lift. The adjustment can shift each allocation only by its *chance* imbalance in `X`; it removes noise and cannot manufacture or hide an effect.
+Traffical estimates `θ` and `X̄` once, pooling the data from **all allocations together**, rather than fitting a coefficient per allocation. This is what keeps the adjustment unbiased. A per-allocation `θ` would itself depend on the treatment assignment, and the adjustment could then absorb part of a real treatment effect. The pooled `θ` is a single constant applied identically to every unit, and because `X` is measured before assignment, randomization makes the expected covariate equal across allocations — so the term `θ · (X − X̄)` has the same expectation in every allocation and cancels from the expected lift. The adjustment can shift each allocation only by its *chance* imbalance in `X`; it removes noise and cannot manufacture or hide an effect.
 
 ## Allocation-level formulas
 
@@ -37,7 +37,7 @@ Everything is computed from per-allocation sufficient statistics — `n, Σy, Σ
 
 ```
 mean_adj  = Ȳ_arm − θ · (X̄_arm − X̄)
-Var(Y_adj) = Var(Y) − 2·θ·Cov(Y, X) + θ²·Var(X)      # per arm
+Var(Y_adj) = Var(Y) − 2·θ·Cov(Y, X) + θ²·Var(X)      # per allocation
 SE_adj    = √( Var(Y_adj) / n )
 ```
 
@@ -45,7 +45,7 @@ The adjusted mean subtracts the outcome shift predicted by the allocation's chan
 
 ## The covariate
 
-By default the covariate is the **same metric's own value before exposure**. Its window is fixed at the policy's start: `[start − lookback, start)`, where the lookback is the day count you configure on the metric. Anchoring to the policy's start (rather than to each analysis run) means the pre-period never moves as results refresh. Within that window, only events from before the unit's **own first exposure** count — a unit that entered mid-run can never have post-exposure behavior leak into its covariate.
+By default the covariate is the **same metric's own value before first assignment**. Its window is fixed at the policy's start: `[start − lookback, start)`, where the lookback is the day count you configure on the metric. Anchoring to the policy's start (rather than to each analysis run) means the pre-period never moves as results refresh. Within that window, only events from before the unit's **own first assignment** count — a unit that enrolled mid-run can never have post-assignment behavior leak into its covariate.
 
 A unit with no pre-period activity gets a covariate of **zero** — for a same-metric covariate that is the true value of the metric over the window, not missing data, and the adjustment applies to it like any other unit.
 
@@ -67,7 +67,7 @@ CUPED runs **upstream of the test**. It replaces each allocation's (mean, standa
 
 ## What to expect
 
-The variance shrinks by the factor `1 − ρ²`, and required sample size scales with it: `ρ = 0.5` cuts variance by 25%, `ρ = 0.7` roughly halves the runtime to a powered decision, and `ρ = 0.8` cuts variance by 64% (40% narrower intervals). Revenue-like metrics with stable per-user behavior sit at the high end; metrics dominated by brand-new users gain little, because their covariates are mostly zero.
+The variance shrinks by the factor `1 − ρ²`, and the required sample size (in [enrolled units](/concepts/terminology#the-three-counts)) scales with it: `ρ = 0.5` cuts variance by 25%, `ρ = 0.7` roughly halves the runtime to a powered decision, and `ρ = 0.8` cuts variance by 64% (40% narrower intervals). Revenue-like metrics with stable per-user behavior sit at the high end; metrics dominated by brand-new users gain little, because their covariates are mostly zero.
 
 ## Reference
 

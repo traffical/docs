@@ -47,6 +47,8 @@ The headline tracks the **primary metric**. Secondary metrics each get a compact
 
 From the gap between detectable-now and the target, Traffical computes how many more [enrolled units](/concepts/terminology#the-three-counts) each allocation needs, then divides by each allocation's recent accrual rate to produce **"~N days remaining"** and an estimated completion date.
 
+When the measurement has an [entry point](/concepts/terminology#entry-points-and-qualification) attached, the sample is [qualified units](/concepts/terminology#entry-points-and-qualification) — enrolled units with a qualifying fact at or after first assignment — and the required-sample and time-remaining math run on qualified units instead.
+
 Two things keep the estimate honest:
 
 - **It carries an "as of" stamp.** Estimates refresh on every analysis run (typically every two hours), and the card shows when the numbers were last computed. On a paused policy the last estimate is kept but the countdown is suppressed — **"Paused — estimates frozen"**.
@@ -90,7 +92,7 @@ A completed policy shows a retrospective instead of a bar:
   <img src="/images/placeholders/measurement-progress-completed.png" alt="Completed policy measurement summary with the retrospective detectable-effect sentence" />
 </Frame>
 
-> This experiment could reliably detect effects of **±3.2%** or larger on **Checkout conversion** (80% power, 95% confidence).
+> This measurement could reliably detect effects of **±3.2%** or larger on **Checkout conversion** (80% power, 95% confidence).
 
 That sentence is the honest summary of what the test could and couldn't see. If the final result was "no significant effect" but the test could only detect ±12%, a meaningful smaller effect may simply have been invisible — context that matters when the result feeds into [impact reporting](/statistics/impact-methodology).
 

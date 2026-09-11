@@ -29,7 +29,7 @@ server misbehaves, `mint update` brings the CLI current.
 | `dashboard/` | Dashboard walkthrough pages, one per section |
 | `experimentation/` | Feature flags, A/B testing, rollouts, optimization, algorithm choice |
 | `governance/` | Measurement protocols, approvals and autonomy, roles and permissions |
-| `guides/` | Task-oriented guides: first experiment, canonical patterns, type-safe events |
+| `guides/` | Task-oriented guides: first A/B test, canonical patterns, type-safe events |
 | `images/` | Static images; `images/placeholders/` holds dashboard screenshots (see below) |
 | `logo/` | Site logo assets |
 | `reference/` | Troubleshooting, FAQ, glossary |
