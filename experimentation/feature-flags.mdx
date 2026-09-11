@@ -46,6 +46,10 @@ Turning a flag on means the **On** policy is running. Turning it off means it is
 
 The parameter's default stays the off value. Changing the default changes what every policy in the layer treats as the baseline, so use it to change what "off" means, not as the switch.
 
+## Target it
+
+Add [targeting conditions](/concepts/policies#targeting-conditions) to the On policy to serve the on value only to users whose context matches: a plan, a country, a list of user ids. A flag's On policy is created with targeting declared as a **live edit**, so the conditions can change while the flag is on. Each change asks for a reason and lands on the audit trail and the policy's decision log. The setting lives on the policy's Settings tab under **Live edits**; an A/B test on the same parameter does not get it, because changing who is measured mid-flight would invalidate the comparison.
+
 ## Roll it out gradually
 
 Narrow the On policy's allocation to a share of the layer and widen it over time with a [rollout](/experimentation/rollouts). Users inside the range get the on value; everyone else keeps the default. Health checks can pause or roll back the ramp before a human notices.

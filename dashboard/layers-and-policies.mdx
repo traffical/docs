@@ -87,7 +87,7 @@ Everything else is organized into seven tabs:
 | **Setup** | How is it configured — splits, parameters, measurement targets? |
 | **Measurement** | What do the measured results say, and how far along is the measurement? |
 | **Diagnostics** | Is it serving correctly? Flagged `(!)` while any health check is warning or failing. |
-| **Decisions** | What was decided, when, by whom, and why? |
+| **Decision log** | What was decided, when, by whom, and why? |
 | **History** | How did allocations, rollout steps, and configuration evolve? |
 | **Settings** | Policy key, per-policy analysis overrides, targeting. |
 
@@ -118,7 +118,7 @@ A **draft** policy's Overview shows a launch-readiness checklist, the planned tr
 
 Once running, the Overview answers "where does this stand" without a tab switch:
 
-- **KPI band** — four numbers: lifetime **Assignment events** (serving volume — decision and exposure rows, repeats included), **Traffic** (the share of the layer's buckets the policy's allocations cover), **Lift vs control**, and **Health**. With a primary metric attached, the lift KPI shows the *measured* lift of the best challenger; it stays uncolored and flagged "not yet significant" until the result is conclusive, and the sign of a win follows the metric's desired direction. Without a metric it falls back to the optimizer's estimate.
+- **KPI band** — four numbers: lifetime **[Assignment events](/concepts/terminology#assignment-events)** (serving volume — decision and exposure rows, repeats included), **Traffic** (the share of the layer's buckets the policy's allocations cover), **Lift vs control**, and **Health**. With a primary metric attached, the lift KPI shows the *measured* lift of the best challenger; it stays uncolored and flagged "not yet significant" until the result is conclusive, and the sign of a win follows the metric's desired direction. Without a metric it falls back to the optimizer's estimate.
 - **Serving health** — the compact health summary; each check opens its history. See [Policy health](/dashboard/policy-health).
 - **Live allocation** — the current split bar plus a per-allocation digest: traffic share, assignment events, and average reward or conversion rate for adaptive policies, with the leader badged. Completed policies show the final split.
 - **Primary metric strip** — measured results per allocation against control with confidence-interval bars. This is the same snapshot the Measurement tab renders, kept separate from the optimizer's learning signal so measured truth and bandit estimates never blur into one card.
@@ -155,6 +155,7 @@ The **measurement progress card** tracks how close the measurement is to its tar
 - **Detectable now** — the effect size the current [enrolled units](/concepts/terminology#the-three-counts) could reliably detect, converging toward the target
 - An estimated time remaining with its as-of time — or an honest "no traffic accruing recently" when nothing is arriving
 - For static tests with more than two allocations, the limiting allocation that gates overall progress
+- When an [entry point](/concepts/terminology#entry-points-and-qualification) is attached, sizing and projections run on **qualified units** — enrolled units that reached the entry point — with the planned qualification rate shown alongside
 - For adaptive policies, progress is measured on the leader-vs-control pair — the comparison that actually gates completion; contextual policies get no runtime estimate, since winners vary per context
 
 Paused policies freeze the estimates; completed policies show a retrospective ("This experiment could reliably detect effects of ±2.1% or larger"). Draft policies get a what-if planner instead: enter a baseline rate and target MDE to see the required enrolled units per allocation before launching. The math behind all of this is covered in [Measurement progress](/statistics/measurement-progress).
@@ -170,7 +171,7 @@ Diagnostics answers "is it serving correctly":
 
 The tab label carries a `(!)` whenever health is anything other than healthy — a warning is enough to flag it, not only a failing check. The checks themselves are documented in [Policy health](/dashboard/policy-health); if a check is failing, see [Troubleshooting](/reference/troubleshooting).
 
-## Decisions tab
+## Decision log tab
 
 A timeline of decision records for this policy: state transitions are captured automatically, promotions record their outcome (winner selected, inconclusive, reverted, …) with reason and tags, and **Add Annotation** lets you record checkpoints and context manually. This is the same data as the project-wide [decision log](/dashboard/decisions), scoped to one policy.
 
@@ -188,7 +189,8 @@ History is the raw evolution record:
 - **Policy key** — copy the stable identifier used in SDK events and in your warehouse `policyKey` column mapping.
 - **Analysis** — per-policy overrides for **CUPED variance reduction** and **sequential testing**. Each is a three-way choice: *Inherit project default*, *Enabled*, or *Disabled*, with the effective value spelled out ("Inherit (On)"). The effective rule is policy setting if set, otherwise the project default — see [CUPED](/statistics/cuped) and [Sequential testing](/statistics/sequential-testing).
 - **Bucket range** — a readout of the eligible bucket range and the traffic portion it represents.
-- **Targeting conditions** — the eligibility rules, matched against the context your SDK passes at decision time. Conditions are combined with AND and editable while in draft; see [targeting conditions](/concepts/policies#targeting-conditions) for the operators.
+- **Live edits** — which parts of the policy may change while it is running or paused: **targeting conditions**, **allocation values**, or neither. Everything is frozen at start unless declared here, so measurement stays comparable; the traffic split always moves through the rollout controls. A live edit asks for a reason and writes it to the audit trail and, by default, the decision log. Feature-flag On policies and rollouts are created with targeting open; A/B tests with nothing open.
+- **Targeting conditions** — the eligibility rules, matched against the context your SDK passes at decision time. Conditions are combined with AND. Editable in draft, and while running when the policy's Live edits setting allows it; see [targeting conditions](/concepts/policies#targeting-conditions) for the operators.
 
 <Frame caption="Policy settings — analysis overrides">
   <img src="/images/placeholders/policy-settings-analysis.png" alt="Per-policy CUPED and sequential testing overrides with inherit, enabled, and disabled choices" />
