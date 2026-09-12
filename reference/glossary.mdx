@@ -25,6 +25,9 @@ Every decision or exposure row produced by a running policy, repeats included �
 ### Assignment definition
 SQL plus column mappings describing where assignments live in your warehouse, with a declared Signal ([analysis signal](#analysis-signal)). Used in warehouse-native mode when assignments come from outside Traffical. → [Warehouse-native](/concepts/warehouse-native#assignment-definitions)
 
+### Attribute
+A registered, typed [context](#context) key the SDK sends to `decide()` — `plan`, `device_type`, `cart_value`. Registration drives typed condition editors, save-time coercion and validation of condition values, the per-key logging policy, and the generated `TrafficalContext` type. `$`-prefixed keys (`$unit_key`, `$env`, `$country`, the device keys) are system attributes. → [Attributes](/concepts/attributes)
+
 ### Attribution
 Connecting a [track event](#track-event) to the [decision](#decision) that preceded it. Done in two places: the SDK embeds an `attribution` array on each track event (cumulative session view, or a single named `decisionId`); the pipeline joins events to assignments on `unit_key` + first-exposure timestamp. → [Decisions & attribution](/concepts/assignments)
 
@@ -69,7 +72,7 @@ A JSON document containing every parameter, layer, policy, allocation, and event
 Predicates on the resolution [context](#context) that restrict a policy's eligibility. → [Policies](/concepts/policies#targeting-conditions)
 
 ### Context
-The object you pass to `getParams()` containing the unit key plus any fields used for targeting (locale, plan, device, etc.). → [Quickstart](/quickstart)
+The object you pass to `getParams()` containing the unit key plus any fields used for targeting (locale, plan, device, etc.). Its keys can be registered as [attributes](#attribute). → [Quickstart](/quickstart)
 
 ### Contextual bandit
 An [adaptive policy](#adaptive-policy) where allocation selection depends on user context features via a trained linear model. The SDK scores allocations locally. → [Optimization](/experimentation/optimization#contextual-bandits)

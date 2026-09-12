@@ -194,7 +194,19 @@ traffical = TrafficalClient(options: .init(
 ))
 ```
 
-The provider's fields are merged into the context on every resolution, so a policy condition like `appBuildNumber gte 500` or `locale == "en_US"` can target them. Implement the `DeviceInfoProvider` protocol yourself to add or override fields.
+The provider's fields are merged into the context on every resolution, so a policy condition like `appBuildNumber gte 500` or `$locale eq "en_US"` can target them. Implement the `DeviceInfoProvider` protocol yourself to add or override fields.
+
+`DefaultDeviceInfoProvider` emits two families of keys: the `$`-prefixed [system attributes](/concepts/attributes#system-attributes) shared by every Traffical SDK — registered in every project, so you can target them straight from the condition editor — and the original un-prefixed keys, kept for compatibility with existing conditions. Use the `$` keys in new conditions.
+
+| Key | Type | Value |
+|-----|------|-------|
+| `$app_version` | string | `CFBundleShortVersionString` (semver-style; stays a string) |
+| `$os` | enum | `ios` on iOS and tvOS, `macos` on macOS, `other` elsewhere (watchOS included) |
+| `$os_version` | string | `major.minor.patch` from `ProcessInfo.operatingSystemVersion` |
+| `$device_type` | enum | UIKit platforms: phone → `mobile`, pad → `tablet`, every other idiom → `desktop`; non-UIKit platforms → `desktop` |
+| `$device_model` | string | `UIDevice.current.model` (UIKit platforms only) |
+| `$locale`, `$timezone` | string | `Locale.current.identifier`, `TimeZone.current.identifier` |
+| `appVersion`, `appBuildNumber`, `locale`, `timezone`, `osName`, `osVersion`, `screenWidth`, `screenHeight`, `deviceModel` | | Compatibility keys. `appBuildNumber` is emitted as a **number** when the build is an integer, so `appBuildNumber gte 500` matches under strict typing; `osName` keeps the precise platform (`watchos`) where `$os` maps to `other`. |
 
 ## Server vs bundle mode
 

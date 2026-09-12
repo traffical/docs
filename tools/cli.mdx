@@ -1,15 +1,15 @@
 ---
 title: "CLI"
-description: "Log in, link a project, and sync parameters, events, and metrics between your repo and Traffical — config-as-code from the command line."
+description: "Log in, link a project, and sync parameters, attributes, events, and metrics between your repo and Traffical — config-as-code from the command line."
 ---
 
-`@traffical/cli` manages your Traffical configuration as code. You define parameters, events, and metrics in a [`.traffical/` directory](/tools/config-file), version-control them alongside your application, and sync with the platform with `push`, `pull`, and `status`.
+`@traffical/cli` manages your Traffical configuration as code. You define parameters, context attributes, events, and metrics in a [`.traffical/` directory](/tools/config-file), version-control them alongside your application, and sync with the platform with `push`, `pull`, and `status`.
 
 ## Why config-as-code
 
 - **Single source of truth** — parameter and event definitions live in your repo, reviewed in pull requests like any other code.
 - **No drift** — definitions you push become **synced**: read-only in the dashboard, so the repo and the platform can't disagree.
-- **Typed events** — generate TypeScript types from your event schemas so invalid `track()` calls fail at compile time.
+- **Typed events and context** — generate TypeScript types from your event schemas and attribute registry so invalid `track()` calls and misspelled context keys fail at compile time.
 - **CI-enforceable** — `traffical status` exits non-zero on drift, so you can gate merges on the repo and platform being in sync.
 
 Policies, allocations, and lifecycle decisions still live in the [dashboard](/dashboard/overview) — the CLI owns the *definitions*, not the rollout state.
@@ -37,7 +37,7 @@ Requires Node.js 18+.
     `init` logs you in, lets you pick an org and project, writes [`config.yaml`](/tools/config-file#configyaml) and [`project.yaml`](/tools/config-file#projectyaml), creates a public SDK key, and drops example code for your framework.
   </Step>
   <Step title="Edit your config">
-    Add or change parameters and events in `.traffical/config.yaml`. See the [configuration file reference](/tools/config-file) for every field.
+    Add or change parameters, attributes, and events in `.traffical/config.yaml`. See the [configuration file reference](/tools/config-file) for every field.
   </Step>
   <Step title="Push to Traffical">
     ```bash
@@ -136,24 +136,34 @@ traffical project use <key>         # alias of `link --project <key>`
 
     Metrics
       Dashboard-only: 4 metrics
+
+    Attributes
+      Synced: 3 attributes
+        device_type (string/enum)
+        cart_value (number)
+        user_id (string)
+      Dashboard-only: 1 attribute
+        plan (string/enum) created 2 days ago
     ```
+
+    The **Attributes** section lists user-managed attributes only; `$`-prefixed system attributes are never shown. Local-only attributes (in the file, not yet pushed) count as drift.
   </Step>
   <Step title="push — repo → Traffical">
     ```bash
     traffical push [--dry-run] [--prune]
     ```
 
-    Creates new definitions and updates existing synced ones. Pushed definitions become read-only in the dashboard.
+    Creates new definitions and updates existing synced ones. Pushed definitions become read-only in the dashboard. Attributes go first — before parameters, property groups, events, and metrics — so policies validated later in the run already see the registry.
 
     - `--dry-run` — validate and print the diff without applying.
-    - `--prune` — archive synced definitions that have been removed from the file. Without it, removals stay on the platform.
+    - `--prune` — archive synced parameters and attributes that have been removed from the file. Without it, removals stay on the platform. An attribute still referenced by a policy condition is **skipped** — reported, not archived — so pruning never breaks a running policy. A file with no `attributes:` block at all leaves the project's attributes alone.
   </Step>
   <Step title="pull — Traffical → repo">
     ```bash
     traffical pull [--include-types]
     ```
 
-    Downloads synced parameters, events, and property groups into `config.yaml`. Dashboard-only definitions stay in the dashboard until you `import` them. `--include-types` runs `generate-types` afterwards.
+    Downloads synced parameters, events, and property groups into `config.yaml`. Dashboard-only parameters, events, and metrics stay in the dashboard until you `import` them; attributes are the exception — every active user-managed attribute is written, synced or not. System attributes (`$`-prefixed) are never written. `--include-types` runs `generate-types` afterwards.
   </Step>
   <Step title="sync — both directions">
     ```bash
@@ -203,6 +213,38 @@ track("add_to_cart", { unitKey: "user_789", properties: { unknown: true } });   
 ```
 
 Run it after every `pull` (or in CI) to keep types in sync. See [Type-safe events](/guides/type-safe-events) for the full flow.
+
+### Typed context
+
+When the repo is linked and you are logged in, `generate-types` also reads the project's [attribute registry](/concepts/attributes) and emits a `TrafficalContext` interface plus a `TrafficalAttributeKey` union in the same file:
+
+```typescript
+export interface TrafficalContext {
+  /** identifier — may serve as a unit or entity key */
+  "$unit_key"?: string;
+  cart_value?: number;
+  /** Client form factor */
+  device_type?: "mobile" | "desktop";
+  /** timestamp — epoch milliseconds */
+  signed_up_at?: number;
+  [key: string]: unknown;
+}
+
+export type TrafficalAttributeKey = "$unit_key" | "cart_value" | "device_type" | "signed_up_at";
+```
+
+- One optional property per active attribute, system attributes included; `$`-prefixed and dotted keys are quoted.
+- `string` → `string`, `enum` → a union of its values, `number` → `number`, `boolean` → `boolean`, `timestamp` → `number` (epoch milliseconds).
+- The trailing index signature keeps unregistered keys compiling; `TrafficalAttributeKey` is the union of registered keys only.
+
+```typescript
+import type { TrafficalContext } from "./.traffical/traffical.generated";
+
+const context = { device_type: "mobile", cart_value: 42 };
+const decision = traffical.decide(context satisfies TrafficalContext, defaults);
+```
+
+The summary line reports `Attributes: N`. If the repo is not linked, you are not logged in, or the attribute registry is unavailable on the server, the context types are left out and the summary prints a note instead of failing — the parameter and event types are still generated.
 
 ## CI/CD integration
 
@@ -257,7 +299,7 @@ jobs:
 | `pull` | Pull synced definitions into the repo. |
 | `sync` | Bidirectional sync (local wins on conflict). |
 | `import param` / `import metrics` | Adopt dashboard definitions into code. |
-| `generate-types` | Generate TypeScript types from event definitions. |
+| `generate-types` | Generate TypeScript types from parameter and event definitions, plus `TrafficalContext` from the attribute registry. |
 
 ## Global options
 

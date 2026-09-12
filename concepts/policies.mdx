@@ -96,27 +96,70 @@ When the SDK resolves, it computes the user's bucket for the layer, picks the fi
 
 ## Targeting conditions
 
-A policy can declare conditions that restrict eligibility based on context fields. All conditions must pass (AND).
+A policy can declare conditions that restrict eligibility based on context [attributes](/concepts/attributes). All conditions must pass (AND).
 
-<Accordion title="Condition operators">
+### Operators
+
 | Operator | Description | Example |
 |----------|-------------|---------|
 | `eq` | Equals | `locale eq "en-US"` |
 | `neq` | Not equals | `plan neq "free"` |
-| `gt` / `gte` | Greater than (or equal) | `age gte 18` |
-| `lt` / `lte` | Less than (or equal) | `cart_total lt 50` |
 | `in` | In list | `country in ["US", "CA", "GB"]` |
 | `nin` | Not in list | `role nin ["admin", "internal"]` |
+| `gt` / `gte` | Greater than (or equal) — numbers only | `age gte 18` |
+| `lt` / `lte` | Less than (or equal) — numbers only | `cart_total lt 50` |
 | `contains` | String contains | `email contains "@company.com"` |
+| `startsWith` | String starts with | `path startsWith "/checkout"` |
+| `endsWith` | String ends with | `email endsWith "@company.com"` |
 | `regex` | Regex match | `user_agent regex "Mobile.*"` |
-</Accordion>
+| `exists` | Field is present and not null | `email exists` |
+| `notExists` | Field is absent or null | `referrer notExists` |
 
-Example — only users in Germany or Austria:
+Which operators are offered for a field depends on the attribute's registered type — see the [type table](/concepts/attributes#types-and-formats).
+
+### Strict typing
+
+SDKs compare values **without coercion**. `eq` is strict equality, `in` is strict membership, and the relational operators only compare numbers: `cart_value gte 100` never matches a context value of `"100"`, and `app_version gte "2.0.0"` never matches anything. `contains`, `startsWith`, `endsWith`, and `regex` require both sides to be strings.
+
+The coercion happens at save time instead. When a condition targets a [registered attribute](/concepts/attributes), the dashboard and the API convert the condition value to the attribute's declared type before storing it — so a `number` attribute stores `100`, a `boolean` stores `true`, a `timestamp` stores epoch milliseconds — and validate enum membership, country codes, ranges, and regex syntax. Unregistered fields are stored exactly as entered.
+
+### Field lookup
+
+A condition's `field` is looked up in the context in two steps:
+
+1. **Flat key first.** If the context has a property named exactly `field` — dots included — that value is used, even when it is `null`.
+2. **Nested path.** Otherwise the field is split on `.` and walked into nested objects.
+
+So `user.plan` matches both `{ "user.plan": "pro" }` and `{ user: { plan: "pro" } }`; when both are present the flat key wins. A missing path never errors — it is treated as absent.
+
+### Examples
+
+Only users in Germany or Austria:
 
 ```json
 {
   "conditions": [
     { "field": "locale", "op": "in", "values": ["de-DE", "de-AT"] }
+  ]
+}
+```
+
+Pin your own developer IDs into a policy, whatever field this layer buckets on. `$unit_key` is replaced with the layer's actual unit-key field when the bundle is built; the wizard's **Add test users** button inserts it for you:
+
+```json
+{
+  "conditions": [
+    { "field": "$unit_key", "op": "in", "values": ["u_dev_1", "u_dev_2"] }
+  ]
+}
+```
+
+Run a policy in one environment only. `$env` is resolved when each environment's bundle is built, so the SDK never has to send it:
+
+```json
+{
+  "conditions": [
+    { "field": "$env", "op": "eq", "value": "staging" }
   ]
 }
 ```
@@ -175,7 +218,7 @@ The training pipeline produces coefficients per allocation. Those coefficients s
 
 Two things you need to know:
 
-- **Context logging allowlist** — only the context fields you explicitly opt in to are logged with exposure events. This protects PII while still giving the trainer signal to learn from.
+- **Context logging allowlist** — only the context fields you explicitly opt in to are logged with decision and exposure events. This protects PII while still giving the trainer signal to learn from. A registered [attribute's](/concepts/attributes#logging) `logging` setting applies on top: `always` keys are logged for every policy, `never` keys for none.
 - **Exploration is preserved** — the softmax has a temperature (`gamma`) and a minimum action probability (`actionProbabilityFloor`) so the model keeps exploring as it learns.
 
 See [Optimization](/experimentation/optimization#contextual-bandits) for the full details.

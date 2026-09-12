@@ -1,0 +1,234 @@
+---
+title: "Attributes"
+description: "Attributes are the typed context keys your SDK sends with every decision — registered once, then used for typed targeting, logging control, and generated types."
+---
+
+An **attribute** is a context key your application passes to `decide()` — `plan`, `device_type`, `cart_value`, `user_id`. [Parameters](/concepts/parameters) are what the SDK gets back; attributes are what it sends in.
+
+```typescript
+const { params } = traffical.decide(
+  { user_id: "u_789", plan: "pro", cart_value: 42, device_type: "mobile" },
+  { "checkout.button.color": "#1E6EFB" }
+);
+```
+
+You can send any key without registering it. Registering an attribute tells Traffical its type and legal values, which is what makes the rest of the platform aware of it.
+
+## Why register attributes
+
+| Without registration | With registration |
+|---|---|
+| Condition fields are free text | The condition editor offers a picker of registered keys, grouped System / Attributes |
+| Any operator on any field | The operator list is filtered to what the type allows |
+| Condition values are stored as typed as you entered them | Values are coerced to the declared type when the policy is saved, so `cart_value gte 100` stores `100`, not `"100"` |
+| Nothing checks a condition can ever match | Enum membership, country codes, numeric ranges, and regex syntax are validated |
+| Each policy decides what to log on its own | The attribute's `logging` setting is applied to every policy |
+| Contextual policies re-type their features per policy | Context fields default to the registry's type, values, and range |
+| No typed context | `traffical generate-types` emits a `TrafficalContext` interface |
+
+Registration matters most for strictness: SDKs evaluate conditions with **no coercion**. A context value `42` never matches a condition value `"42"`. The registry is where the dashboard and API learn which one to store.
+
+## Types and formats
+
+| Type | Format | Context value | Allowed operators |
+|---|---|---|---|
+| `string` | — | string | `eq` `neq` `in` `nin` `contains` `startsWith` `endsWith` `regex` `exists` `notExists` |
+| `string` | `url` | string | same as plain string |
+| `string` | `enum` | one of `values` | `eq` `neq` `in` `nin` `exists` `notExists` |
+| `string` | `country` | ISO 3166-1 alpha-2 code (`DE`, `US`) | `eq` `neq` `in` `nin` `exists` `notExists` |
+| `string` | `semver` | version string (`2.3.1`) | `eq` `neq` `in` `nin` `exists` `notExists` |
+| `number` | — | number | `eq` `neq` `in` `nin` `gt` `gte` `lt` `lte` `exists` `notExists` |
+| `boolean` | — | `true` / `false` | `eq` `neq` `exists` `notExists` |
+| `timestamp` | — | epoch **milliseconds** as a number | `eq` `neq` `gt` `gte` `lt` `lte` `exists` `notExists` |
+
+`format` only applies to `string` attributes. Timestamps must be numbers in context — the SDK relational operators compare numbers only; the dashboard's date picker converts to epoch milliseconds for you.
+
+<Warning>
+`semver` marks a version string so the dashboard can label it, but relational comparison (`gte "2.0.0"`) is not supported: `gt`/`gte`/`lt`/`lte` compare numbers. Target versions with `in` or expose a numeric build number.
+</Warning>
+
+### `values`
+
+For `format: enum`, `values` is the list of legal values (1–500 entries). Each value can carry a label and description. A condition value outside the list is a validation finding.
+
+For `format: country`, `values` is optional: leave it empty to accept any ISO 3166-1 alpha-2 code, or list a subset. Condition values are upper-cased and checked against the code list.
+
+### `range`
+
+For `number` attributes, `range: [min, max]` (with `min < max`) bounds the values a condition may use. A condition value outside the range is a validation finding.
+
+### `identifier`
+
+`identifier: true` marks an attribute that may serve as a unit key or entity key — `user_id`, `anonymous_id`, `merchant_id`. Identifiers default to `logging: never`. Traffical registers one identifier attribute per entity definition automatically, so your project's unit keys are in the registry from the start.
+
+### `logging`
+
+Context is evaluated inside the SDK. Whether a value is also written to the **decision events** and **exposure events** the SDK sends is decided per attribute:
+
+| Setting | Effect |
+|---|---|
+| `never` | Evaluate-only. The key is never written to decision or exposure events, even if a policy lists it. It is not offered in the context-fields picker, and a policy that lists it anyway gets a warning. |
+| `allowed` (default) | A policy may opt in by adding the key to its context fields. |
+| `always` | Included in every running policy's decision and exposure events. Shown as a locked entry in each policy's context-fields list. |
+
+Use `never` for anything you target on but must not store — identifiers, email addresses, anything personal. `allowed` is the usual choice. `always` suits low-cardinality segmentation keys you want on every event, such as `device_type`.
+
+Contextual bandits read their features from the same list, so an attribute's `logging` also determines whether a model can learn from it. See the [context logging allowlist](/experimentation/optimization#context-logging-allowlist).
+
+### `breakdown`
+
+`breakdown: true` marks an attribute as a dimension to split measured results by. The flag is stored today; result breakdowns by attribute ship in a later release. Setting it now means nothing has to be re-registered when they do.
+
+## System attributes
+
+Keys that start with `$` are reserved for Traffical. They are registered in every project, and you can edit only their label, description, logging, and breakdown. You cannot declare your own `$` keys.
+
+### `$unit_key` — the unit this layer buckets on
+
+Every layer hashes one context field to assign buckets — `user_id` for one layer, `merchant_id` for a layer with a different entity. `$unit_key` always means "that field, whatever it is in this layer". Traffical replaces it with the concrete field name when it builds the config bundle, so the SDK sees an ordinary condition and no SDK change is involved.
+
+The typical use is a **test-users policy**: a policy at the top of the layer with one 100% allocation carrying the overrides you want to see, and the condition
+
+```json
+{ "field": "$unit_key", "op": "in", "values": ["u_dev_1", "u_dev_2"] }
+```
+
+The policy wizard's scope step has an **Add test users** button that inserts this condition. Because the test-users policy is a separate policy, its exposures never enter the experiment's analysis.
+
+`$unit_key` supports `eq`, `neq`, `in`, and `nin`. Its values are coerced to the type of the layer's entity key (`integer` entities compare as numbers, everything else as strings). ID lists ship in the config bundle in clear text, so keep them to a handful of developer IDs.
+
+<Frame caption="The condition editor with `$unit_key` under System and a registered enum attribute">
+  <img src="/images/placeholders/condition-editor-attributes.png" alt="Condition editor showing the key picker grouped into System and Attributes, a typed enum value input, and an unregistered badge on one row" />
+</Frame>
+
+### `$env` — resolved per environment
+
+`$env` is an enum of your project's environment IDs. A condition on `$env` is resolved when the bundle is built for each environment, not in the SDK: if it holds for that environment the condition is dropped, if not the policy is left out of that environment's bundle entirely. The SDK never has to send `$env`.
+
+```json
+{ "field": "$env", "op": "in", "values": ["staging"] }
+```
+
+runs the policy in `staging` only. Supported operators: `eq`, `neq`, `in`, `nin`.
+
+### `$country` — set on server-side resolution
+
+When you resolve through the [`/v1/resolve`](/api/post-resolve) endpoint, Traffical fills in `$country` from the request's origin (ISO 3166-1 alpha-2) if your context does not already carry one. A value you send yourself is never overwritten. In bundle mode the SDK evaluates locally and nothing is injected, so send `$country` yourself if you need it there.
+
+### Web and mobile device keys
+
+The remaining system attributes are filled by the SDKs' opt-in collectors — the [auto-attributes plugin](/sdks/javascript#auto-attributes) in the browser SDK, and the default device-info providers on [iOS](/sdks/ios#device-info-provider) and [React Native](/sdks/react-native#device-info-enrichment). Register nothing: the keys exist in every project.
+
+| Key | Type | Values | Default logging |
+|---|---|---|---|
+| `$browser` | enum | `chrome`, `edge`, `firefox`, `safari`, `other` | always |
+| `$device_type` | enum | `mobile`, `tablet`, `desktop` | always |
+| `$os` | enum | `ios`, `android`, `macos`, `windows`, `linux`, `other` | always |
+| `$os_version` | string | | allowed |
+| `$app_version` | string (semver) | | allowed |
+| `$device_model` | string | | allowed |
+| `$url` | string (url) | | allowed |
+| `$host`, `$path` | string | | always |
+| `$query`, `$referrer`, `$page_title` | string | | allowed |
+| `$utm_source`, `$utm_medium`, `$utm_campaign`, `$utm_term`, `$utm_content` | string | | always |
+| `$locale`, `$timezone` | string | BCP 47 tag / IANA zone | allowed |
+
+Which keys are actually sent depends on the platform: the browser plugin sends the browser, page, UTM, and locale keys; the mobile providers send `$os`, `$os_version`, `$app_version`, `$device_model`, `$device_type`, `$locale`, and `$timezone`. See each SDK page for the exact derivation.
+
+## Enforcement modes
+
+Attributes never block traffic. Enforcement decides what happens when you **save a policy** whose conditions reference an unregistered key, use an operator the attribute's type does not allow, or carry a value that fails validation. Set it under **Settings → Attribute enforcement**:
+
+| Mode | Behaviour |
+|---|---|
+| `off` | Saves silently. Values are still coerced where the type is known. |
+| `warn` (default) | Saves and returns warnings with the policy. Unregistered keys are badged **unregistered** in the condition editor. |
+| `reject` | Refuses the save with a `400` and the same findings. |
+
+Unregistered keys keep working end to end in every mode: the SDK evaluates them as before, and the registry is never consulted at resolution time. Coercion only applies to registered keys — with no declared type there is nothing to coerce to, so the value is stored as you entered it.
+
+## Discovering attributes from traffic
+
+Projects on Traffical's managed warehouse get a **Seen in traffic, not registered** panel on the Attributes page. Once a day, Traffical scans the context on decision and exposure events from the last 7 days and lists each top-level key with how many decisions carried it, its inferred type, and its most common values. **Register…** opens the add sheet pre-filled from those stats; **Dismiss** hides a key you do not want to register.
+
+Projects that bring their own warehouse have no discovery panel — register attributes manually or from `config.yaml`.
+
+<Frame caption="The Attributes list with the discovery panel">
+  <img src="/images/placeholders/attributes-list.png" alt="Attributes list showing registered rows with key, type, and logging, and the Seen in traffic, not registered panel with Register and Dismiss actions" />
+</Frame>
+
+## In the dashboard
+
+Open **Attributes** in the project sidebar, directly after **Parameters**. **Add attribute** opens a sheet with key, label, description, type, format, values, range, identifier, logging, breakdown, and training hints. System rows show a lock and allow only label, description, logging, and breakdown edits. Attributes pushed from `config.yaml` are **synced** and read-only in the dashboard, like parameters.
+
+## Config as code
+
+Declare attributes in `.traffical/config.yaml` and push them with the [CLI](/tools/cli). `traffical push` sends attributes before parameters, property groups, and events, so anything validated later in the run already sees the registry.
+
+```yaml
+attributes:
+  device_type:
+    type: string
+    format: enum
+    values:                      # list of strings OR map value → description
+      mobile: Phone or small tablet
+      desktop: Desktop or laptop
+    description: Client form factor
+    logging: always
+
+  plan:
+    type: string
+    format: enum
+    values: [free, pro, enterprise]
+
+  cart_value: { type: number, range: [0, 100000] }
+  app_version: { type: string, format: semver }
+  user_id:    { type: string, identifier: true, logging: never }
+```
+
+Keys must match `^[A-Za-z_][A-Za-z0-9_.]*$` and be at most 128 characters. `$` keys cannot be declared here: `pull` never writes them and `push` rejects them. See the [configuration file reference](/tools/config-file#attributes) for every field.
+
+## Typed context
+
+`traffical generate-types` reads the project's registry and emits a `TrafficalContext` interface alongside the parameter and event types:
+
+```typescript
+export interface TrafficalContext {
+  /** identifier — may serve as a unit or entity key */
+  "$unit_key"?: string;
+  cart_value?: number;
+  /** Client form factor */
+  device_type?: "mobile" | "desktop";
+  /** timestamp — epoch milliseconds */
+  signed_up_at?: number;
+  [key: string]: unknown;
+}
+
+export type TrafficalAttributeKey = "$unit_key" | "cart_value" | "device_type" | "signed_up_at";
+```
+
+Enum attributes become unions of their values; timestamps are `number`. The index signature keeps unregistered keys compiling, so the type catches typos and wrong enum values without banning ad-hoc keys:
+
+```typescript
+import type { TrafficalContext } from "./.traffical/traffical.generated";
+
+const context = { device_type: "mobile", cart_value: 42 };
+const decision = traffical.decide(context satisfies TrafficalContext, defaults);
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Policies" icon="sliders" href="/concepts/policies#targeting-conditions">
+    Every operator, strict typing, and the field lookup rule.
+  </Card>
+  <Card title="Configuration file" icon="file-code" href="/tools/config-file#attributes">
+    The `attributes:` block field by field.
+  </Card>
+  <Card title="Browser SDK" icon="globe" href="/sdks/javascript#auto-attributes">
+    Collect browser, page, and UTM attributes automatically.
+  </Card>
+  <Card title="Optimization" icon="chart-line" href="/experimentation/optimization#context-logging-allowlist">
+    Context logging and contextual bandits.
+  </Card>
+</CardGroup>

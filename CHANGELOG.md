@@ -533,3 +533,42 @@ and the source-of-truth map now lives untracked at `.agents/source-map.md` (giti
 Because earlier versions of these files were committed publicly, scrubbing the tip is
 not sufficient on its own — rewriting the repo history (or making the repo private)
 remains a follow-up for a maintainer.
+
+## Context attributes — 2026-09-12
+
+### Goal
+Document the new context-attribute registry: typed context keys, save-time coercion of condition values, per-key logging policy, system attributes, config-as-code sync, and the generated `TrafficalContext` type. Every claim was checked against the platform source, the browser/React Native/iOS SDK sources, and the CLI source; nothing that is not built is documented.
+
+### Edits
+
+#### `concepts/attributes.mdx` (new) + `docs.json`
+**Before:** No page described what the SDK sends to `decide()`; condition fields were free text in the docs as in the product.
+**After:** New Core concepts page directly after Parameters. Covers: why register (typed pickers, filtered operators, save-time coercion, validation, logging policy, context-field typing, generated types); the type/format → operator table; `values`, `range`, `identifier`, `logging` (`never` / `allowed` / `always`, stated in terms of decision and exposure events), `breakdown` (stored now, result breakdowns later — said plainly); system attributes (`$unit_key` with the test-users pattern and the **Add test users** action, `$env` resolved per environment at bundle build, `$country` on server-side resolution only, the web/mobile device keys with their default logging); enforcement modes `off` / `warn` (default) / `reject`, with the "unregistered keys keep working" guarantee; "Seen in traffic" discovery (daily, last 7 days, managed-warehouse projects only); the `attributes:` block; the `TrafficalContext` interface. Two screenshot placeholders added to the manifest.
+
+#### `concepts/policies.mdx`
+**Before:** The operator accordion listed 8 operators and said nothing about typing or field lookup.
+**After:** All 14 operators (`eq neq in nin gt gte lt lte contains startsWith endsWith regex exists notExists`) with the numbers-only note on relational operators; a **Strict typing** section (no coercion at evaluation; the dashboard and API coerce condition values to the registered type at save time; unregistered fields stored as entered); a **Field lookup** section (flat key first, then dotted nested path; flat wins on conflict); `$unit_key` and `$env` examples. The contextual-bandit bullet now mentions the attribute logging policy.
+
+#### `tools/config-file.mdx`
+Added `attributes` to the directory listing, the top-level fields table, and the main example; new **Attributes** section with the block copied from the CLI schema and a field-by-field table (key pattern, 128-char limit, `$` keys rejected on push / never written on pull); push order (attributes first) and the "no `attributes:` block ⇒ untouched, including with `--prune`" rule.
+
+#### `tools/cli.mdx`
+`status` example gains the Attributes section (user-managed rows only; local-only counts as drift); `push` documents attributes-first order and the `--prune` skip for attributes still referenced by policy conditions; `pull` corrected: every active user-managed attribute is written, synced or not, system rows never; new **Typed context** section for `generate-types` (`TrafficalContext` / `TrafficalAttributeKey`, type mapping, index signature, `Attributes: N` summary, graceful skip when not linked / not logged in / registry unavailable); command reference updated.
+
+#### `sdks/javascript.mdx`
+New **Auto attributes** section: opt-in `autoAttributesPlugin()` (CDN alias), the 16-key table with derivation, the caller-wins / nothing-empty / re-derived / SSR-safe rules, and `include` / `exclude` / `persistUtm` options. Plugin table gains the row.
+
+#### `sdks/react-native.mdx`
+**Before:** Said the SDK ships no built-in device-info implementation.
+**After:** Documents the opt-in `defaultDeviceInfoProvider` / `createDefaultDeviceInfoProvider({ appVersion, appBuildNumber })`, the `$` keys it emits with the availability caveats (`$device_model` Android only, `$app_version` only when supplied), the compatibility fields, and a custom-provider example using the `$` keys. Options table row updated.
+
+#### `sdks/ios.mdx`
+Device-info provider section gains the `$` key table from `DefaultDeviceInfoProvider` (`$app_version`, `$os` incl. the watchOS → `other` mapping, `$os_version` dotted, `$device_type` by idiom, `$device_model`, `$locale`, `$timezone`) and notes `appBuildNumber` is emitted as a number.
+
+#### `tools/mcp-server.mdx`, `reference/glossary.mdx`
+Read-tools table gains `list_attributes` (`attributes:read`). Glossary gains **Attribute**; **Context** links to it.
+
+#### `images/placeholders/README.md`
+New **Attributes** manifest section: `attributes-list.png`, `condition-editor-attributes.png`.
+
+**Sources:** the platform's attribute validation, operator map, system-attribute catalog, bundle builder (`$unit_key` / `$env` / registry-driven logging), discovery rollup, and MCP tool source; the browser SDK's auto-attributes plugin and README; the React Native `device-info` module and README; the iOS `DefaultDeviceInfoProvider`; the CLI README, config schema, `push` / `pull` / `status` / `generate-types` commands and context codegen; the SDK spec changelog for the field-lookup rule; the internal context-attributes design doc for intent.

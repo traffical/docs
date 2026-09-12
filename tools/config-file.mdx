@@ -9,7 +9,7 @@ Traffical's [config-as-code](/tools/cli) lives in a `.traffical/` directory at t
 
 ```
 .traffical/
-├── config.yaml             # Parameters, events, property groups
+├── config.yaml             # Parameters, attributes, events, property groups
 ├── project.yaml            # Which Traffical project this repo syncs with
 ├── metrics.yaml            # Metrics-as-code (optional)
 ├── traffical.generated.ts  # Generated types (optional, from generate-types)
@@ -18,7 +18,7 @@ Traffical's [config-as-code](/tools/cli) lives in a `.traffical/` directory at t
 
 | File | Purpose | Commit to git? |
 |------|---------|----------------|
-| `config.yaml` | Parameter, event, and property-group definitions | Yes |
+| `config.yaml` | Parameter, attribute, event, and property-group definitions | Yes |
 | `project.yaml` | Repo → project link (org + project IDs), written by `traffical link` | Yes |
 | `metrics.yaml` | Metric and fact-source definitions | Yes |
 | `traffical.generated.ts` | TypeScript types from `traffical generate-types` | Usually |
@@ -32,7 +32,7 @@ The CLI searches for the config starting in the current directory and walking up
 
 ## `config.yaml`
 
-The main file. It declares parameters, events, and reusable property groups. Everything declared here becomes **synced** when you `traffical push` — its definition turns read-only in the dashboard to prevent drift between your repo and the platform.
+The main file. It declares parameters, context attributes, events, and reusable property groups. Everything declared here becomes **synced** when you `traffical push` — its definition turns read-only in the dashboard to prevent drift between your repo and the platform.
 
 ```yaml
 version: "1.0"
@@ -66,6 +66,13 @@ namespaces:
           min: 0
           max: 50
 
+attributes:
+  plan:
+    type: string
+    format: enum
+    values: [free, pro, enterprise]
+  cart_value: { type: number, range: [0, 100000] }
+
 events:
   purchase:
     valueType: currency
@@ -86,6 +93,7 @@ propertyGroups:
 | `version` | Yes | Config schema version. Currently always `"1.0"`. |
 | `parameters` | Yes | Map of parameters with no namespace (may be empty `{}`). |
 | `namespaces` | No | Namespace-grouped parameters — an alternative to flat `parameters`. |
+| `attributes` | No | Context [attribute](#attributes) definitions. |
 | `events` | No | Event definitions. |
 | `propertyGroups` | No | Reusable property schemas shared across events. |
 
@@ -164,6 +172,50 @@ Constraints are enforced at edit time (in the dashboard and on `traffical push`)
     ```
   </Tab>
 </Tabs>
+
+## Attributes
+
+[Attributes](/concepts/attributes) are the typed registry of context keys your SDKs pass to `decide()`. Registering them gives the dashboard typed condition editors, lets the platform validate and coerce policy targeting against the declared type, and controls what the SDK logs with decision and exposure events.
+
+```yaml
+attributes:
+  device_type:
+    type: string
+    format: enum
+    values:                      # list of strings OR map value → description
+      mobile: Phone or small tablet
+      desktop: Desktop or laptop
+    description: Client form factor
+    logging: always
+
+  plan:
+    type: string
+    format: enum
+    values: [free, pro, enterprise]
+
+  cart_value: { type: number, range: [0, 100000] }
+  app_version: { type: string, format: semver }
+  user_id:    { type: string, identifier: true, logging: never }
+```
+
+### Attribute fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `type` | Yes | `string`, `number`, `boolean`, or `timestamp` (epoch milliseconds in context). |
+| `format` | No | Narrows a string: `enum` (requires `values`), `semver`, `country`, or `url`. |
+| `values` | No | Allowed values — a list of strings, or a map of value → description. Required for `enum`; an optional subset of ISO 3166-1 alpha-2 codes for `country`. |
+| `range` | No | `[min, max]` bounds for `number` attributes. |
+| `label` | No | Display name in the dashboard. |
+| `description` | No | Free-form text. |
+| `identifier` | No | Marks a key that may serve as a unit or entity key. Defaults `logging` to `never`. |
+| `logging` | No | `never`, `allowed` (default), or `always` — whether the value is written to decision and exposure events. See [logging](/concepts/attributes#logging). |
+| `breakdown` | No | Offer the attribute as a results breakdown dimension (stored now; breakdowns ship later). |
+| `encoding` | No | Training hints for contextual policies: `{ binning: none \| quantile, topK: <int> }`. |
+
+Keys must match `^[A-Za-z_][A-Za-z0-9_.]*$` and be at most 128 characters. System attributes (`$unit_key` and the other `$`-prefixed keys) are managed by Traffical: `pull` never writes them and `push` rejects them.
+
+`traffical push` sends attributes **first** — before parameters, property groups, events, and metrics — so policies validated later in the run already see the registry. A file with no `attributes:` block leaves the project's attributes untouched, including with `--prune`.
 
 ## Events
 
@@ -375,6 +427,9 @@ Errors:
   </Card>
   <Card title="Parameters" icon="sliders" href="/concepts/parameters">
     Typed values with defaults.
+  </Card>
+  <Card title="Attributes" icon="tags" href="/concepts/attributes">
+    Typed context keys for targeting, logging, and generated types.
   </Card>
   <Card title="Events" icon="bolt" href="/concepts/events-and-metrics">
     Event definitions, schemas, and property groups.

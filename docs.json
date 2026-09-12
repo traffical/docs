@@ -30,6 +30,7 @@
             "pages": [
               "concepts/terminology",
               "concepts/parameters",
+              "concepts/attributes",
               "concepts/layers",
               "concepts/policies",
               "concepts/surfaces",

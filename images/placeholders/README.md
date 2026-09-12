@@ -20,6 +20,10 @@ The screenshot harness (`tools/docs-screenshots` in the platform monorepo) reads
 - `parameter-editor.png` — the two-pane parameter editor dialog (Basics/Constraints/Environments tabs, live preview pane)
 - `parameter-detail.png` — a single parameter's detail page with type, default, active policies, history
 
+### Attributes
+- `attributes-list.png` — the Attributes page (project sidebar → Attributes, after Parameters): registered rows showing key, type/format, and logging, a mix of user and locked system rows (`$unit_key`, `$device_type`), plus the **Seen in traffic, not registered** panel below with at least two discovered keys showing their fill rate and top values and the **Register…** / **Dismiss** actions; needs a native-warehouse demo project with decision traffic so the panel is populated
+- `condition-editor-attributes.png` — the condition editor on the policy wizard's **Scope** step: the key picker open showing the **System** group (`$unit_key` with its "resolves to `user_id` in this layer" hint, `$env`) above **Attributes**, one row on a registered enum attribute with its typed value select, one row on an unregistered key showing the **unregistered** badge, and the **Add test users** button beneath the editor
+
 ### Layers & policies
 - `layers-list.png` — list of layers in a project
 - `layer-detail.png` — a layer's detail page: prioritized policies list plus the collapsible policy bucket overview (swim-lanes)

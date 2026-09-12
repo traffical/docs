@@ -121,27 +121,43 @@ Resolution checks three sources in order:
 
 ## Device-info enrichment
 
-The SDK can enrich `context` with device info — useful for OS-specific targeting and analytics. You supply the data through a `deviceInfoProvider`: any object implementing the `DeviceInfoProvider` interface. The SDK ships the interface (`DeviceInfoProvider` / `DeviceInfo` types) but does **not** ship a built-in implementation, so you provide one — typically backed by `react-native-device-info` plus React Native's `Platform` and `Dimensions`:
+The SDK can enrich `context` with device info — useful for OS-specific targeting and analytics. You supply the data through a `deviceInfoProvider`: any object implementing the `DeviceInfoProvider` interface. The returned fields merge into `context` on every resolution, so they're available for policy conditions.
 
-```typescript
-export interface DeviceInfoProvider {
-  getDeviceInfo(): DeviceInfo;
-}
+### The default provider
 
-export interface DeviceInfo {
-  appVersion?: string;
-  appBuildNumber?: string;
-  deviceModel?: string;
-  deviceModelName?: string;
-  osName?: string;
-  osVersion?: string;
-  locale?: string;
-  timezone?: string;
-  screenWidth?: number;
-  screenHeight?: number;
-  pixelRatio?: number;
-}
+`defaultDeviceInfoProvider` derives device metadata from React Native's `Platform` and `Dimensions` plus `Intl` — no native modules. It is **opt-in**: nothing is added to your context unless you pass it.
+
+```tsx
+import { TrafficalRNProvider, defaultDeviceInfoProvider } from "@traffical/react-native";
+
+<TrafficalRNProvider config={{ orgId, projectId, env, apiKey, deviceInfoProvider: defaultDeviceInfoProvider }}>
 ```
+
+It emits the `$`-prefixed [system attributes](/concepts/attributes#system-attributes) shared by every Traffical SDK — registered in every project, so you can target them straight from the condition editor — plus un-prefixed fields for compatibility with existing conditions:
+
+| Key | Type | Value |
+|-----|------|-------|
+| `$os` | enum | `ios`, `android`, `macos`, `windows`, or `other` (from `Platform.OS`) |
+| `$os_version` | string | `Platform.Version` as a string |
+| `$device_type` | enum | iOS: `Platform.isPad` → `tablet`, else `mobile`; Android: shortest side ≥ 600dp → `tablet`, else `mobile`; other platforms: width `< 768` mobile, `< 1024` tablet, else `desktop` |
+| `$device_model` | string | **Android only** (`Platform.constants.Model`). iOS exposes no model without a native module. |
+| `$locale`, `$timezone` | string | `Intl.DateTimeFormat().resolvedOptions()` |
+| `$app_version` | string | **Only when you supply it** — React Native has no app version without a native module |
+| `osName`, `osVersion`, `locale`, `timezone`, `screenWidth`, `screenHeight`, `pixelRatio`, `deviceModel`, `appVersion`, `appBuildNumber` | | Compatibility fields, same values |
+
+Values are re-read on every call, so rotation and locale changes are picked up on the next decision.
+
+To populate `$app_version`, build the provider with the version from your own source (`expo-constants`, `react-native-device-info`, or a generated constant):
+
+```tsx
+import { createDefaultDeviceInfoProvider } from "@traffical/react-native";
+
+const deviceInfoProvider = createDefaultDeviceInfoProvider({ appVersion: "2.3.1", appBuildNumber: "451" });
+```
+
+### Your own provider
+
+Implement `DeviceInfoProvider` yourself to add fields the default cannot read, typically backed by `react-native-device-info`:
 
 ```tsx
 import { TrafficalRNProvider, type DeviceInfoProvider } from "@traffical/react-native";
@@ -152,10 +168,10 @@ const deviceInfoProvider: DeviceInfoProvider = {
   getDeviceInfo() {
     const { width, height } = Dimensions.get("window");
     return {
-      appVersion: DeviceInfo.getVersion(),
-      osName: Platform.OS,          // "ios" | "android"
-      osVersion: String(Platform.Version),
-      deviceModel: DeviceInfo.getModel(),
+      $app_version: DeviceInfo.getVersion(),
+      $os: Platform.OS === "ios" ? "ios" : "android",
+      $os_version: String(Platform.Version),
+      $device_model: DeviceInfo.getModel(),
       screenWidth: width,
       screenHeight: height,
     };
@@ -165,7 +181,7 @@ const deviceInfoProvider: DeviceInfoProvider = {
 <TrafficalRNProvider config={{ orgId, projectId, env, apiKey, deviceInfoProvider }}>
 ```
 
-The returned fields merge into `context` on every resolution, so they're available for policy conditions — e.g. `osName eq "ios"` for an iOS-only policy.
+Use the `$` keys in new conditions — e.g. `$os eq "ios"` for an iOS-only policy.
 
 <Warning>
 **Version-string targeting is a known gap.** The numeric comparison operators (`gt`/`gte`/`lt`/`lte`) only compare **numbers** — a condition like `appVersion gte "2.0.0"` won't match, because `"2.0.0"` is a string. To gate on a minimum version today, target an exact set of versions with `in`, or expose a numeric build number (`appBuildNumber`) and compare that. Semver-aware version conditions are not yet supported.
@@ -195,7 +211,7 @@ When the app returns to the foreground after being suspended, the SDK checks whe
 | `orgId`, `projectId`, `env`, `apiKey` | — | required | Same as other SDKs |
 | `evaluationMode` | `"bundle" \| "server"` | `"server"` | Mobile-friendly default |
 | `localConfig` | `ConfigBundle` | — | Embedded bundle for cold-start |
-| `deviceInfoProvider` | `DeviceInfoProvider` | — | Device-context enrichment (you supply the implementation) |
+| `deviceInfoProvider` | `DeviceInfoProvider` | — | Device-context enrichment — pass the built-in `defaultDeviceInfoProvider` or your own |
 | `cacheMaxAgeMs` | `number` | `86400000` | Max age of the persisted server response before it's treated as expired (24h) |
 | `refreshIntervalMs` | `number` | `60000` | Background refresh cadence |
 

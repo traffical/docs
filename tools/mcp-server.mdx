@@ -86,6 +86,7 @@ Scope is the durable ceiling; the [autonomy resolver](/governance/approvals-and-
 | `resolve_change_preview` | `changes:read` | Plan a change before creating it: the computed risk class, recommended lifecycle template, matched certified protocols, and a plan preview. Call it before `create_change`. |
 | `get_ai_overview` | `projects:read` | Program-level state: changes by state, adaptive policy counts, recent decision records |
 | `list_parameters` / `get_parameter` | `parameters:read` | Parameters and their [surface](/concepts/surfaces) bindings |
+| `list_attributes` | `attributes:read` | Registered context [attributes](/concepts/attributes) with type, format, and legal values — call it before authoring a condition, since operators and value types are validated against the registry |
 | `list_metrics` / `get_metric` | `metrics:read` | Metric definitions and results |
 | `get_policy_health` | `policies:read` | Rollout health for a policy |
 | `list_surfaces` | `surfaces:read` | Placement [surfaces](/concepts/surfaces) |
