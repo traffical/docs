@@ -218,7 +218,7 @@ The training pipeline produces coefficients per allocation. Those coefficients s
 
 Two things you need to know:
 
-- **Context logging allowlist** — only the context fields you explicitly opt in to are logged with decision and exposure events. This protects PII while still giving the trainer signal to learn from. A registered [attribute's](/concepts/attributes#logging) `logging` setting applies on top: `always` keys are logged for every policy, `never` keys for none.
+- **Context logging allowlist** — only the context fields you explicitly opt in to are logged with decision and exposure events. This protects PII while still giving the trainer signal to learn from. A registered [attribute's](/concepts/attributes#logging) `logging` setting applies on top: `always` keys are logged for every policy, `never` keys for none. The same allowlist governs [server-side resolution](/concepts/attributes#server-side-resolution), which never writes the raw request context.
 - **Exploration is preserved** — the softmax has a temperature (`gamma`) and a minimum action probability (`actionProbabilityFloor`) so the model keeps exploring as it learns.
 
 See [Optimization](/experimentation/optimization#contextual-bandits) for the full details.

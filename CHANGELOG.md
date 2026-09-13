@@ -534,6 +534,29 @@ Because earlier versions of these files were committed publicly, scrubbing the t
 not sufficient on its own — rewriting the repo history (or making the repo private)
 remains a follow-up for a maintainer.
 
+## Server-side context logging — 2026-09-13
+
+### Goal
+Document two changes to how server-side resolution logs context: decision events follow the policies' logging allow-lists instead of carrying the raw request context, and unregistered keys are reported by name only unless a project setting opts into values.
+
+### Edits
+
+#### `concepts/attributes.mdx`
+**Before:** The `logging` section described the per-attribute settings without saying how server-side resolution applies them; the `$country` section said only that the value is injected; the discovery section assumed every seen key had values and an inferred type.
+**After:** `logging` gains a paragraph stating the rule is the same for local and server-side evaluation (an SDK logs exactly the allow-listed keys, registered or not) and a new **Server-side resolution** subsection: decision events carry only what the matched policies' allow-lists admit (context fields + `always` − `never`), never the raw request; unregistered keys are logged as names with `null` values by default, or with values when **Server-side context logging** under **Settings → SDK** is set to **Keys and values** (onboarding aid, switch back after registering); `never` attributes excluded in both modes; setting is server-side only. `$country` section notes it is available for targeting regardless of logging and written only when allow-listed or `always`. Discovery section documents the **names only** marker and that **Register…** prefills `string` for such rows.
+
+#### `concepts/policies.mdx`
+Context logging allowlist bullet links to the new subsection and states server-side resolution never writes the raw request context.
+
+#### `dashboard/settings.mdx`
+SDK tab gains the **Server-side context logging** setting with both modes and the switch-back advice.
+
+**Not verified:** the setting's dashboard labels (**Server-side context logging**, **Names only**, **Keys and values**) and the discovery panel's **names only** marker were taken from the design decision, not from shipped UI strings — check them against the dashboard once the setting is live.
+
+**Sources:** the internal context-attributes design doc, decision D14 (unregistered context on server-side resolution) and Appendix B (edge logging).
+
+---
+
 ## Context attributes — 2026-09-12
 
 ### Goal

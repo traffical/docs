@@ -75,6 +75,8 @@ Usage metering feeds [usage and billing](/dashboard/usage-and-billing); a longer
 
 The **SDK** tab shows the state of the SDK-facing config bundle per environment — its current version and how many parameters, layers, and policies it carries — with actions to view the bundle JSON and force a rebuild. Below it, **SDK Event Sync** controls whether SDK-emitted events (exposure, decision, and track events) are written into your connected warehouse on a schedule, with sync status, last-run stats, and a manual trigger. Projects on the Traffical-managed warehouse ingest SDK events automatically, so the sync section only appears when you bring your own warehouse. The sync cadence itself lives in [pipeline scheduling](#pipeline-scheduling) above.
 
+**Server-side context logging** decides what the server-side resolution endpoint records for context keys that are not registered as [attributes](/concepts/attributes#server-side-resolution) and that no matched policy lists. **Names only** (the default) writes the key with no value, enough for the key to appear under **Seen in traffic, not registered**. **Keys and values** also writes the values, which lets discovery infer types and show common values; use it while onboarding and switch back once you have registered what you need, because raw context then reaches your warehouse. Attributes set to `logging: never` are excluded either way, and SDKs evaluating a bundle locally are unaffected.
+
 <Frame caption="SDK configuration tab">
   <img src="/images/placeholders/sdk-settings.png" alt="SDK configuration tab placeholder" />
 </Frame>

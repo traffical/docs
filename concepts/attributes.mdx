@@ -75,6 +75,21 @@ Use `never` for anything you target on but must not store — identifiers, email
 
 Contextual bandits read their features from the same list, so an attribute's `logging` also determines whether a model can learn from it. See the [context logging allowlist](/experimentation/optimization#context-logging-allowlist).
 
+The rule is the same wherever the decision is made. An SDK evaluating locally writes exactly the keys on the matched policies' allow-lists — a key a policy lists is logged whether or not it is registered. Server-side resolution follows the allow-lists too, and additionally reports unregistered keys by name; see below.
+
+#### Server-side resolution
+
+When you resolve through [`/v1/resolve`](/api/post-resolve), the decision event carries only the context the matched policies' allow-lists admit: each policy's context fields, plus every attribute with `logging: always`, minus every attribute with `logging: never`. The raw request context is never written. `$country`, which Traffical derives from the request for targeting, is logged only under the same rule — a policy lists it, or it is set to `always`.
+
+Unregistered keys in the request are handled by the **Server-side context logging** setting under **Settings → SDK**:
+
+| Setting | Effect |
+|---|---|
+| **Names only** (default) | Every unregistered key no policy lists is written with a `null` value. The key shows up under **Seen in traffic, not registered**; its values never leave the request. |
+| **Keys and values** | Unregistered keys are written with their values, so discovery can infer types and show common values. Meant for onboarding: raw context reaches your warehouse, so switch back to **Names only** once you have registered what you need. |
+
+Attributes with `logging: never` are excluded in both modes. The setting applies to server-side resolution only; SDKs evaluating a bundle locally are unaffected.
+
 ### `breakdown`
 
 `breakdown: true` marks an attribute as a dimension to split measured results by. The flag is stored today; result breakdowns by attribute ship in a later release. Setting it now means nothing has to be re-registered when they do.
@@ -115,6 +130,8 @@ runs the policy in `staging` only. Supported operators: `eq`, `neq`, `in`, `nin`
 
 When you resolve through the [`/v1/resolve`](/api/post-resolve) endpoint, Traffical fills in `$country` from the request's origin (ISO 3166-1 alpha-2) if your context does not already carry one. A value you send yourself is never overwritten. In bundle mode the SDK evaluates locally and nothing is injected, so send `$country` yourself if you need it there.
 
+The derived value is available to conditions regardless of its `logging` setting. It is written to the decision event only when a matched policy lists it or the attribute is set to `always` — see [server-side resolution](#server-side-resolution).
+
 ### Web and mobile device keys
 
 The remaining system attributes are filled by the SDKs' opt-in collectors — the [auto-attributes plugin](/sdks/javascript#auto-attributes) in the browser SDK, and the default device-info providers on [iOS](/sdks/ios#device-info-provider) and [React Native](/sdks/react-native#device-info-enrichment). Register nothing: the keys exist in every project.
@@ -150,6 +167,8 @@ Unregistered keys keep working end to end in every mode: the SDK evaluates them 
 ## Discovering attributes from traffic
 
 Projects on Traffical's managed warehouse get a **Seen in traffic, not registered** panel on the Attributes page. Once a day, Traffical scans the context on decision and exposure events from the last 7 days and lists each top-level key with how many decisions carried it, its inferred type, and its most common values. **Register…** opens the add sheet pre-filled from those stats; **Dismiss** hides a key you do not want to register.
+
+Keys that reached the warehouse without values — the default for unregistered keys on [server-side resolution](#server-side-resolution) — are marked **names only**. There is nothing to infer a type from, so **Register…** prefills the type as `string`; change it in the sheet if the key carries numbers, booleans, or timestamps.
 
 Projects that bring their own warehouse have no discovery panel — register attributes manually or from `config.yaml`.
 

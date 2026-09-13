@@ -89,7 +89,7 @@ There is no `defaults` field: fallback values come from each parameter's configu
 | `stateVersion` | `string` | `version` of the config bundle this resolution used. |
 | `suggestedRefreshMs` | `number` | How long the result stays fresh — re-resolve after this many milliseconds (currently always `60000`). |
 
-When a matched adaptive policy is configured to log context fields, the response also includes `metadata.filteredContext` containing just those fields.
+When any matched policy logs context fields (its own context fields plus attributes with logging `always`, minus `never`), the response also includes `metadata.filteredContext` containing just those fields — the same set written to the decision event.
 
 Each entry in `metadata.layers` describes one layer's resolution:
 
