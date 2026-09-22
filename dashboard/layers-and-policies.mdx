@@ -77,7 +77,7 @@ Projects with event definitions default to event mode and can toggle between the
 
 ## The policy detail page
 
-The header carries the policy's name, state, kind, and rollout status, plus the actions ([below](#policy-actions)). Policies are often governed through a [change](/concepts/changes) — a banner links to the owning change, and standalone policies offer **Convert to change**. That lifecycle, including [approval and autonomy rules](/governance/approvals-and-autonomy), is covered in [Changes in the dashboard](/dashboard/changes), so it isn't repeated here.
+The header carries the policy's name, state, kind, and rollout status, plus the actions ([below](#policy-actions)). Policies are often governed through a [change](/concepts/changes) — a banner links to the owning change. That lifecycle, including [approval and autonomy rules](/governance/approvals-and-autonomy), is covered in [Changes in the dashboard](/dashboard/changes), so it isn't repeated here.
 
 Everything else is organized into seven tabs:
 
@@ -204,7 +204,6 @@ From the header you can:
 - **Start / Pause / Complete** — completing is final: the policy stops being evaluated and its results are preserved.
 - **Promote…** — available on running policies with two or more allocations and no active rollout, and from the completed verdict banner. Promoting creates a *new* static draft policy serving the winning allocation, with a rollout pre-configured to complete the source policy when it finishes — so the winner ships behind health gates. It writes a decision record to the source policy's timeline.
 - **Duplicate** — fork the configuration into a new draft. This is the way to iterate, since splits and overrides lock once a policy starts.
-- **Convert to change** — wrap a standalone policy in a [change](/concepts/changes).
 - **Configure Rollout** — attach a progressive rollout while in draft; see [Rollouts](/experimentation/rollouts).
 - **Archive** — draft and completed policies only.
 
