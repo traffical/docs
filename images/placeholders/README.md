@@ -70,6 +70,7 @@ The screenshot harness (`tools/docs-screenshots` in the platform monorepo) reads
 
 ### Definitions
 - `definitions-overview.png` — landing of the Definitions section
+- `entry-points-list.png` — Definitions → Entry points: at least two entry points showing entities, source fact, rule count, relevant surfaces, used-by count, Active status, version and validation
 - `entities.png` — entities list
 - `assignments.png` — assignment definitions list
 - `assignment-editor.png` — assignment editor with SQL and preview

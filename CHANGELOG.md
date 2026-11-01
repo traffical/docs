@@ -624,3 +624,25 @@ Glossary gains **Analysis window**. Manifest gains `policy-settings-analysis-win
 
 **Sources:** the platform's policy settings page and analysis-window settings row, the analysis-window validation and resolution, the analysis run specification and aggregation filters, the writeback's provenance and final-analysis record, the recompute scheduling, the rollout scheduler and its cadence helper, and the measurement progress accrual logic.
 
+---
+
+## Entry points — 2026-11-01
+
+### Goal
+Explain entry points where users meet them: what one is, how a unit qualifies, how to create one in the catalog, how to attach one to a policy, and what changes in the results. Checked against the platform source and the live dashboard.
+
+### Edits
+
+#### `dashboard/policy-settings.mdx`
+**Before:** One sentence: an entry point limits the analysis to units that reached a moment.
+**After:** Why to use one; the qualification rule (first matching row of the source fact at or after first assignment; non-qualifiers excluded; metrics measured from the entry moment; allocation and CUPED pre-period unchanged; recomputed over the whole run; analysis-window interaction); the causal warning with a worked example; what the policy's selector offers (none, SDK exposure for this policy, entity-compatible facts and their ordering), **Create with rules…**, **Edit rules**, **View in catalog**, and that rule-bearing catalog entry points are attached through a change's measurement plan; the confirmation on live policies and the immediate re-analysis; what appears afterwards (Overview, the Diagnostics **Qualified units** card, measurement progress on qualified units, fail-closed behaviour).
+
+#### `dashboard/definitions.mdx`
+**Before:** Entry points were named in the intro only.
+**After:** New **Entry points** section: the list and its columns, the System section, creating one (fields, the draft-then-editor flow), the editor (rules with their operators and missing-value behaviour, preview and what it does not count, planning, relevant surfaces, Run & Validate, Activate), using one (change measurement plans, standalone policies), and changing or retiring one (confirmation for dependents, recompute on the next run, versions, deprecation and deletion rules). Description updated.
+
+#### `images/placeholders/README.md`
+Manifest gains `entry-points-list.png`.
+
+**Sources:** the platform's entry point catalog pages and editor, the policy's entry point selector and its confirmation and rules dialogs, entry point validation, qualification in the analysis, the qualification diagnostics and measurement progress basis, and the definition revision rules; cross-checked in the dashboard.
+

@@ -23,7 +23,42 @@ The **Analysis** section changes how results are computed. None of it moves traf
 
 ### Entry point
 
-An [entry point](/concepts/terminology#entry-points-and-qualification) limits the analysis to units that reached a specific moment, such as opening a product page. Choosing, changing or clearing it on a running or paused policy asks you to confirm, because it changes who the results describe.
+By default, a policy's results count every enrolled unit from the moment it was first assigned. An **entry point** narrows that to the units that went on to reach a specific milestone, such as opening a product page or starting checkout, and starts measuring each of them from that moment. It's a reusable definition built on one of your [facts](/dashboard/definitions#facts), and it lives in the catalog under [Definitions → Entry points](/dashboard/definitions#entry-points).
+
+Use one when most assigned units never get near the thing you changed. A recommendation widget on the product page only matters to visitors who open a product page. Counting everyone else dilutes the effect and makes the test take longer to reach significance.
+
+**How a unit qualifies.** A unit qualifies at its first row of the entry point's source fact that matches the entry point's qualification rules, at or after its first assignment. With no rules, any row of the fact qualifies. Units that never qualify are left out of the results. For a unit that qualifies:
+
+- its metrics count events from the moment it reached the entry point, not from its first assignment;
+- its allocation is still the one it was first assigned to;
+- CUPED's pre-period still ends at its first assignment.
+
+The time is recomputed over the whole run on every analysis, so data that arrives late can qualify more units. With an [analysis window](#analysis-window), a unit qualifies only if it reached the entry point before **Count events until**.
+
+<Warning>
+Pick a milestone your change can't influence. If the change makes units more or less likely to reach the milestone, the qualified units differ between allocations and the comparison is biased. A checkout redesign measured from "reached checkout" is fine; a product-page change measured from "reached checkout" is not, because the product page decides who gets there.
+</Warning>
+
+**Choosing one for a policy.** The **Entry point** row offers:
+
+- **None — measure from first assignment**, the default.
+- **SDK exposure (this policy)**, when your SDK reports exposures for this policy. Units count from the moment they were actually shown the policy. Exposure depends on your implementation and may differ between allocations, so the row adds a note that this is an as-exposed analysis.
+- Each active fact for the entity this policy randomizes on. Picking one uses every row of that fact. Facts already used by an entry point, and facts mapped to this policy's [surface](/concepts/surfaces), are listed first.
+
+To qualify on specific rows only, for example product views from the iOS app, use **Create with rules…**. It creates a new entry point with qualification rules and attaches it. **Edit rules** changes the rules of the attached one, and **View in catalog** opens it under Definitions. Entry points with rules that you built in the catalog are attached through a [change's](/dashboard/changes) measurement plan, which lists every active entry point.
+
+Once attached, the row spells out when the analysis starts, for example "Analysis starts at the first Product viewed fact at or after first assignment."
+
+**Changing it on a live policy.** On a running or paused policy, attaching, changing or removing the entry point asks you to confirm, because it changes the results already shown: who is counted, when each unit's measurement starts, and every rate. After you confirm, a new analysis starts right away and recomputes qualification over the whole run. Removing it brings back every enrolled unit. On a policy that a change operates, the entry point is set through the change once its phase has started.
+
+**What you see afterwards.**
+
+- The Overview names the entry point and its version.
+- The Diagnostics tab gets a **Qualified units** card: the qualification rate overall and per allocation, qualified out of enrolled units, a sample-ratio check on the qualified units, and time to qualification (p50, p75, p90). When the entry point was planned with a qualification rate, the card compares it with the observed rate and warns when the observed rate is well below plan.
+- [Measurement progress](/statistics/measurement-progress) counts qualified units instead of enrolled ones, and says so.
+- If qualification can't be computed, for example because the entry point was deprecated or its fact no longer maps this policy's entity, Traffical doesn't fall back to unfiltered results. It keeps the last successful results and the card says when it last succeeded.
+
+See [entry points and qualification](/concepts/terminology#entry-points-and-qualification) for the terms.
 
 ### Analysis window
 
