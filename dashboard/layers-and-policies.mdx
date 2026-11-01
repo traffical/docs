@@ -1,6 +1,6 @@
 ---
 title: "Layers & policies in the dashboard"
-description: "Managing layers and reading the policy detail page — the verdict banner, its seven tabs, measurement progress, and per-policy analysis settings."
+description: "Managing layers and reading the policy detail page — the verdict banner, its seven tabs, measurement progress, and where per-policy settings live."
 ---
 
 The **Layers** page is where every A/B test, rollout, and feature flag lives. Layers keep concurrent policies cleanly separated; policies decide who sees what within a layer. A [feature flag](/experimentation/feature-flags) is a layer with one parameter. This page walks the dashboard surfaces — for the underlying model, see [Layers](/concepts/layers) and [Policies](/concepts/policies).
@@ -89,7 +89,7 @@ Everything else is organized into seven tabs:
 | **Diagnostics** | Is it serving correctly? Flagged `(!)` while any health check is warning or failing. |
 | **Decision log** | What was decided, when, by whom, and why? |
 | **History** | How did allocations, rollout steps, and configuration evolve? |
-| **Settings** | Policy key, per-policy analysis overrides, targeting. |
+| **Settings** | Policy key, analysis settings (including the analysis window), live edits, targeting. |
 
 <Frame caption="Policy detail — Overview">
   <img src="/images/placeholders/policy-detail-overview.png" alt="Policy Overview tab with verdict banner, KPI band, and live allocation" />
@@ -141,7 +141,7 @@ Measurement is where you read results.
   <img src="/images/placeholders/policy-measurement-tab.png" alt="Measurement tab with per-metric significance results and the measurement progress card" />
 </Frame>
 
-The **results panel** lists every attached metric with per-allocation point estimates, confidence intervals, and significance — see [Significance](/statistics/significance) for how the numbers are computed and [Metrics](/dashboard/metrics) for attaching them.
+The **results panel** lists every attached metric with per-allocation point estimates, confidence intervals, and significance — see [Significance](/statistics/significance) for how the numbers are computed and [Metrics](/dashboard/metrics) for attaching them. When the policy has a custom [analysis window](/dashboard/policy-settings#analysis-window), the panel header carries a **Custom window** badge; hover it for the window in UTC.
 
 If an adaptive policy optimizes a goal event but has no metric attached yet, the tab offers a bridge instead: **create a conversion-rate metric from the goal event** in one click (or attach an existing metric) to get statistical significance with confidence intervals on top of the optimization signal.
 
@@ -186,22 +186,13 @@ History is the raw evolution record:
 
 ## Settings tab
 
-- **Policy key** — copy the stable identifier used in SDK events and in your warehouse `policyKey` column mapping.
-- **Analysis** — per-policy overrides for **CUPED variance reduction** and **sequential testing**. Each is a three-way choice: *Inherit project default*, *Enabled*, or *Disabled*, with the effective value spelled out ("Inherit (On)"). The effective rule is policy setting if set, otherwise the project default — see [CUPED](/statistics/cuped) and [Sequential testing](/statistics/sequential-testing).
-- **Bucket range** — a readout of the eligible bucket range and the traffic portion it represents.
-- **Live edits** — which parts of the policy may change while it is running or paused: **targeting conditions**, **allocation values**, or neither. Everything is frozen at start unless declared here, so measurement stays comparable; the traffic split always moves through the rollout controls. A live edit asks for a reason and writes it to the audit trail and, by default, the decision log. Feature-flag On policies and rollouts are created with targeting open; A/B tests with nothing open.
-- **Health checks** — which health checks notify for this policy, layered on the project's settings: **Inherit**, **Alert**, **Monitor** (badge and history, no notification) or **Off** per check. A policy operated by hand — a flag's policy, a rollout, a QA policy targeting one user — may legitimately see no assignments for hours, so those are created with *Assignments flowing* and *Per-allocation floor* at Monitor. Delivery timing stays a project setting under Project Settings → Policy health.
-- **Targeting conditions** — the eligibility rules, matched against the context your SDK passes at decision time. Conditions are combined with AND. Editable in draft, and while running when the policy's Live edits setting allows it; see [targeting conditions](/concepts/policies#targeting-conditions) for the operators.
-
-<Frame caption="Policy settings — analysis overrides">
-  <img src="/images/placeholders/policy-settings-analysis.png" alt="Per-policy CUPED and sequential testing overrides with inherit, enabled, and disabled choices" />
-</Frame>
+Settings holds the policy key, the analysis settings (CUPED, sequential testing, entry point, and the [analysis window](/dashboard/policy-settings#analysis-window) that limits which units and events the results count), the bucket range, live edits, per-policy health checks, and targeting conditions. Each is documented in [Policy settings](/dashboard/policy-settings).
 
 ## Policy actions
 
 From the header you can:
 
-- **Start / Pause / Complete** — completing is final: the policy stops being evaluated and its results are preserved.
+- **Start / Pause / Complete** — completing is final: the policy stops being evaluated, its results are preserved, and it can't be started again (duplicate it instead). A static policy gets one [final analysis](/dashboard/policy-settings#results-after-a-policy-stops) once late-arriving data has landed. Resuming a paused policy re-analyses it so events from the pause are counted. The **Status** card shows **Running for** from when the policy actually started, and **Ran for** up to its completion once it's done.
 - **Promote…** — available on running policies with two or more allocations and no active rollout, and from the completed verdict banner. Promoting creates a *new* static draft policy serving the winning allocation, with a rollout pre-configured to complete the source policy when it finishes — so the winner ships behind health gates. It writes a decision record to the source policy's timeline.
 - **Duplicate** — fork the configuration into a new draft. This is the way to iterate, since splits and overrides lock once a policy starts.
 - **Configure Rollout** — attach a progressive rollout while in draft; see [Rollouts](/experimentation/rollouts).

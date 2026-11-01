@@ -16,6 +16,9 @@ A named bundle of parameter overrides a [policy](#policy) serves, with a share o
 ### Analysis signal
 Which assignment signal an analysis reads: [decision events](#decision-event) (intent-to-treat) or [exposure events](#exposure-event) (treatment-on-the-treated). Warehouse-native [assignment definitions](#assignment-definition) declare it as their Signal — decision, exposure, or mixed when a `source_type` column is mapped. → [Terminology](/concepts/terminology#analysis-signal)
 
+### Analysis window
+The time range an A/B policy's results count: units first exposed between the assignment start and end, and their events until a chosen time. Defaults to the whole run. → [Policy settings](/dashboard/policy-settings#analysis-window)
+
 ### Assignment
 The pairing of a user (or other [unit](#unit-key)) with an [allocation](#allocation). Assignments are deterministic given a stable unit key and an unchanged bundle. → [Decisions & attribution](/concepts/assignments)
 

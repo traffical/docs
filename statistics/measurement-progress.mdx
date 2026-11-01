@@ -49,6 +49,8 @@ From the gap between detectable-now and the target, Traffical computes how many 
 
 When the measurement has an [entry point](/concepts/terminology#entry-points-and-qualification) attached, the sample is [qualified units](/concepts/terminology#entry-points-and-qualification) — enrolled units with a qualifying fact at or after first assignment — and the required-sample and time-remaining math run on qualified units instead.
 
+With a custom [analysis window](/dashboard/policy-settings#analysis-window), the sample is the units first exposed inside the window. Once its assignment end has passed, no new units can enter, so the card stops estimating time remaining. Changing the window restarts the accrual measurement, so the estimate stays blank until the next few analysis runs have measured the new rate.
+
 Two things keep the estimate honest:
 
 - **It carries an "as of" stamp.** Estimates refresh on every analysis run (typically every two hours), and the card shows when the numbers were last computed. On a paused policy the last estimate is kept but the countdown is suppressed — **"Paused — estimates frozen"**.

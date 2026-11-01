@@ -31,7 +31,7 @@ A lower-priority fallback policy in the same layer catches traffic outside the r
 In the dashboard, open a policy and add a rollout configuration:
 
 - **Target percentage** — usually `100`.
-- **Ramp** — either continuous (`incrementPercentage` every `windowSizeMinutes`) or scheduled (an explicit list of `{ percentage, scheduledAt }` steps).
+- **Ramp** — either continuous (`incrementPercentage` every `windowSizeMinutes`, 15 minutes by default) or scheduled (an explicit list of `{ percentage, scheduledAt }` steps).
 - **Health checks** — metrics to evaluate before each step.
 - **Rollback strategy** — what to do if a health check fails.
 
@@ -43,7 +43,7 @@ rolloutConfig:
   targetPercentage: 100
   rampRate:
     incrementPercentage: 10
-    windowSizeMinutes: 60
+    windowSizeMinutes: 15
   healthChecks:
     - metricId: error_rate
       operator: lte
@@ -90,7 +90,11 @@ When a health check fails, the configured action fires:
 
 ## Warm-up windows
 
-After each step, the rollout waits `warmupWindows` evaluation cycles (default 2) before evaluating health. This gives the new traffic level time to produce meaningful data before the next decision.
+With health checks configured, the rollout waits `warmupWindows` windows (default 2) at each step before it evaluates health and takes the next step. The new traffic level gets time to produce data the checks can judge. So a 15-minute window with the default warm-up steps every 30 minutes.
+
+Without health checks there is nothing to warm up for, and the rollout steps once per window: `+10%` every 15 minutes means every 15 minutes.
+
+The rollout card on the policy page shows the cadence that actually applies, for example **+10% every 30 min (15 min × 2 warm-up)**, and **Next Step** shows when the next step is expected. It reads **Due now** when a step is due but hasn't been taken yet. A step held back because a health check is still waiting for enough data moves to the next window.
 
 ## Safety limits
 

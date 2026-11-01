@@ -32,6 +32,7 @@ The screenshot harness (`tools/docs-screenshots` in the platform monorepo) reads
 - `policy-detail-overview.png` — the policy detail Overview tab: verdict banner, KPI band, and live allocation
 - `policy-measurement-tab.png` — the Measurement tab with per-metric significance results and the measurement progress card
 - `policy-settings-analysis.png` — the Settings tab's per-policy CUPED and sequential-testing overrides (inherit / enabled / disabled)
+- `policy-settings-analysis-window.png` — the Settings tab's **Analysis window** row on a static policy: the three UTC fields (**Assignment start** filled in, **Assignment end** and **Count events until** empty) with their default hints, the **Effective for this policy** line, and the **Reset to default** button
 
 ### Surfaces
 - `surfaces-list.png` — the Surfaces list (project sidebar → Surfaces) with name/key, kind, default layer, and binding-count columns; seed at least three surfaces of different kinds so the columns show variety

@@ -1,0 +1,106 @@
+---
+title: "Policy settings"
+description: "The Settings tab of a policy: its key, the analysis settings (CUPED, sequential testing, entry point, analysis window), bucket range, live edits, health checks, and targeting."
+---
+
+Every policy has a **Settings** tab. It holds what you set once and rarely touch: the key your data is joined on, how the results are analysed, and which parts of the policy may change while it runs. For the rest of the policy page, see [Layers & policies](/dashboard/layers-and-policies).
+
+<Frame caption="Policy settings: analysis">
+  <img src="/images/placeholders/policy-settings-analysis.png" alt="Per-policy CUPED and sequential testing overrides with inherit, enabled, and disabled choices" />
+</Frame>
+
+## Policy key
+
+The policy key is the stable identifier in SDK events and in your warehouse `policyKey` column mapping. Copy it from here when you map columns or query results yourself.
+
+## Analysis
+
+The **Analysis** section changes how results are computed. None of it moves traffic, so you can change it on a running policy.
+
+### CUPED and sequential testing
+
+**CUPED variance reduction** and **Sequential testing** are each a three-way choice: *Inherit project default*, *Enabled*, or *Disabled*. The row shows the value in effect, for example "Inherit (On)". A policy setting wins over the project default. See [CUPED](/statistics/cuped) and [Sequential testing](/statistics/sequential-testing) for what each does.
+
+### Entry point
+
+An [entry point](/concepts/terminology#entry-points-and-qualification) limits the analysis to units that reached a specific moment, such as opening a product page. Choosing, changing or clearing it on a running or paused policy asks you to confirm, because it changes who the results describe.
+
+### Analysis window
+
+By default a policy is analysed over its whole run: every unit it assigned and every event those units sent. The analysis window narrows that to a time range you choose. It's available on A/B (static) policies.
+
+<Frame caption="Policy settings: analysis window">
+  <img src="/images/placeholders/policy-settings-analysis-window.png" alt="Analysis window row with assignment start, assignment end and count-events-until fields in UTC, and the effective window below" />
+</Frame>
+
+| Field | What it controls | Default |
+|---|---|---|
+| **Assignment start** | Units first exposed before this time are left out of the results. | When the policy started |
+| **Assignment end** | Units first exposed at or after this time are left out. | Open while the policy runs, then the moment it completed |
+| **Count events until** | Events at or after this time don't count. Set it later than the assignment end to keep measuring units you already assigned. | The assignment end |
+
+All three are optional, entered in UTC to the second. Leave a field empty to keep its default. The line under the fields shows the window in effect, so you can check what the results will count before you save.
+
+A unit first exposed before the start is excluded entirely. Traffical doesn't move its start to the window start, because its earlier exposure may already have changed its behaviour. Units with no events inside the window still count, as non-converters.
+
+Typical reasons to set a window:
+
+- **Something changed partway through.** If tracking, identity or the variant itself changed after launch, start the window at the change so the results only count units that saw the final setup.
+- **Exposure and outcome on different clocks.** Assign for 14 days, then keep counting events for 90 more to measure retention for everyone you assigned.
+- **A clean end.** Stop counting new units at a fixed time while the policy keeps serving, for example before a sale that would distort the comparison.
+
+<Warning>
+Moving the window after you've looked at the results is a way to pick the answer you want. Decide the window from what happened to the policy, not from what the numbers say, and write that down in the reason.
+</Warning>
+
+**Saving a change.** **Save window** asks for a reason. The reason goes to the policy's activity history and to its [decision log](/dashboard/decisions) as an "Analysis window changed" entry with the old and new window. Every later decision record also states the window its numbers were computed under. **Reset to default** empties all three fields; save to apply it.
+
+**When results update.** For a running policy a new analysis starts as soon as you save. A paused or completed one is re-analysed shortly after. Until then, results carry a **Custom window · applies from the next analysis** badge. Afterwards the badge reads **Custom window**, on the Measurement tab, on the Overview's primary metric, and on the change page. Hover it to see the window in UTC.
+
+**What follows the window.** Everything that describes the analysed units uses the same window:
+
+- The sample-ratio check in [Policy health](/dashboard/policy-health) counts the same units as the results.
+- CUPED's pre-period ends at the window start.
+- With an entry point, a unit qualifies only if it reached the entry point before **Count events until**.
+- [Measurement progress](/statistics/measurement-progress) stops estimating time remaining once the assignment end has passed, since no more units can enter.
+
+**Limits.** The assignment start can't be earlier than the policy's own start, the assignment end must be after the start, and **Count events until** can't be before the assignment end. The window isn't offered on adaptive policies, because the optimizer learns from the same results and a window would change what it learns from.
+
+### Results after a policy stops
+
+Data usually keeps arriving after a policy stops serving, especially when your warehouse loads events in batches. When an A/B policy completes, Traffical runs one final analysis after your data has caught up. How long it waits follows the delivery timing under **Project Settings → Policy health**: one delivery lag plus one delivery interval, or an hour when events stream in. If **Count events until** is later than the completion, it waits until then. The final numbers appear on the Measurement tab, and the decision log gets a **Final analysis** entry.
+
+When you resume a paused policy, it's re-analysed so that events from units it had already assigned during the pause are counted.
+
+## Bucket range
+
+A readout of the policy's eligible bucket range and the share of traffic it represents.
+
+## Live edits
+
+Choose which parts of the policy may change while it's running or paused: **targeting conditions**, **allocation values**, or neither. Everything else is fixed at start so measurement stays comparable. The traffic split always moves through the rollout controls. A live edit asks for a reason and writes it to the audit trail and, by default, the decision log. Feature-flag On policies and rollouts are created with targeting open. A/B tests are created with nothing open.
+
+## Health checks
+
+Choose which [health checks](/dashboard/policy-health) notify for this policy, on top of the project's settings. Each check is **Inherit**, **Alert**, **Monitor** (badge and history, no notification) or **Off**. A policy you operate by hand, such as a flag's policy, a rollout or a QA policy targeting one user, may see no assignments for hours. Those are created with *Assignments flowing* and *Per-allocation floor* at Monitor. Delivery timing stays a project setting under **Project Settings → Policy health**.
+
+## Targeting conditions
+
+The eligibility rules, matched against the context your SDK passes at decision time. Conditions combine with AND. You can edit them in draft, and while running when the policy's live edits allow it. See [targeting conditions](/concepts/policies#targeting-conditions) for the operators.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Layers & policies" icon="layer-group" href="/dashboard/layers-and-policies">
+    The rest of the policy page: verdict, results, diagnostics, history.
+  </Card>
+  <Card title="Significance" icon="square-root-variable" href="/statistics/significance">
+    How the results inside the window are computed.
+  </Card>
+  <Card title="Measurement progress" icon="ruler" href="/statistics/measurement-progress">
+    Targets, detectable effects, and runtime estimates.
+  </Card>
+  <Card title="Decision log" icon="clock-rotate-left" href="/dashboard/decisions">
+    Where window changes and final analyses are recorded.
+  </Card>
+</CardGroup>

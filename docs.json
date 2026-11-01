@@ -83,6 +83,7 @@
               "dashboard/overview",
               "dashboard/parameters",
               "dashboard/layers-and-policies",
+              "dashboard/policy-settings",
               "dashboard/changes",
               "dashboard/events",
               "dashboard/definitions",

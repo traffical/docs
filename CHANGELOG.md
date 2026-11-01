@@ -595,3 +595,32 @@ Read-tools table gains `list_attributes` (`attributes:read`). Glossary gains **A
 New **Attributes** manifest section: `attributes-list.png`, `condition-editor-attributes.png`.
 
 **Sources:** the platform's attribute validation, operator map, system-attribute catalog, bundle builder (`$unit_key` / `$env` / registry-driven logging), discovery rollup, and MCP tool source; the browser SDK's auto-attributes plugin and README; the React Native `device-info` module and README; the iOS `DefaultDeviceInfoProvider`; the CLI README, config schema, `push` / `pull` / `status` / `generate-types` commands and context codegen; the SDK spec changelog for the field-lookup rule; the internal context-attributes design doc for intent.
+
+---
+
+## Policy settings and the analysis window — 2026-11-01
+
+### Goal
+Document the per-policy analysis window and the behaviour that shipped with it: when a policy counts as started and completed, the final analysis after completion, re-analysis after a resume, and the corrected rollout warm-up. Every claim was checked against the platform source; scheduling details are described by what the user sees, not by how the platform schedules them.
+
+### Edits
+
+#### `dashboard/policy-settings.mdx` (new) + `docs.json`
+**Before:** The Settings tab was a bullet list at the end of the layers & policies page, with no room for the analysis window.
+**After:** A dedicated page after Layers & policies. Covers the policy key; the Analysis section (CUPED and sequential overrides, entry point with its confirmation on live policies, and the analysis window: the three UTC fields and their defaults, exclusion rather than re-anchoring of units first exposed before the start, zero-event units still counted, typical uses, the warning against choosing the window from the results, the required reason and its activity and decision-log records, when results update and the **Custom window** badge, what follows the window: SRM, CUPED pre-period, entry-point qualification, measurement progress; and the limits, including static policies only); results after a policy stops (one final analysis once data has caught up, timed by the project's delivery settings; re-analysis after a resume); bucket range, live edits, health checks and targeting moved over from the old list.
+
+#### `dashboard/layers-and-policies.mdx`
+The Settings tab section now summarises and links to the new page. The Measurement tab mentions the **Custom window** badge. Policy actions state that a completed policy can't be started again, the final analysis, re-analysis on resume, and what **Running for** / **Ran for** measure.
+
+#### `experimentation/rollouts.mdx`
+**Before:** Warm-up windows were described as a wait before health evaluation, with a 60-minute window in the example.
+**After:** Warm-up gates the next step only when health checks are configured; without them the rollout steps once per window. The default ramp window is 15 minutes. The rollout card's effective cadence and **Next Step** / **Due now** are described.
+
+#### `statistics/measurement-progress.mdx`
+Time remaining with an analysis window: the sample is the windowed units, no estimate once the assignment end has passed, and the estimate restarts after a window change.
+
+#### `reference/glossary.mdx`, `images/placeholders/README.md`
+Glossary gains **Analysis window**. Manifest gains `policy-settings-analysis-window.png`.
+
+**Sources:** the platform's policy settings page and analysis-window settings row, the analysis-window validation and resolution, the analysis run specification and aggregation filters, the writeback's provenance and final-analysis record, the recompute scheduling, the rollout scheduler and its cadence helper, and the measurement progress accrual logic.
+
