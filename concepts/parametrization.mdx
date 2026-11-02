@@ -1,0 +1,347 @@
+---
+title: "Parametrization"
+description: "Parametrize once, experiment forever. Lift the real values out of your code into typed parameters, and every later test, rollout and optimization happens without a deploy."
+---
+
+import { ParametrizeOnce } from "/snippets/parametrize-once.jsx";
+import { ShipTimeline } from "/snippets/ship-timeline.jsx";
+
+<ParametrizeOnce />
+
+Every product has decisions frozen into its code: a discount, a ranking weight, the order of the onboarding steps, the model behind an AI feature. **Parametrization** means lifting those values out of the code into typed [parameters](/concepts/parameters) that Traffical serves. You change the code once, so it reads the value instead of holding it. Every new value after that, and every test, rollout and optimization of it, happens in Traffical without another code change.
+
+That is what *parametrize once, experiment forever* means, and it's the habit that pays off more than any other in Traffical.
+
+## One number, four places
+
+Here is a discount the way most codebases hold it:
+
+```text
+storefront/checkout.ts      DISCOUNT = 10
+mobile/Cart.swift           discount = 10
+pricing-svc/rules.py        DISCOUNT_PCT = 10
+crm/templates/winback       "Save 10%"
+```
+
+Trying 15% takes four pull requests and four deploys, and one of them waits for app store review. Until the last one lands, the four places disagree. And at the end nobody can say whether 15% earns more than 10%, because every customer got the same number. So the number stays at 10 for years.
+
+## What a flag buys you, and where it stops
+
+The usual answer is a feature flag. You wrap the new behavior in `if (flag)`, deploy it dark and switch it on later. That separates the release from the deploy for one change. It does nothing for the value itself.
+
+- **A flag holds one bit.** The 15% still lives in code, next to the 10%. Trying 12% is a new code change and a new deploy.
+- **Every variant becomes a branch.** Three flags on one feature (`new_layout`, `new_copy`, `new_discount`) make eight combinations, and nobody tested most of them.
+- **Flags pile up.** Each one needs a cleanup pull request after it ships. The ones nobody cleans up stay in the code as dead branches that still run.
+
+<Tabs>
+  <Tab title="Flag-first">
+    ```yaml
+    parameters:
+      checkout.new_discount:
+        type: boolean
+        default: false
+    ```
+
+    ```typescript
+    const discount = params["checkout.new_discount"] ? 15 : 10;
+    ```
+
+    You can switch between 10 and 15. Both numbers are in the code, and any other number is a release.
+  </Tab>
+  <Tab title="Parametrized">
+    ```yaml
+    parameters:
+      pricing.discount_pct:
+        type: number
+        default: 10
+        constraints:
+          min: 0
+          max: 50
+    ```
+
+    ```typescript
+    const discount = params["pricing.discount_pct"];
+    ```
+
+    The code no longer knows any discount. Traffical can serve 10, 15 or 12, three values side by side in a test, or a different value per visitor, as long as it stays between the 0 and 50 you allowed.
+  </Tab>
+</Tabs>
+
+## Parametrize the substance
+
+To parametrize a value, you make it a typed parameter with three properties:
+
+1. **It has a type.** `string`, `number`, `boolean` or `json`, with optional constraints such as `min`, `max`, a `pattern` or a list of allowed values. Traffical enforces them on every edit, so nobody can serve a 500% discount.
+2. **Its default is today's value.** On day one nothing changes for any user. You can parametrize a whole page before you have a single test planned.
+3. **Your code reads it through the SDK.** Pass the same default in code. If Traffical is unreachable, your app keeps running on it.
+
+Booleans still have a job. Use one when the thing is really binary: a kill switch, or a feature that is either there or not. When a boolean shows or hides something, put it next to the parametrized content, not in place of it. A promo banner gets `ui.promo_banner.visible` *and* its headline, CTA and threshold as parameters. [Feature flags](/experimentation/feature-flags) covers the binary case.
+
+| | Boolean flag | Typed parameter |
+|---|---|---|
+| What it controls | On or off | Any value of its type |
+| A new value | A code change and a deploy | A config change |
+| Tests | A/B on the flag | A/B/n, value sweeps, rollouts, bandits |
+| Who can change it | An engineer, with a deploy | Anyone with access, from the dashboard, CLI or API |
+| Shipping the winner | Remove the flag in a cleanup pull request | The winner becomes the default |
+| Personalization | None | A contextual bandit picks a value per visitor |
+
+## One release, then values
+
+Over the same stretch of time, here is how many values each approach gets live, and how many deploys it costs.
+
+<ShipTimeline />
+
+<sub>Illustrative timeline. A config change reaches your apps on the SDK's next config refresh, 60 seconds by default.</sub>
+
+The lower lane is the life of one parameter. After the first deploy, every step is a config change on the same line of code:
+
+1. **Default.** The parameter ships with today's value, 10%. Nothing changes.
+2. **Canary.** A small share of users gets 15% while [health checks](/dashboard/policy-health) watch assignments, sample ratio and guardrails.
+3. **A/B test.** Traffic splits between 10% and 15%. The [measurement plan](/governance/measurement-protocols) fixes the primary metric and the guardrails, such as margin, before the test starts.
+4. **Rollout.** The winner ramps from 25% to everyone. Health checks can pause or roll back the ramp before anyone notices a problem.
+5. **New default.** Completing the [change](/concepts/changes) writes the winning value into the parameter default. There's no cleanup pull request, because there was never a flag to remove.
+6. **Next question.** The next test starts from the new default. Or hand the parameter to a [bandit](/experimentation/optimization) that keeps moving traffic toward the best value.
+
+Web, mobile and backend read the same parameter, so they always agree on which value a user gets.
+
+### The payoff compounds
+
+A flag pays off for one decision. A parameter keeps paying off. The code that reads `pricing.discount_pct` is the same for the first experiment and for the tenth: new values, a new split, a new audience or a new goal metric are all a new [policy](/concepts/policies) on the same parameter. The same holds for a group of parameters. Once checkout reads its layout, headline and discount from Traffical, every later checkout experiment, whatever it combines, needs no code change and no deploy.
+
+So the cost of parametrizing is paid once per value, while the cost of a flag is paid once per experiment. The more often a value is worth revisiting, the bigger that difference gets.
+
+## Examples across your product
+
+If a decision can be written down as a value, it can be parametrized. These are the patterns we see most.
+
+<Tabs>
+  <Tab title="Pricing">
+    ```yaml
+    pricing.discount_pct:        { type: number,  default: 10 }     # 0–50
+    pricing.free_shipping:       { type: boolean, default: false }
+    pricing.free_ship_threshold: { type: number,  default: 7500 }   # cents
+    ```
+
+    Test 10% against 15% with margin as a blocking guardrail, or sweep the free-shipping threshold. The checkout, the app, the pricing service and the win-back email read the same parameter, so they never disagree about the price.
+  </Tab>
+  <Tab title="Ranking">
+    ```yaml
+    ranking.relevance_weight:  { type: number, default: 0.7 }
+    ranking.recency_boost:     { type: number, default: 0.2 }
+    ranking.diversity_penalty: { type: number, default: 0.1 }
+    ranking.candidate_depth:   { type: number, default: 200 }
+    ```
+
+    Ranking weights are continuous, which makes them a good fit for [adaptive optimization](/experimentation/optimization). A boolean like `use_new_ranking` can only ever compare two weightings that someone hardcoded.
+  </Tab>
+  <Tab title="AI features">
+    ```yaml
+    ai.assistant.model:          { type: string, default: "balanced" }   # fast | balanced | best
+    ai.assistant.prompt_version: { type: string, default: "v12" }
+    ai.assistant.temperature:    { type: number, default: 0.3 }
+    ai.assistant.max_tokens:     { type: number, default: 800 }
+    ```
+
+    Treat a model or prompt change like any other product change. Ship the new prompt version as a value, canary it on a small share of traffic, and measure it on task success and cost.
+  </Tab>
+  <Tab title="Risk">
+    ```yaml
+    risk.decline_threshold:      { type: number,  default: 0.92 }
+    risk.review_threshold:       { type: number,  default: 0.75 }
+    risk.step_up_auth_enabled:   { type: boolean, default: false }
+    ```
+
+    A threshold trades fraud loss against good customers turned away. Move it in small steps with a [rollout](/experimentation/rollouts), keep chargebacks as a guardrail, and roll back within a minute if the approval rate drops.
+  </Tab>
+  <Tab title="Onboarding">
+    ```yaml
+    onboarding.step_order:         { type: json,    default: ["account", "role", "invite", "connect"] }
+    onboarding.ask_role_first:     { type: boolean, default: true }
+    onboarding.defer_data_connect: { type: boolean, default: false }
+    ```
+
+    Reorder, shorten or defer steps, and measure each version on the path to real use, such as a first order within seven days, rather than on sign-up completion.
+  </Tab>
+  <Tab title="Messaging">
+    ```yaml
+    crm.winback.delay_hours:  { type: number, default: 72 }
+    crm.winback.channel:      { type: string, default: "email" }   # email | push | sms
+    crm.winback.template:     { type: string, default: "winback_v2" }
+    crm.winback.discount_pct: { type: number, default: 10 }
+    ```
+
+    Timing, channel, template and offer are four separate questions. As parameters you can test them one at a time, or let a bandit look for the best combination.
+  </Tab>
+  <Tab title="Page layout">
+    ```yaml
+    pdp.module_order: { type: json,    default: ["gallery", "price", "reviews", "recommendations"] }
+    pdp.cta_label:    { type: string,  default: "Add to cart" }
+    pdp.sticky_cta:   { type: boolean, default: false }
+    ```
+
+    Web and app read the same parameters, so a module-order test runs on both at once, and each user sees the same order on every device.
+  </Tab>
+  <Tab title="Mobile apps">
+    ```yaml
+    reco.home.provider:      { type: string, default: "search" }   # search | ml
+    reco.home.model_version: { type: string, default: "v1" }
+    home.banner.variant:     { type: string, default: "seasonal" }
+    ```
+
+    On mobile, every code change waits for app store review and then for users to update. Values in Traffical reach installed apps on their next config refresh. Your ML team can move the home feed to a new model version by changing one value, without an app release.
+  </Tab>
+</Tabs>
+
+## What you gain
+
+<CardGroup cols={2}>
+  <Card title="Iterate without deploys" icon="clock-rotate-left">
+    The deploy happens once. Every value after that is a config change that reaches your apps within a minute.
+  </Card>
+  <Card title="Test more than two options" icon="flask">
+    A/B/n tests and value sweeps on the same parameter. 10%, 12%, 15% and 20% in one test, with no new branches.
+  </Card>
+  <Card title="Roll out a value" icon="forward">
+    Ramp a new price, weight or model version gradually, with health checks that can pause or roll back.
+  </Card>
+  <Card title="Let the optimizer tune it" icon="brain">
+    Bandits need values to choose between. A typed parameter gives them a range, and contextual bandits pick the best value per visitor.
+  </Card>
+  <Card title="One value everywhere" icon="globe">
+    Web, iOS, Android, backend services and emails read the same parameter, and each user gets the same value on all of them.
+  </Card>
+  <Card title="A kill switch for every value" icon="toggle-on">
+    Pause the policy and its users are back on the default with the next config refresh. You don't need a separate flag for that.
+  </Card>
+  <Card title="Ship by changing the default" icon="rocket">
+    The winning value becomes the new default. No cleanup pull request, no flag debt, no dead branches.
+  </Card>
+  <Card title="More people can act" icon="users">
+    Product managers, analysts and agents can change values from the dashboard, CLI or [MCP server](/tools/mcp-server), under the same approvals.
+  </Card>
+</CardGroup>
+
+## Product teams run their own experiments
+
+With flags, every experiment starts as an engineering ticket, because every new variant is code. Once the values are parameters, that dependency goes away. A product manager, analyst or designer can choose the values, the split, the audience and the goal metric in the dashboard, draft the [change](/concepts/changes) and see the results, without waiting for a sprint. Engineers stay involved where they add the most: deciding what to parametrize, and reviewing the experiments that carry real risk.
+
+Removing the deploy also removes the review that came with it, so Traffical puts the review where the experiment now happens. You decide who signs off on what:
+
+- **Building and shipping are separate permissions.** Any member can design an experiment end to end. Starting traffic, ramping it or changing a default takes the [operate permissions](/governance/roles-and-permissions#the-operate-tier), which only admins and owners hold.
+- **Teams own their parameters.** The pricing team can own the `pricing.*` group. Then only its members can edit those parameters, and its approvers sign off changes to them. Checkout, search and CRM get the same arrangement for their own values. See [teams](/governance/roles-and-permissions#teams).
+- **Risk decides how much sign-off is needed.** Traffical computes a risk class for every change. A low-risk copy test with certified metrics can start on its own. A pricing change on a backend service waits for a human, and no experiment carries traffic without an approved [measurement plan](/governance/measurement-protocols).
+- **Every decision is on record.** Each start, ramp, approval and promotion is logged with who acted and the evidence they saw. See [approvals and autonomy](/governance/approvals-and-autonomy).
+
+## AI agents can experiment, within limits you set
+
+Parametrization is also what makes experimentation safe to hand to an AI agent. Through the [MCP server](/tools/mcp-server), an agent can draft a change on existing parameters with new values, a split and a goal metric, request its start, watch the evidence and propose the next step. None of that touches your source code or needs a deploy. It also only works on parameters that already exist: the agent's tools can't add a parameter to your code. Every value you parametrize is one an agent can help you test.
+
+The limits are the same ones that apply to people, plus a few more:
+
+- **Constraints bound the values.** If `pricing.discount_pct` allows 0 to 50, no policy can serve 80%, whoever writes it. Allowed values work the same way for strings such as a model name or a layout.
+- **Scopes bound the actions.** An agent's token only sees the tools its scopes allow. A read-only connection can't change anything.
+- **Risk decides what runs and what waits.** Pausing and reverting always run, so an agent can always stop a bad experiment. By default, starting or ramping traffic runs without a person only for low-risk changes, and changing a default waits for a human at every risk level. Agent write access is off until your organization turns it on.
+- **Agents never approve.** Approvals happen only in the dashboard. When an agent's action needs sign-off, it becomes a proposal that a person reviews.
+
+The [agent skill](/tools/agent-skill) handles the engineering side: it finds the values worth parametrizing and lifts them out of your code. The MCP server handles what comes after, running experiments on those parameters inside your governance.
+
+## What still needs a deploy
+
+Parametrization removes most deploys, not all of them. Know where the line is.
+
+<Warning>
+**Adding the parameter is a code change.** The first place that reads it ships like any other code, and on mobile that means an app release. That is the "once".
+</Warning>
+
+- **Values your code can't interpret.** A parameter can only choose between behaviors the code already has. If `pdp.layout` gets a new value `"carousel"`, the carousel component has to exist first. Values the code uses directly, such as copy, thresholds, weights and prompt text, need nothing new.
+- **Older app versions.** An installed app only knows the parameters and values of the build it came from. Keep allowed values backward compatible, and make every code default a value that build supports.
+- **Instant changes.** A config change reaches SDKs on their next refresh, 60 seconds by default. If a kill switch has to act faster, lower `refreshIntervalMs` on the client.
+- **Measurement.** Being able to change a value doesn't mean you can learn from it. Track the outcome [event](/concepts/events-and-metrics), or define the metric in your [warehouse](/concepts/warehouse-native), before the first test.
+
+## Choosing what to parametrize
+
+Good candidates:
+
+- Values people argue about in meetings: discounts, thresholds, headlines.
+- Revenue and cost levers.
+- Ranking and recommendation weights.
+- Model, prompt and provider choices.
+- Any value hardcoded in more than one place.
+
+Leave these alone:
+
+- **Constants nobody will change**, like a protocol version or a timeout tuned once.
+- **One JSON blob for unrelated settings.** A test on one field changes all of them, and you can't constrain any field on its own. Group values that change together and split the ones that don't.
+- **A parameter for every pixel.** Ten parameters on a card nobody plans to test add overhead, not options.
+
+<Tip>
+The test for any value: could someone who isn't an engineer change it from the dashboard today? If not, it isn't parametrized yet.
+</Tip>
+
+## Parametrize an existing value
+
+<Steps>
+  <Step title="Name it after what it is">
+    `pricing.discount_pct`, not `new_discount_enabled`. Dot notation keeps related parameters together. See [namespaces](/concepts/parameters#namespaces).
+  </Step>
+  <Step title="Define it with today's value as the default">
+    ```yaml .traffical/config.yaml
+    parameters:
+      pricing.discount_pct:
+        type: number
+        default: 10
+        constraints:
+          min: 0
+          max: 50
+    ```
+
+    Then run `npx @traffical/cli push`. Nothing changes for any user, because the default is the value they already get.
+  </Step>
+  <Step title="Replace the literal with an SDK read">
+    Every surface reads the same key, with the same default in code:
+
+    <CodeGroup>
+    ```tsx React
+    const { params } = useTraffical({
+      defaults: { "pricing.discount_pct": 10 },
+    });
+    const discount = params["pricing.discount_pct"];
+    ```
+
+    ```swift iOS
+    let discount = traffical.double("pricing.discount_pct", default: 10)
+    ```
+
+    ```python Pricing service
+    decision = client.decide(
+        {"userId": user_id},
+        {"pricing.discount_pct": 10},
+    )
+    discount = decision.assignments["pricing.discount_pct"]
+    ```
+    </CodeGroup>
+  </Step>
+  <Step title="Track the outcome">
+    Fire the event where the outcome happens, such as `track("purchase", { value: orderTotal })` on the order confirmation, so the first test has something to measure.
+  </Step>
+</Steps>
+
+To do this across a whole codebase, the [agent skill](/tools/agent-skill) audits the repo, proposes a short ranked list of values worth parametrizing, with defaults equal to today's values, and makes the replacements for you.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Parameters" icon="sliders" href="/concepts/parameters">
+    Types, defaults, constraints and config-as-code.
+  </Card>
+  <Card title="Feature flags" icon="flag" href="/experimentation/feature-flags">
+    Where a boolean is still the right tool.
+  </Card>
+  <Card title="Optimization" icon="brain" href="/experimentation/optimization">
+    Let bandits tune a parametrized value.
+  </Card>
+  <Card title="Agent skill" icon="robot" href="/tools/agent-skill">
+    Have your coding agent find and parametrize values.
+  </Card>
+</CardGroup>

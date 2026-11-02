@@ -29,6 +29,7 @@
             "icon": "book",
             "pages": [
               "concepts/terminology",
+              "concepts/parametrization",
               "concepts/parameters",
               "concepts/attributes",
               "concepts/layers",

@@ -50,14 +50,7 @@ Once it's installed, just talk to your agent normally — it pulls the skill in 
 
 The skill is built around one core habit, and it's the one that pays off the most: **parametrize the real values — don't just wrap them in on/off flags.**
 
-A boolean feature flag only buys you on/off. A typed [parameter](/concepts/parameters) buys you on/off **and every value in between** — controllable and experimentable forever, from the [dashboard](/dashboard/parameters) or via the API, without another code change. This is the "parametrize once, control forever" idea: the moment a value lives in Traffical, anyone — an engineer, a PM in the dashboard, or an automated optimizer — can change it, ramp it, or test it.
-
-| | Boolean flag | Typed parameter |
-|--|--------------|-----------------|
-| What it controls | on / off | on/off **and any value** |
-| Change without a deploy | toggle only | every value (copy, price, threshold, color…) |
-| Experiment | A/B the flag | A/B/n, gradual [rollouts](/experimentation/rollouts), bandit [optimization](/experimentation/optimization) on the value |
-| Who can change it | an engineer + a deploy | anyone, from the dashboard or API |
+A boolean feature flag only buys you on/off. A typed [parameter](/concepts/parameters) buys you on/off **and every value in between**, controllable and testable from the [dashboard](/dashboard/parameters) or the API without another code change. That is *parametrize once, experiment forever*. [Parametrization](/concepts/parametrization) explains the idea in full, with examples across pricing, ranking, AI features and mobile apps.
 
 **Example — a "free shipping this weekend" banner:**
 
