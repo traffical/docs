@@ -101,9 +101,15 @@ Moving the window after you've looked at the results is a way to pick the answer
 
 **Limits.** The assignment start can't be earlier than the policy's own start, the assignment end must be after the start, and **Count events until** can't be before the assignment end. The window isn't offered on adaptive policies, because the optimizer learns from the same results and a window would change what it learns from.
 
+### Data as of
+
+When a policy reads warehouse tables that load in batches, its results are computed through the last point every one of those tables has delivered. Units first exposed after that point are not counted yet, and neither are events after it, so a table that lands a day later than the others holds the whole policy at the older date instead of counting its missing days as zeros. The results then show a **Data as of** badge with that point in UTC, and move forward once every table has caught up.
+
+Which tables load in batches, and when, is set per definition under [Delivery](/dashboard/pipeline#delivery). Tables that stream never hold results back. If a table misses its expected deliveries, the **Source delivery** check in [Policy health](/dashboard/policy-health) flags it and the previous results stay on the page.
+
 ### Results after a policy stops
 
-Data usually keeps arriving after a policy stops serving, especially when your warehouse loads events in batches. When an A/B policy completes, Traffical runs one final analysis after your data has caught up. How long it waits follows the delivery timing under **Project Settings → Policy health**: one delivery lag plus one delivery interval, or an hour when events stream in. If **Count events until** is later than the completion, it waits until then. The final numbers appear on the Measurement tab, and the decision log gets a **Final analysis** entry.
+Data usually keeps arriving after a policy stops serving, especially when your warehouse loads events in batches. When an A/B policy completes, Traffical runs one final analysis after your data has caught up. How long it waits follows the slowest table the policy reads: one delivery lag plus one delivery interval of its [delivery setting](/dashboard/pipeline#delivery), or an hour when everything streams. If **Count events until** is later than the completion, it waits until then. If a table still hasn't delivered through that point when the time comes, the final analysis waits for it, for at most a week. The final numbers appear on the Measurement tab, and the decision log gets a **Final analysis** entry.
 
 When you resume a paused policy, it's re-analysed so that events from units it had already assigned during the pause are counted.
 

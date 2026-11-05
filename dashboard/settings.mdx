@@ -59,7 +59,8 @@ Every pipeline starts on **Default** — the platform cadence, shown in parenthe
 
 | Pipeline | What it does | Default | Intervals you can pick |
 |----------|--------------|---------|------------------------|
-| **Analysis (lite)** | Recomputes measured results and policy health | Automatic — adaptive policies are analyzed more often than A/B tests | 5, 10, 15, 20, 30, 60 min |
+| **Analysis (lite)** | Keeps assignments and policy health current | Automatic — adaptive policies are analyzed more often than A/B tests | 5, 10, 15, 20, 30, 60 min |
+| **Analysis (full)** | Recomputes metric results | 2 h | 2, 4, 6, 12, 24 h, with an optional start time (UTC) |
 | **Dashboard rollup** | Refreshes the aggregates behind dashboard charts | 5 min | 5, 10, 15, 20, 30, 60 min |
 | **Assignment extract** | Extracts fresh assignment data — the shared input that rollups and analysis read | 5 min | 5, 10, 15, 20, 30, 60 min |
 | **Fact extract** | Runs your fact definitions' SQL against the warehouse | 15 min | 15, 30 min; 1, 2, 4, 6, 12 h |
@@ -68,6 +69,8 @@ Every pipeline starts on **Default** — the platform cadence, shown in parenthe
 | **Usage metering** | Measures billable usage | 6 h | 1, 2, 3, 4, 6, 12, 24, 48 h |
 
 One consistency rule is enforced: the **assignment extract** can't run less often than **dashboard rollup** or **analysis** when those also have explicit intervals — the extract feeds both, and a coarser extract would starve them of fresh data. The card flags the conflict and blocks the save until you resolve it.
+
+With an explicit **Analysis (full)** interval you can also set **Starting at (UTC)**: runs happen at that time and every interval after it. For daily batches, pick a time after they usually land. A batch that lands later still gets its own run once it arrives, at most once an hour.
 
 Usage metering feeds [usage and billing](/dashboard/usage-and-billing); a longer interval only means the usage numbers refresh less often.
 

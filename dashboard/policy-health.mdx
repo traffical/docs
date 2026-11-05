@@ -33,7 +33,7 @@ Open any policy detail page:
 The hero is hidden in `draft` state — the readiness checklist covers that
 phase.
 
-## The six checks (v1)
+## The checks
 
 | Check                       | Sources                                                                        | Pass / Warn / Fail                                                                          |
 | --------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
@@ -43,6 +43,9 @@ phase.
 | **Data freshness**          | Pipeline rollup `computedAt` + watermarks                                      | Pass: < 30 min. Warn: < 6 h. Fail: > 24 h.                                                  |
 | **Guardrail breach**        | Latest `MetricSnapshot.allocations[].guardrailStatus`                          | Pass: all passing. Warn: insufficient data. Fail: any failing.                              |
 | **Optimization eligible**   | Last optimization run + `learningState.lastUpdated` (adaptive policies only)   | Pass: last run updated / `no_change`. Warn: `insufficient_exposures` / `too_soon`. Fail: errored, or no run in last 24 h. |
+| **Source delivery**         | How far each batch-delivered source the policy reads has landed, against that source's [delivery setting](/dashboard/pipeline#delivery) | Pass: every batch source on schedule. Warn: a delivery is overdue. Fail: the tolerated number of deliveries missed. Not graded when every source streams. |
+
+**Source delivery** covers the warehouse tables a policy reads: its assignments, its entry point's source, and every fact its metrics use, including a ratio's denominator. Results are computed through the last point every one of them has delivered (shown as **Data as of** on the results, see [Policy settings](/dashboard/policy-settings#data-as-of)), so a late table holds the results back instead of reading its missing days as zeros. While the check is failing, the previous results stay on the page and the check says which ones were kept.
 
 ### Adaptive SRM semantics
 

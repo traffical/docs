@@ -85,20 +85,30 @@ Manual runs don't disturb the regular cadence — the next scheduled run proceed
 
 ## Data Freshness
 
-The **Data Freshness** page shows, per assignment and fact definition, how current the computed data is.
+The **Data Freshness** page shows, per assignment and fact definition, how far its source data has landed and whether that is on schedule.
 
 <Frame caption="Data Freshness page">
-  <img src="/images/placeholders/data-freshness.png" alt="Data freshness table with per-definition watermarks and age" />
+  <img src="/images/placeholders/data-freshness.png" alt="Data freshness table with data-through, lag, last run and delivery per definition" />
 </Frame>
 
-Each definition carries a **delivered-until** watermark: data is considered delivered up to that timestamp, and the next analysis run resumes ingesting from there (with an overlap, so late data near the mark is still caught). A stalled mark doesn't lose data — each run re-reads a widening window until the mark moves again, which costs compute rather than correctness. The **Age** column colors the gap — green under 15 minutes, amber up to two hours, red beyond.
+| Column | What it shows |
+|--------|---------------|
+| **Data through** | The newest row of the source that has reached Traffical. |
+| **Lag** | How old the last complete period is, coloured against the definition's delivery: green on schedule, amber when a delivery is overdue, red when the tolerated deliveries were missed. Hover for when the next delivery is expected. |
+| **Last run** | When an analysis run last processed the definition. |
+| **Delivery** | How the source is expected to land (see below). |
+| **Strategy** | **auto**: runs advance the mark. **manual**: you set it, using the pencil. |
 
-The **Strategy** column shows how the watermark advances:
+Definitions that no running policy reads show **not in use** instead of a lag, because nothing advances them. Draft and deprecated definitions are hidden unless you tick **Show draft and deprecated**. A new definition shows no data until its first run.
 
-- **auto** — successful analysis runs advance it. If runs fail, the watermark holds where it is; a mark that stops moving is your cue to check **Workflow Runs** for the failure.
-- **manual** — the mark is set explicitly rather than advanced by runs. Manual marks show a pencil so you can adjust the timestamp yourself.
+### Delivery
 
-A new definition has no freshness mark until its first successful analysis run.
+Each definition either inherits the project's delivery timing (**Project Settings → Policy health**) or has its own. Set it with the pencil in the **Delivery** column, or from the definition's page.
+
+- **Streaming**: rows land within minutes. Streaming sources are not graded for lag and never hold results back.
+- **Batch**: a job loads one period at a time. Choose the cadence (hourly to daily), how long after a period ends its batch usually lands, how many missed deliveries to tolerate, and how far rows may run past the period end (a daily batch that includes a few rows from just after midnight).
+
+Delivery decides two things. Results are computed through the last period every batch source of a policy has delivered, and a source that misses its expected delivery is flagged by the **Source delivery** check in [Policy health](/dashboard/policy-health). A daily table that usually lands by 09:00 UTC for the previous day, for example, is a daily batch landing 9 hours after the day.
 
 If [SDK event sync](/dashboard/settings#sdk-configuration) is enabled for your warehouse, a sources card at the top shows sync health — every definition reading from the synced tables can only be as fresh as the sync itself.
 
@@ -106,7 +116,7 @@ If [SDK event sync](/dashboard/settings#sdk-configuration) is enabled for your w
 
 If a metric looks stale on the [Metrics](/dashboard/metrics) page or a policy's [measurement progress](/statistics/measurement-progress) has stopped advancing:
 
-1. Check **Data Freshness** — is the relevant definition's watermark moving?
+1. Check **Data Freshness**: is the relevant definition's **Data through** moving, and is its **Lag** within its delivery? A table that is a day behind the others holds every policy that reads it at the older date.
 2. If not, open **Workflow Runs** filtered to `failed`/`partial` and look at the failing step's error and rendered SQL.
 3. Common causes: warehouse credential rotated, table renamed in a migration, column changed type.
 
@@ -119,6 +129,7 @@ Each workflow kind has a default cadence:
 | Workflow | Default | Override range |
 |----------|---------|----------------|
 | Analysis | Auto — every 5 minutes for projects with adaptive policies, every 15 minutes for A/B-only projects | 5 min – 1 h |
+| Analysis (full) | Every 2 h | 2 h – 24 h, with a start time |
 | Dashboard rollup | 5 min | 5 min – 1 h |
 | Assignment extract | 5 min | 5 min – 1 h |
 | Fact extract | 15 min | 15 min – 12 h |
@@ -127,6 +138,8 @@ Each workflow kind has a default cadence:
 | Usage metering | 6 h | 1 h – 48 h |
 
 Adaptive policies get the faster analysis lane by default because the optimizer acts on the results; A/B results only need to be as fresh as your reading of them.
+
+**Analysis** keeps assignments and policy health current. **Analysis (full)** recomputes metric results. When your data arrives in daily batches, most full runs in a day recompute the same numbers, so set **Analysis (full)** to every 24 hours with a start time after your batches usually land. If a batch arrives after that time, an extra full run starts once it has landed, at most once an hour.
 
 Override any cadence in **Settings → Pipeline scheduling** ([Settings](/dashboard/settings)). Longer intervals cut warehouse cost; shorter intervals keep dashboards fresher. One guard applies: the assignment extract feeds analysis and dashboard rollups, so it can't be scheduled less often than either of them.
 
