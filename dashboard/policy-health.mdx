@@ -1,6 +1,6 @@
 ---
 title: "Policy health"
-description: "Diagnostics for running policies: assignments flowing, sample ratio, per-allocation floors, freshness, guardrails, and optimizer eligibility."
+description: "Diagnostics for running policies: assignments flowing, sample ratio, per-allocation floors, freshness, guardrails, optimizer eligibility, and source delivery."
 ---
 
 The **Policy health** view tracks the runtime behaviour of every running policy
@@ -38,12 +38,14 @@ phase.
 | Check                       | Sources                                                                        | Pass / Warn / Fail                                                                          |
 | --------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
 | **Assignments flowing**     | Hourly per-allocation assignment-event counts from the pipeline rollup         | Pass: any in last 15 min. Warn: none in 1 h but some in 24 h. Fail: none in 24 h.           |
-| **Sample ratio mismatch**   | Chi-squared on observed vs expected ratios                                     | Pass: p ≥ 0.01. Warn: 0.001 ≤ p < 0.01. Fail: p < 0.001 **and** > 0.1 pp absolute deviation. |
+| **Sample ratio mismatch**   | Chi-squared on observed vs expected ratios of enrolled units, and of qualified units when an entry point is attached | Pass: p ≥ 0.01. Warn: 0.001 ≤ p < 0.01. Fail: p < 0.001 **and** > 0.1 pp absolute deviation. Reports the worse of the two splits. |
 | **Per-allocation floor**    | Lifetime totals per allocation                                                 | Pass: all ≥ floor. Warn: some below floor. Fail: any at zero while others are healthy.      |
 | **Data freshness**          | Pipeline rollup `computedAt` + watermarks                                      | Pass: < 30 min. Warn: < 6 h. Fail: > 24 h.                                                  |
 | **Guardrail breach**        | Latest `MetricSnapshot.allocations[].guardrailStatus`                          | Pass: all passing. Warn: insufficient data. Fail: any failing.                              |
 | **Optimization eligible**   | Last optimization run + `learningState.lastUpdated` (adaptive policies only)   | Pass: last run updated / `no_change`. Warn: `insufficient_exposures` / `too_soon`. Fail: errored, or no run in last 24 h. |
 | **Source delivery**         | How far each batch-delivered source the policy reads has landed, against that source's [delivery setting](/dashboard/pipeline#delivery) | Pass: every batch source on schedule. Warn: a delivery is overdue. Fail: the tolerated number of deliveries missed. Not graded when every source streams. |
+
+**Sample ratio mismatch** compares the enrolled units of each allocation with the traffic split. When the policy has an [entry point](/dashboard/policy-settings#entry-point), it also compares the qualified units, with the same thresholds, and reports whichever split is worse. Its summary names the split that failed. The qualified split can fail while the enrolled split passes. That happens when the change makes units in one allocation more or less likely to reach the entry point, or, on an exposure entry point, when one allocation logs fewer exposures than the others. Either way the analysed units differ between allocations.
 
 **Source delivery** covers the warehouse tables a policy reads: its assignments, its entry point's source, and every fact its metrics use, including a ratio's denominator. Results are computed through the last point every one of them has delivered (shown as **Data as of** on the results, see [Policy settings](/dashboard/policy-settings#data-as-of)), so a late table holds the results back instead of reading its missing days as zeros. While the check is failing, the previous results stay on the page and the check says which ones were kept.
 
@@ -72,7 +74,7 @@ to a shared Slack channel.
 The dashboard reads three endpoints; the same endpoints are available via
 the API:
 
-- `GET /v1/policies/:policyId/health` — derived report (six checks + overall)
+- `GET /v1/policies/:policyId/health` — derived report (seven checks + overall)
 - `GET /v1/policies/:policyId/health/timeseries?window=24h|7d|30d|lifetime` —
   per-allocation series + SRM snapshot for the chart
 - `GET /v1/policies/:policyId/health/events?since=...&limit=...` — transition
@@ -91,7 +93,7 @@ yet, so the UI never errors during a policy's first few minutes.
    report to detect transitions, recording each status change as a
    `PolicyHealthEvent` in the same step.
 3. On request, the stored report and transition history feed a pure
-   function that maps the raw data into the six checks + an overall
+   function that maps the raw data into the seven checks + an overall
    rollup. Identical inputs produce identical outputs, so the same report
    always renders the same way.
 
