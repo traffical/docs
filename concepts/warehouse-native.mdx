@@ -97,9 +97,19 @@ facts:
       WHERE event_time BETWEEN '{{start_date}}' AND '{{end_date}}'
 ```
 
+A fact maps its columns to roles:
+
+- the entity key (here `user_id`), one for each entity the fact covers
+- the event timestamp (here `event_time`)
+- optional measures, the value columns metrics aggregate (here `order_total`)
+- optional dimensions, columns that rules and filters can use
+- optional **Policy key** and **Allocation key**, for facts where every row belongs to one experiment
+
 A single fact can power many metrics. The `orders` fact above could be aggregated into "revenue per user" (sum of `order_total`), "conversion rate" (any order), or "order count".
 
 A fact can also span multiple entities — useful when an event is associated with both a user and a company.
+
+Map **Policy key** when every row belongs to one experiment, typically SDK exposure events stored in your warehouse. The fact is then [policy-scoped](/dashboard/definitions#policy-scoped-facts): when a policy's analysis reads it, as an entry point or through a metric, only that policy's rows count. Without the role every row counts, which is right for ordinary events such as orders or product views. **Allocation key** is valid only together with **Policy key**. With it mapped, an entry point on the fact is exposure-backed: the policy shows the as-exposed warning and counts units whose exposure carried a different allocation than their assignment.
 
 ### Metric definitions
 

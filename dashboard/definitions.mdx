@@ -79,8 +79,32 @@ In the editor:
 3. **Pick the warehouse connection**
 4. **Write the SQL.** It must return the entity key, an `event_time`, and any value columns you want to aggregate (e.g. `order_total`).
 5. **Preview** — sample query against the warehouse to verify columns and types.
+6. **Map the columns** under **Column Mapping**: the timestamp, an entity key for each entity, and any measures or dimensions. If every row belongs to one experiment, also map the optional **Policy identity** group. See [Policy-scoped facts](#policy-scoped-facts).
 
 A fact can be joined to multiple entities (a row tied to both `user_id` and `company_id`) — useful for SaaS metrics measured at the user level but randomized at the company level.
+
+### Policy-scoped facts
+
+Most facts record what units do, such as product views or checkouts. A row means the same thing whatever experiments are running, so every row counts for every policy that reads the fact.
+
+Some facts hold experiment events instead, where every row belongs to one experiment. The typical case is SDK exposure events stored in your warehouse. Once several experiments log into the same fact, a policy that reads every row also counts the other experiments' events. To prevent that, map the two optional columns in the **Policy identity** group:
+
+- **Policy key**: the column that holds the policy each row belongs to. A fact that maps it is **policy-scoped**, and the facts list marks it with a **Policy-scoped** badge.
+- **Allocation key**: the column that holds the row's allocation. Its values must match the policy's allocation keys. You can map it only together with **Policy key**.
+
+When a policy's analysis reads a policy-scoped fact, as its [entry point](#entry-points) or through a [metric](/dashboard/metrics), only the rows whose policy column holds that policy's key or ID count. A fact without these columns is read in full.
+
+With **Allocation key** mapped, an entry point on the fact is treated as exposure-backed. The policy's **Entry point** row shows the as-exposed warning, and the **Qualified units** card reports units whose exposure carried a different allocation than their assignment. See [Policy settings](/dashboard/policy-settings#entry-point).
+
+A few places have no single policy to narrow to, so they read every row of a policy-scoped fact:
+
+- An entry point's **Preview** counts rows from every policy.
+- An entry point's **Planning** is unavailable before launch. Once a policy runs, its observed qualification rate shows on the **Qualified units** card.
+- The volume chart on a [metric's detail page](/dashboard/metrics#the-metric-detail-page) counts rows from every policy.
+
+Changing either column on a fact that a running policy uses asks you to confirm. After you confirm, Traffical recomputes that policy's results.
+
+[`metrics.yaml`](/tools/config-file#metricsyaml) doesn't support these columns yet. Set them in the dashboard. A `traffical push` keeps the ones already set on the fact.
 
 ## Entry points
 
@@ -102,8 +126,8 @@ The list shows each entry point's entities, source fact, number of qualification
 In the editor:
 
 - **Qualification rules** pick which rows of the fact count. Without rules, every row qualifies. Choose **All conditions must match** or **Any condition may match**, then **Add condition** or **Add group** for nested conditions. Each condition compares a column of the fact with a value: equals, does not equal, is one of, is not one of, is greater than, is at least, is less than, is at most, is present, is missing. The operators offered depend on the column's type, and a row with no value never matches a comparison. A summary under the rules says in words which rows qualify.
-- **Preview** counts, over the last 7, 14 or 28 days, how many rows match the rules and how many distinct units they cover, with a sample of units and their earliest qualifying time. It runs only when you click **Run preview**. It doesn't look at assignments, so it shows what the rules select, not how many test units will qualify.
-- **Planning** shows how many qualified units the entry point produces per day and week, computed nightly from history. Change planning uses this rate to size experiments that measure from the entry point.
+- **Preview** counts, over the last 7, 14 or 28 days, how many rows match the rules and how many distinct units they cover, with a sample of units and their earliest qualifying time. It runs only when you click **Run preview**. It doesn't look at assignments, so it shows what the rules select, not how many test units will qualify. On a [policy-scoped fact](#policy-scoped-facts) it counts rows from every policy.
+- **Planning** shows how many qualified units the entry point produces per day and week, computed nightly from history. Change planning uses this rate to size experiments that measure from the entry point. On a policy-scoped fact, planning is unavailable before launch.
 - **Relevant surfaces** maps the milestone to the [surfaces](/concepts/surfaces) it belongs to. It helps the entry point show up as a candidate for changes on those surfaces and never changes what qualifies.
 - **Run & Validate** checks the source fact, the rule columns and their types. **Activate** makes a draft available to policies and changes.
 

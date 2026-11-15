@@ -27,7 +27,7 @@ By default, a policy's results count every enrolled unit from the moment it was 
 
 Use one when most assigned units never get near the thing you changed. A recommendation widget on the product page only matters to visitors who open a product page. Counting everyone else dilutes the effect and makes the test take longer to reach significance.
 
-**How a unit qualifies.** A unit qualifies at its first row of the entry point's source fact that matches the entry point's qualification rules, at or after its first assignment. With no rules, any row of the fact qualifies. Units that never qualify are left out of the results. For a unit that qualifies:
+**How a unit qualifies.** A unit qualifies at its first row of the entry point's source fact that matches the entry point's qualification rules, at or after its first assignment. With no rules, any row of the fact qualifies. If the source fact is [policy-scoped](/dashboard/definitions#policy-scoped-facts), only its rows for this policy count, so another experiment's events in the same fact can't qualify this policy's units. Units that never qualify are left out of the results. For a unit that qualifies:
 
 - its metrics count events from the moment it reached the entry point, not from its first assignment;
 - its allocation is still the one it was first assigned to;
@@ -43,18 +43,20 @@ Pick a milestone your change can't influence. If the change makes units more or 
 
 - **None — measure from first assignment**, the default.
 - **SDK exposure (this policy)**, when your SDK reports exposures for this policy. Units count from the moment they were actually shown the policy. Exposure depends on your implementation and may differ between allocations, so the row adds a note that this is an as-exposed analysis.
-- Each active fact for the entity this policy randomizes on. Picking one uses every row of that fact. Facts already used by an entry point, and facts mapped to this policy's [surface](/concepts/surfaces), are listed first.
+- Each active fact for the entity this policy randomizes on. Picking one uses every row of that fact, or every row for this policy when the fact is policy-scoped. Facts already used by an entry point, and facts mapped to this policy's [surface](/concepts/surfaces), are listed first.
+
+If you store SDK exposures in your warehouse and build your own exposure fact, map its **Policy key** and **Allocation key** columns before you pick it. The fact is then policy-scoped and the entry point is exposure-backed, so the row adds the same as-exposed note as **SDK exposure (this policy)**. Any fact that maps **Allocation key** gets that note. An entry point on a policy-scoped fact can't be planned before launch, and its preview in the catalog counts rows from every policy. Its qualification rate shows on the **Qualified units** card once the policy runs.
 
 To qualify on specific rows only, for example product views from the iOS app, use **Create with rules…**. It creates a new entry point with qualification rules and attaches it. **Edit rules** changes the rules of the attached one, and **View in catalog** opens it under Definitions. Entry points with rules that you built in the catalog are attached through a [change's](/dashboard/changes) measurement plan, which lists every active entry point.
 
-Once attached, the row spells out when the analysis starts, for example "Analysis starts at the first Product viewed fact at or after first assignment."
+Once attached, the row spells out when the analysis starts, for example "Analysis starts at the first Product viewed fact at or after first assignment." For a policy-scoped fact, it names the first row for this policy.
 
 **Changing it on a live policy.** On a running or paused policy, attaching, changing or removing the entry point asks you to confirm, because it changes the results already shown: who is counted, when each unit's measurement starts, and every rate. After you confirm, a new analysis starts right away and recomputes qualification over the whole run. Removing it brings back every enrolled unit. On a policy that a change operates, the entry point is set through the change once its phase has started.
 
 **What you see afterwards.**
 
 - The Overview names the entry point and its version.
-- The Diagnostics tab gets a **Qualified units** card: the qualification rate overall and per allocation, qualified out of enrolled units, a sample-ratio check on the qualified units, and time to qualification (p50, p75, p90). When the entry point was planned with a qualification rate, the card compares it with the observed rate and warns when the observed rate is well below plan.
+- The Diagnostics tab gets a **Qualified units** card: the qualification rate overall and per allocation, qualified out of enrolled units, a sample-ratio check on the qualified units, and time to qualification (p50, p75, p90). When the entry point was planned with a qualification rate, the card compares it with the observed rate and warns when the observed rate is well below plan. For an exposure-backed entry point, the card also counts the units whose exposure carried a different allocation than their assignment, and warns when that share is large.
 - [Measurement progress](/statistics/measurement-progress) counts qualified units instead of enrolled ones, and says so.
 - If qualification can't be computed, for example because the entry point was deprecated or its fact no longer maps this policy's entity, Traffical doesn't fall back to unfiltered results. It keeps the last successful results and the card says when it last succeeded.
 

@@ -158,7 +158,7 @@ Emitted when a unit actually experiences its allocation (a parameter value is re
 ## F
 
 ### Fact definition
-SQL plus column mappings for an outcome data source in your warehouse. Powers warehouse-native metrics. → [Warehouse-native](/concepts/warehouse-native#fact-definitions)
+SQL plus column mappings for an outcome data source in your warehouse. Powers warehouse-native metrics and [entry points](#entry-point). Besides the entity keys and timestamp, it can map optional Policy key and Allocation key columns. Mapping Policy key makes it a [policy-scoped fact](#policy-scoped-fact). → [Warehouse-native](/concepts/warehouse-native#fact-definitions)
 
 ### Feature flag
 A boolean parameter controlled by a policy. Conceptually identical to any other parameter type but with conventional rollout patterns. → [Feature flags](/experimentation/feature-flags)
@@ -247,6 +247,9 @@ An adaptive policy where one bandit is learned per entity (product, merchant, et
 
 ### Policy
 The rule that overrides parameter values for selected users within a layer. → [Policies](/concepts/policies)
+
+### Policy-scoped fact
+A [fact definition](#fact-definition) that maps a Policy key column because every row belongs to one experiment, such as SDK exposure events stored in your warehouse. When a policy's analysis reads it, as its [entry point](#entry-point) or through a metric, only that policy's rows count. With Allocation key also mapped, an entry point on it is exposure-backed and carries the as-exposed warning. → [Definitions](/dashboard/definitions#policy-scoped-facts)
 
 ### Project
 The unit of experimentation — contains parameters, layers, policies, events, definitions, hashing configuration. → [Projects & environments](/concepts/projects-and-environments)
